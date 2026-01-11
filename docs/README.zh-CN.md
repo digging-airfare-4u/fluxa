@@ -54,10 +54,11 @@ cp .env.example .env
 ```env
 NEXT_PUBLIC_SUPABASE_URL=你的_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=你的_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=你的_service_role_key
-AI_API_KEY=你的_openai_api_key
-AI_MODEL=gpt-4o-mini
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=你的_turnstile_site_key
 ```
+
+AI API 密钥在 Supabase Edge Function Secrets 中配置（Dashboard > Edge Functions > Secrets）。
 
 ### 开发
 

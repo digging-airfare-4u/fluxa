@@ -54,11 +54,20 @@ Configure `.env` with your credentials:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+<<<<<<< HEAD
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 AI_API_KEY=your_openai_api_key
 AI_MODEL=gpt-4o-mini
 ```
 
+=======
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_turnstile_site_key
+```
+
+AI API keys are configured in Supabase Edge Function Secrets (Dashboard > Edge Functions > Secrets).
+
+>>>>>>> 01ebc1c (feat: 文档补充)
 ### Development
 
 ```bash
