@@ -1,0 +1,316 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://chatcanvas.app/schemas/canvas_ops.schema.json",
+  "title": "Canvas Ops Response",
+  "description": "Schema for AI-generated canvas operations response",
+  "type": "object",
+  "required": ["plan", "ops"],
+  "additionalProperties": false,
+  "properties": {
+    "plan": {
+      "type": "string",
+      "description": "Design plan explaining the approach and intent",
+      "minLength": 1
+    },
+    "ops": {
+      "type": "array",
+      "description": "Array of canvas operations to execute",
+      "items": {
+        "$ref": "#/definitions/Op"
+      }
+    }
+  },
+  "definitions": {
+    "Op": {
+      "oneOf": [
+        { "$ref": "#/definitions/CreateFrameOp" },
+        { "$ref": "#/definitions/SetBackgroundOp" },
+        { "$ref": "#/definitions/AddTextOp" },
+        { "$ref": "#/definitions/AddImageOp" },
+        { "$ref": "#/definitions/UpdateLayerOp" },
+        { "$ref": "#/definitions/RemoveLayerOp" }
+      ]
+    },
+    "CreateFrameOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "createFrame"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4096,
+              "description": "Canvas width in pixels"
+            },
+            "height": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4096,
+              "description": "Canvas height in pixels"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+              "description": "Background color in hex format"
+            }
+          }
+        }
+      }
+    },
+    "SetBackgroundOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "setBackground"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["backgroundType", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "backgroundType": {
+              "type": "string",
+              "enum": ["solid", "gradient", "image"],
+              "description": "Type of background"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "Color hex string or image URL"
+                },
+                {
+                  "$ref": "#/definitions/GradientConfig"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "GradientConfig": {
+      "type": "object",
+      "required": ["type", "colorStops"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["linear", "radial"],
+          "description": "Gradient type"
+        },
+        "colorStops": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["offset", "color"],
+            "additionalProperties": false,
+            "properties": {
+              "offset": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Position of color stop (0-1)"
+              },
+              "color": {
+                "type": "string",
+                "description": "Color value"
+              }
+            }
+          }
+        },
+        "coords": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x1": { "type": "number" },
+            "y1": { "type": "number" },
+            "x2": { "type": "number" },
+            "y2": { "type": "number" }
+          }
+        }
+      }
+    },
+    "AddTextOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "addText"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["id", "text", "x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^layer-[a-zA-Z0-9-]+$",
+              "description": "Unique layer identifier (format: layer-<short-uuid>)"
+            },
+            "text": {
+              "type": "string",
+              "description": "Text content"
+            },
+            "x": {
+              "type": "number",
+              "description": "X position"
+            },
+            "y": {
+              "type": "number",
+              "description": "Y position"
+            },
+            "fontSize": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 24,
+              "description": "Font size in pixels"
+            },
+            "fontFamily": {
+              "type": "string",
+              "default": "Inter",
+              "description": "Font family name"
+            },
+            "fill": {
+              "type": "string",
+              "default": "#000000",
+              "description": "Text color"
+            },
+            "fontWeight": {
+              "type": "string",
+              "enum": ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"],
+              "default": "normal",
+              "description": "Font weight"
+            },
+            "textAlign": {
+              "type": "string",
+              "enum": ["left", "center", "right"],
+              "default": "left",
+              "description": "Text alignment"
+            },
+            "width": {
+              "type": "number",
+              "minimum": 1,
+              "description": "Text box width for wrapping"
+            }
+          }
+        }
+      }
+    },
+    "AddImageOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "addImage"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["id", "src", "x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^layer-[a-zA-Z0-9-]+$",
+              "description": "Unique layer identifier (format: layer-<short-uuid>)"
+            },
+            "src": {
+              "type": "string",
+              "description": "Image URL or storage path"
+            },
+            "x": {
+              "type": "number",
+              "description": "X position"
+            },
+            "y": {
+              "type": "number",
+              "description": "Y position"
+            },
+            "width": {
+              "type": "number",
+              "minimum": 1,
+              "description": "Image width"
+            },
+            "height": {
+              "type": "number",
+              "minimum": 1,
+              "description": "Image height"
+            },
+            "scaleX": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 100,
+              "description": "Horizontal scale factor"
+            },
+            "scaleY": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 100,
+              "description": "Vertical scale factor"
+            }
+          }
+        }
+      }
+    },
+    "UpdateLayerOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "updateLayer"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["id", "properties"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Target layer identifier"
+            },
+            "properties": {
+              "type": "object",
+              "description": "Key-value pairs of properties to update",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    },
+    "RemoveLayerOp": {
+      "type": "object",
+      "required": ["type", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "removeLayer"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["id"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Layer identifier to remove"
+            }
+          }
+        }
+      }
+    }
+  }
+}

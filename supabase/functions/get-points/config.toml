@@ -1,0 +1,3 @@
+# Edge Function Configuration
+# Disable JWT verification - function handles auth via Authorization header
+verify_jwt = false
