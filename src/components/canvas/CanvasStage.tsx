@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * CanvasStage Component - Main Fabric.js canvas wrapper
+ * Requirements: 2.1, 2.2, 2.3, 7.1
+ * 
+ * Integrates with Layer Store via CanvasSynchronizer for bidirectional
+ * state synchronization between layers and canvas objects.
+ */
+
 import React, {
   useRef,
   useEffect,
@@ -11,7 +19,11 @@ import React, {
 import * as fabric from 'fabric';
 import { ContextMenu } from './ContextMenu';
 import { SelectionInfo, QuickEditHint } from './SelectionInfo';
+import { TextToolbar, TextProperties } from './TextToolbar';
 import { Minus, Plus, Maximize2, MousePointer2 } from 'lucide-react';
+import { CanvasSynchronizer, createCanvasSynchronizer } from '@/lib/canvas/canvasSynchronizer';
+import { useLayerStore } from '@/lib/store/useLayerStore';
+import { OpsPersistenceManager, createOpsPersistenceManager } from '@/lib/canvas/opsPersistenceManager';
 
 export type ToolType = 'select' | 'boxSelect' | 'rectangle' | 'text' | 'pencil' | 'image' | 'ai';
 
@@ -52,6 +64,8 @@ export interface CanvasStageProps {
 
 export interface CanvasStageRef {
   getCanvas(): fabric.Canvas | null;
+  getSynchronizer(): CanvasSynchronizer | null;
+  getPersistenceManager(): OpsPersistenceManager | null;
   exportPNG(multiplier: number): Promise<Blob>;
   selectLayer(layerId: string): void;
   selectAndCenterLayer(layerId: string): void;
@@ -67,7 +81,9 @@ export interface CanvasStageRef {
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
-const ZOOM_SENSITIVITY = 0.001;
+const ZOOM_FACTOR = 1.15; // Zoom multiplier per scroll step (15% per step)
+const ZOOM_STEP = 0.5; // Step for button clicks
+const PAN_SENSITIVITY = 1; // Sensitivity for scroll panning
 
 const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
   (
@@ -105,6 +121,14 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       y: number;
     } | null>(null);
 
+    // Text toolbar state
+    const [textToolbarInfo, setTextToolbarInfo] = useState<{
+      x: number;
+      y: number;
+      properties: TextProperties;
+    } | null>(null);
+    const selectedTextRef = useRef<fabric.IText | null>(null);
+
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{
       x: number;
@@ -118,6 +142,27 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     const historyRef = useRef<string[]>([]);
     const historyIndexRef = useRef(-1);
     const isUndoRedoRef = useRef(false);
+
+    // Canvas Synchronizer ref for Layer Store integration
+    // Requirements: 7.1, 7.3
+    const synchronizerRef = useRef<CanvasSynchronizer | null>(null);
+
+    // OpsPersistenceManager ref for unified persistence
+    // Requirements: 7.1, 7.2, 7.3
+    const persistenceManagerRef = useRef<OpsPersistenceManager | null>(null);
+
+    // Get Layer Store actions - use getState() for stable references
+    // This prevents useEffect from re-running on every render
+    const getLayerStoreActions = useCallback(() => {
+      const store = useLayerStore.getState();
+      return {
+        createLayer: store.createLayer,
+        removeLayer: store.removeLayer,
+        setSelectedLayer: store.setSelectedLayer,
+        getLayerByCanvasObjectId: store.getLayerByCanvasObjectId,
+        getLayersArray: store.getLayersArray,
+      };
+    }, []);
 
     // Save state to history
     const saveHistory = useCallback(() => {
@@ -137,36 +182,20 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       }
     }, []);
 
-    // Extract layers from canvas
+    // Extract layers from Layer Store (instead of canvas objects)
+    // Requirements: 7.1 - Layer Store is the source of truth
     const extractLayers = useCallback((): LayerInfo[] => {
-      if (!fabricRef.current) return [];
-
-      const objects = fabricRef.current.getObjects();
-      return objects.map((obj) => {
-        const id = (obj as fabric.FabricObject & { id?: string }).id || '';
-        const name = (obj as fabric.FabricObject & { name?: string }).name || obj.type || 'Unknown';
-        const layerType = (obj as fabric.FabricObject & { layerType?: string }).layerType;
-
-        let type: LayerInfo['type'] = 'rect';
-        if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
-          type = 'text';
-        } else if (obj.type === 'image') {
-          type = 'image';
-        } else if (layerType === 'background') {
-          type = 'background';
-        }
-
-        return {
-          id,
-          type,
-          name,
-          visible: obj.visible !== false,
-          locked: obj.selectable === false,
-        };
-      });
+      const layers = useLayerStore.getState().getLayersArray();
+      return layers.map((layer) => ({
+        id: layer.id,
+        type: layer.type === 'rect' ? 'rect' : layer.type === 'text' ? 'text' : 'image',
+        name: layer.name,
+        visible: layer.visible,
+        locked: layer.locked,
+      }));
     }, []);
 
-    // Notify layers change
+    // Notify layers change - now uses Layer Store
     const notifyLayersChange = useCallback(() => {
       if (onLayersChange) {
         onLayersChange(extractLayers());
@@ -195,6 +224,62 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         x: screenX + boundingRect.width * vpt[0] / 2,
         y: screenY,
       });
+
+      // Update text toolbar if text object is selected
+      if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
+        const textObj = obj as fabric.IText;
+        selectedTextRef.current = textObj;
+        setTextToolbarInfo({
+          x: screenX + boundingRect.width * vpt[0] / 2,
+          y: screenY,
+          properties: {
+            fontFamily: textObj.fontFamily || 'Inter',
+            fontSize: textObj.fontSize || 24,
+            fontWeight: textObj.fontWeight as string || 'normal',
+            fontStyle: textObj.fontStyle || 'normal',
+            fill: (textObj.fill as string) || '#000000',
+            textAlign: textObj.textAlign || 'left',
+            underline: textObj.underline || false,
+            linethrough: textObj.linethrough || false,
+          },
+        });
+      } else {
+        selectedTextRef.current = null;
+        setTextToolbarInfo(null);
+      }
+    }, []);
+
+    // Handle text property change from toolbar
+    const handleTextPropertyChange = useCallback((property: keyof TextProperties, value: string | number | boolean) => {
+      const textObj = selectedTextRef.current;
+      if (!textObj || !fabricRef.current) return;
+
+      // Update the text object
+      textObj.set(property as keyof fabric.IText, value);
+      textObj.setCoords();
+      fabricRef.current.requestRenderAll();
+
+      // Update toolbar state
+      setTextToolbarInfo(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          properties: {
+            ...prev.properties,
+            [property]: value,
+          },
+        };
+      });
+
+      // Persist the change
+      const layerId = (textObj as fabric.IText & { id?: string }).id;
+      if (layerId && persistenceManagerRef.current) {
+        persistenceManagerRef.current.updateLayer(layerId, {
+          [property]: value,
+        } as Record<string, unknown>).catch((error) => {
+          console.error('[CanvasStage] Failed to persist text property change:', error);
+        });
+      }
     }, []);
 
     // Context menu handlers
@@ -314,6 +399,25 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       fabricRef.current = canvas;
 
+      // Initialize Canvas Synchronizer for Layer Store integration
+      // Requirements: 7.1, 7.3, 2.1, 2.2, 2.3
+      const actions = getLayerStoreActions();
+      const synchronizer = createCanvasSynchronizer({
+        canvas,
+        onLayerCreate: actions.createLayer,
+        onLayerRemove: actions.removeLayer,
+        onSelectionChange: actions.setSelectedLayer,
+        getLayerByCanvasObjectId: actions.getLayerByCanvasObjectId,
+        getLayersArray: actions.getLayersArray,
+      });
+      synchronizer.initialize();
+      synchronizerRef.current = synchronizer;
+
+      // Initialize OpsPersistenceManager for unified persistence
+      // Requirements: 7.3
+      const persistenceManager = createOpsPersistenceManager(documentId, canvas);
+      persistenceManagerRef.current = persistenceManager;
+
       // Infinite canvas - no artboard, just set initial zoom
       // Center view initially
       setTimeout(() => {
@@ -328,7 +432,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         }
       }, 0);
 
-      // Selection events
+      // Selection events - now handled by synchronizer, but keep for UI updates
       canvas.on('selection:created', (e) => {
         const selected = e.selected?.[0];
         if (selected) {
@@ -356,6 +460,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           onSelectionChange(null);
         }
         setSelectionInfo(null);
+        setTextToolbarInfo(null);
+        selectedTextRef.current = null;
       });
 
       // Object modification events
@@ -397,6 +503,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         }
       });
 
+      // object:added and object:removed are now handled by synchronizer
+      // but we still need to save history
       canvas.on('object:added', () => {
         saveHistory();
         notifyLayersChange();
@@ -424,12 +532,47 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       return () => {
         window.removeEventListener('resize', handleResize);
+        // Dispose synchronizer before canvas
+        if (synchronizerRef.current) {
+          synchronizerRef.current.dispose();
+          synchronizerRef.current = null;
+        }
+        // Clear persistence manager ref
+        persistenceManagerRef.current = null;
         canvas.dispose();
         fabricRef.current = null;
       };
-    }, [documentId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [documentId, getLayerStoreActions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Subscribe to Layer Store selection changes and sync to canvas
+    // Requirements: 6.1, 6.2, 6.4, 6.5, 6.6
+    useEffect(() => {
+      // Subscribe to Layer Store changes
+      const unsubscribe = useLayerStore.subscribe((state, prevState) => {
+        // Only sync if selection changed and synchronizer exists
+        if (state.selectedLayerId !== prevState.selectedLayerId && synchronizerRef.current) {
+          synchronizerRef.current.syncSelection(state.selectedLayerId);
+        }
+        
+        // Sync visibility changes
+        for (const [id, layer] of state.layers) {
+          const prevLayer = prevState.layers.get(id);
+          if (prevLayer && prevLayer.visible !== layer.visible && synchronizerRef.current) {
+            synchronizerRef.current.syncVisibility(id);
+          }
+          if (prevLayer && prevLayer.locked !== layer.locked && synchronizerRef.current) {
+            synchronizerRef.current.syncLockState(id);
+          }
+        }
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    }, []);
 
     // Handle zoom with mouse wheel - Infinite canvas style
+    // Ctrl/Cmd + wheel = zoom, plain wheel = pan
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
@@ -439,16 +582,36 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         e.preventDefault();
 
         const canvas = fabricRef.current;
-        const delta = -e.deltaY;
-        let newZoom = canvas.getZoom() * (1 + delta * ZOOM_SENSITIVITY);
         
-        newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+        // Ctrl/Cmd + wheel = zoom
+        if (e.ctrlKey || e.metaKey) {
+          // Use exponential zoom for consistent feel
+          const direction = e.deltaY > 0 ? -1 : 1;
+          let newZoom = canvas.getZoom() * Math.pow(ZOOM_FACTOR, direction);
+          
+          newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
 
-        // Zoom to mouse position
-        const rect = container.getBoundingClientRect();
-        const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top);
-        canvas.zoomToPoint(point, newZoom);
-        setZoomState(newZoom);
+          // Zoom to mouse position
+          const rect = container.getBoundingClientRect();
+          const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top);
+          canvas.zoomToPoint(point, newZoom);
+          setZoomState(newZoom);
+        } else {
+          // Plain wheel = pan (scroll)
+          const vpt = canvas.viewportTransform;
+          if (vpt) {
+            // Shift + wheel = horizontal scroll
+            if (e.shiftKey) {
+              vpt[4] -= e.deltaY * PAN_SENSITIVITY;
+            } else {
+              // Normal scroll: deltaY for vertical, deltaX for horizontal
+              vpt[4] -= e.deltaX * PAN_SENSITIVITY;
+              vpt[5] -= e.deltaY * PAN_SENSITIVITY;
+            }
+            canvas.setViewportTransform(vpt);
+            canvas.requestRenderAll();
+          }
+        }
       };
 
       container.addEventListener('wheel', handleWheel, { passive: false });
@@ -564,6 +727,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.selection = false;
       } else if (activeTool === 'pencil') {
         canvas.isDrawingMode = true;
+        canvas.selection = false;
         canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
         canvas.freeDrawingBrush.color = '#000000';
         canvas.freeDrawingBrush.width = 2;
@@ -641,26 +805,67 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           const rect = currentShapeRef.current as fabric.Rect;
           // Only keep if it has some size
           if ((rect.width ?? 0) > 5 && (rect.height ?? 0) > 5) {
-            rect.set({ selectable: true, evented: true });
-            (rect as fabric.Rect & { id?: string }).id = generateLayerId();
-            canvas.setActiveObject(rect);
+            // Remove the temporary preview rect
+            canvas.remove(rect);
+            
+            // Use OpsPersistenceManager to create and persist the rect
+            // Requirements: 8.1
+            const persistenceManager = persistenceManagerRef.current;
+            if (persistenceManager) {
+              persistenceManager.addRect({
+                x: rect.left ?? 0,
+                y: rect.top ?? 0,
+                width: rect.width ?? 0,
+                height: rect.height ?? 0,
+                fill: (rect.fill as string) ?? 'transparent',
+                stroke: (rect.stroke as string) ?? '#000000',
+                strokeWidth: rect.strokeWidth ?? 2,
+              }).then((layerId) => {
+                // Select the newly created rect
+                const objects = canvas.getObjects();
+                const newRect = objects.find(
+                  (obj) => (obj as fabric.FabricObject & { id?: string }).id === layerId
+                );
+                if (newRect) {
+                  canvas.setActiveObject(newRect);
+                  canvas.requestRenderAll();
+                }
+              }).catch((error) => {
+                console.error('[CanvasStage] Failed to create rect via persistence manager:', error);
+              });
+            }
           } else {
             canvas.remove(rect);
           }
         } else if (activeTool === 'text') {
-          // Add text at click position
-          const text = new fabric.IText('双击编辑文字', {
-            left: pointer.x,
-            top: pointer.y,
-            fontSize: 24,
-            fontFamily: 'Inter, sans-serif',
-            fill: '#000000',
-          });
-          (text as fabric.IText & { id?: string }).id = generateLayerId();
-          canvas.add(text);
-          canvas.setActiveObject(text);
-          text.enterEditing();
-          text.selectAll();
+          // Use OpsPersistenceManager to create and persist the text
+          // Requirements: 8.2
+          const persistenceManager = persistenceManagerRef.current;
+          if (persistenceManager) {
+            const defaultText = '双击编辑文字';
+            persistenceManager.addText({
+              text: defaultText,
+              x: pointer.x,
+              y: pointer.y,
+              fontSize: 24,
+              fontFamily: 'Inter, sans-serif',
+              fill: '#000000',
+            }).then((layerId) => {
+              // Select the newly created text and enter editing mode
+              const objects = canvas.getObjects();
+              const newText = objects.find(
+                (obj) => (obj as fabric.FabricObject & { id?: string }).id === layerId
+              ) as fabric.IText | undefined;
+              if (newText) {
+                canvas.setActiveObject(newText);
+                newText.enterEditing();
+                newText.selectAll();
+                canvas.requestRenderAll();
+              }
+            }).catch((error) => {
+              console.error('[CanvasStage] Failed to create text via persistence manager:', error);
+            });
+          }
         }
 
         isDrawingRef.current = false;
@@ -700,44 +905,6 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.off('path:created', handlePathCreated);
       };
     }, [activeTool, generateLayerId]);
-
-    // Keyboard shortcuts
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (!fabricRef.current) return;
-
-        // Delete selected object
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-          const activeObject = fabricRef.current.getActiveObject();
-          if (activeObject && document.activeElement?.tagName !== 'INPUT') {
-            fabricRef.current.remove(activeObject);
-            fabricRef.current.discardActiveObject();
-            fabricRef.current.requestRenderAll();
-          }
-        }
-
-        // Undo: Ctrl+Z
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-        }
-
-        // Redo: Ctrl+Y or Ctrl+Shift+Z
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-          e.preventDefault();
-          redo();
-        }
-
-        // Reset view: Ctrl+0
-        if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-          e.preventDefault();
-          resetView();
-        }
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [resetView]);
 
     // Undo function
     const undo = useCallback(() => {
@@ -905,11 +1072,70 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       const activeObject = fabricRef.current.getActiveObject();
       if (activeObject) {
-        fabricRef.current.remove(activeObject);
+        // Get the layer ID before removing
+        const layerId = (activeObject as fabric.FabricObject & { id?: string }).id;
+        
+        // Use OpsPersistenceManager to remove and persist
+        // Requirements: 8.3
+        if (layerId && persistenceManagerRef.current) {
+          persistenceManagerRef.current.removeLayer(layerId).catch((error) => {
+            console.error('[CanvasStage] Failed to remove layer via persistence manager:', error);
+          });
+        } else {
+          // Fallback for objects without layerId (shouldn't happen normally)
+          fabricRef.current.remove(activeObject);
+        }
+        
         fabricRef.current.discardActiveObject();
         fabricRef.current.requestRenderAll();
       }
     }, []);
+
+    // Keyboard shortcuts - must be after deleteSelected, undo, redo definitions
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!fabricRef.current) return;
+
+        // Skip if user is typing in an input field
+        const activeElement = document.activeElement;
+        const isTyping = activeElement?.tagName === 'INPUT' || 
+                         activeElement?.tagName === 'TEXTAREA' ||
+                         (activeElement as HTMLElement)?.isContentEditable;
+
+        // Delete selected object
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (!isTyping) {
+            e.preventDefault();
+            deleteSelected();
+          }
+        }
+
+        // Undo: Ctrl+Z
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+          if (!isTyping) {
+            e.preventDefault();
+            undo();
+          }
+        }
+
+        // Redo: Ctrl+Y or Ctrl+Shift+Z
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+          if (!isTyping) {
+            e.preventDefault();
+            redo();
+          }
+        }
+
+        // Reset view: Ctrl+0
+        if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+          e.preventDefault();
+          resetView();
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [deleteSelected, undo, redo, resetView]);
 
     // Get canvas state
     const getCanvasState = useCallback((): CanvasState | null => {
@@ -935,9 +1161,78 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       setZoomState(clampedZoom);
     }, []);
 
+    // Handle drop event for dragging images from chat
+    const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }, []);
+
+    const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      
+      const canvas = fabricRef.current;
+      const container = containerRef.current;
+      const persistenceManager = persistenceManagerRef.current;
+      
+      if (!canvas || !container || !persistenceManager) return;
+
+      // Try to get Fluxa image data first
+      const fluxaData = e.dataTransfer.getData('application/x-fluxa-image');
+      let imageUrl: string | null = null;
+
+      if (fluxaData) {
+        try {
+          const data = JSON.parse(fluxaData);
+          imageUrl = data.src;
+        } catch {
+          // Fall back to plain text
+        }
+      }
+
+      // Fall back to plain text URL
+      if (!imageUrl) {
+        imageUrl = e.dataTransfer.getData('text/plain');
+      }
+
+      if (!imageUrl) return;
+
+      // Calculate drop position in canvas coordinates
+      const rect = container.getBoundingClientRect();
+      const vpt = canvas.viewportTransform;
+      if (!vpt) return;
+
+      // Convert screen coordinates to canvas coordinates
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const canvasX = (screenX - vpt[4]) / vpt[0];
+      const canvasY = (screenY - vpt[5]) / vpt[3];
+
+      try {
+        const layerId = await persistenceManager.addImage({
+          src: imageUrl,
+          x: canvasX,
+          y: canvasY,
+        });
+
+        // Select the newly added image
+        const objects = canvas.getObjects();
+        const newImage = objects.find(
+          (obj) => (obj as fabric.FabricObject & { id?: string }).id === layerId
+        );
+        if (newImage) {
+          canvas.setActiveObject(newImage);
+          canvas.requestRenderAll();
+        }
+      } catch (error) {
+        console.error('[CanvasStage] Failed to add dropped image:', error);
+      }
+    }, []);
+
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
       getCanvas: () => fabricRef.current,
+      getSynchronizer: () => synchronizerRef.current,
+      getPersistenceManager: () => persistenceManagerRef.current,
       exportPNG,
       selectLayer,
       selectAndCenterLayer,
@@ -956,6 +1251,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         ref={containerRef}
         className="canvas-container relative w-full h-full overflow-hidden"
         onContextMenu={handleContextMenu}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         <canvas ref={canvasRef} />
 
@@ -965,6 +1262,16 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             <SelectionInfo {...selectionInfo} />
             <QuickEditHint x={selectionInfo.x} y={selectionInfo.y} height={selectionInfo.height * zoom} />
           </>
+        )}
+
+        {/* Text toolbar - floating above selected text */}
+        {textToolbarInfo && (
+          <TextToolbar
+            x={textToolbarInfo.x}
+            y={textToolbarInfo.y}
+            properties={textToolbarInfo.properties}
+            onPropertyChange={handleTextPropertyChange}
+          />
         )}
 
         {/* Context menu */}
@@ -987,7 +1294,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         {/* Zoom controls - Dark theme */}
         <div className="canvas-controls absolute bottom-4 left-1/2 -translate-x-1/2">
           <button
-            onClick={() => handleZoom(zoom - 0.1)}
+            onClick={() => handleZoom(zoom - ZOOM_STEP)}
             disabled={zoom <= MIN_ZOOM}
             title="缩小"
           >
@@ -1003,7 +1310,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           </button>
           
           <button
-            onClick={() => handleZoom(zoom + 0.1)}
+            onClick={() => handleZoom(zoom + ZOOM_STEP)}
             disabled={zoom >= MAX_ZOOM}
             title="放大"
           >

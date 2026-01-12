@@ -8,8 +8,12 @@ export type OpType =
   | 'setBackground'
   | 'addText'
   | 'addImage'
+  | 'addRect'
   | 'updateLayer'
-  | 'removeLayer';
+  | 'removeLayer'
+  | 'setLayerVisibility'
+  | 'setLayerLock'
+  | 'renameLayer';
 
 export interface BaseOp {
   type: OpType;
@@ -93,6 +97,64 @@ export interface AddImageOp extends BaseOp {
 }
 
 /**
+ * addRect op
+ * Adds a rectangle layer to the canvas
+ * Requirements: 8.1, 8.4
+ */
+export interface AddRectOp extends BaseOp {
+  type: 'addRect';
+  payload: {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+  };
+}
+
+/**
+ * setLayerVisibility op
+ * Persists layer visibility state
+ * Requirements: 8.1
+ */
+export interface SetLayerVisibilityOp extends BaseOp {
+  type: 'setLayerVisibility';
+  payload: {
+    id: string;
+    visible: boolean;
+  };
+}
+
+/**
+ * setLayerLock op
+ * Persists layer lock state
+ * Requirements: 8.2
+ */
+export interface SetLayerLockOp extends BaseOp {
+  type: 'setLayerLock';
+  payload: {
+    id: string;
+    locked: boolean;
+  };
+}
+
+/**
+ * renameLayer op
+ * Persists custom layer name
+ * Requirements: 9.1
+ */
+export interface RenameLayerOp extends BaseOp {
+  type: 'renameLayer';
+  payload: {
+    id: string;
+    name: string;
+  };
+}
+
+/**
  * Requirement 8.5: updateLayer op
  * Updates properties of an existing layer
  */
@@ -123,8 +185,12 @@ export type Op =
   | SetBackgroundOp
   | AddTextOp
   | AddImageOp
+  | AddRectOp
   | UpdateLayerOp
-  | RemoveLayerOp;
+  | RemoveLayerOp
+  | SetLayerVisibilityOp
+  | SetLayerLockOp
+  | RenameLayerOp;
 
 /**
  * Response from generate-ops endpoint
@@ -175,6 +241,22 @@ export function isRemoveLayerOp(op: Op): op is RemoveLayerOp {
   return op.type === 'removeLayer';
 }
 
+export function isAddRectOp(op: Op): op is AddRectOp {
+  return op.type === 'addRect';
+}
+
+export function isSetLayerVisibilityOp(op: Op): op is SetLayerVisibilityOp {
+  return op.type === 'setLayerVisibility';
+}
+
+export function isSetLayerLockOp(op: Op): op is SetLayerLockOp {
+  return op.type === 'setLayerLock';
+}
+
+export function isRenameLayerOp(op: Op): op is RenameLayerOp {
+  return op.type === 'renameLayer';
+}
+
 /**
  * Validate op has required fields
  */
@@ -190,8 +272,12 @@ export function validateOp(op: unknown): op is Op {
     'setBackground',
     'addText',
     'addImage',
+    'addRect',
     'updateLayer',
     'removeLayer',
+    'setLayerVisibility',
+    'setLayerLock',
+    'renameLayer',
   ];
 
   if (!validTypes.includes(opObj.type as OpType)) return false;
@@ -232,6 +318,15 @@ function validateOpPayload(op: Op): boolean {
         typeof op.payload.y === 'number'
       );
 
+    case 'addRect':
+      return (
+        typeof op.payload.id === 'string' &&
+        typeof op.payload.x === 'number' &&
+        typeof op.payload.y === 'number' &&
+        typeof op.payload.width === 'number' &&
+        typeof op.payload.height === 'number'
+      );
+
     case 'updateLayer':
       return (
         typeof op.payload.id === 'string' &&
@@ -240,6 +335,24 @@ function validateOpPayload(op: Op): boolean {
 
     case 'removeLayer':
       return typeof op.payload.id === 'string';
+
+    case 'setLayerVisibility':
+      return (
+        typeof op.payload.id === 'string' &&
+        typeof op.payload.visible === 'boolean'
+      );
+
+    case 'setLayerLock':
+      return (
+        typeof op.payload.id === 'string' &&
+        typeof op.payload.locked === 'boolean'
+      );
+
+    case 'renameLayer':
+      return (
+        typeof op.payload.id === 'string' &&
+        typeof op.payload.name === 'string'
+      );
 
     default:
       return false;

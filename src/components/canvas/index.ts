@@ -4,3 +4,5 @@ export { ContextMenu } from './ContextMenu';
 export type { ContextMenuProps } from './ContextMenu';
 export { SelectionInfo, QuickEditHint } from './SelectionInfo';
 export type { SelectionInfoProps } from './SelectionInfo';
+export { TextToolbar } from './TextToolbar';
+export type { TextProperties } from './TextToolbar';

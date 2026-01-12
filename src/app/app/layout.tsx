@@ -93,7 +93,6 @@ export default function AppLayout({
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
-          <p className="text-text-secondary">加载中...</p>
         </div>
       </div>
     );

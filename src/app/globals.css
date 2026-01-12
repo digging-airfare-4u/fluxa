@@ -817,15 +817,16 @@ h1, h2, h3, h4, h5, h6 {
    EDITOR COMPONENTS
    ============================================ */
 .editor-toolbar {
-  @apply w-10 h-auto fixed left-4 top-1/2 -translate-y-1/2
+  @apply w-10 h-auto fixed top-1/2 -translate-y-1/2
          rounded-xl
          flex flex-col items-center py-1.5 gap-0.5;
+  left: 16px; /* Default left position, can be overridden by inline style */
   background: var(--color-overlay-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, left 0.3s ease;
 }
 
 .tool-button {
@@ -1169,4 +1170,36 @@ h1, h2, h3, h4, h5, h6 {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Slide in from left animation */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide out to left animation */
+@keyframes slideOutToLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft 0.3s ease-out forwards;
+}
+
+.animate-slide-out-left {
+  animation: slideOutToLeft 0.2s ease-in forwards;
 }

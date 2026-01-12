@@ -106,8 +106,8 @@ export function subscribeToJobs(
       if (status === 'SUBSCRIBED') {
         console.log(`[Jobs] Subscribed to channel: ${channelName}`);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error(`[Jobs] Subscription error:`, err);
-        callbacks.onError?.(new Error(`Subscription failed: ${status}`));
+        console.error(`[Jobs] Subscription error: ${status}`, err || '');
+        callbacks.onError?.(new Error(`Subscription failed: ${status}${err ? ` - ${err}` : ''}`));
       }
     });
 
@@ -185,8 +185,8 @@ export function subscribeToJob(
       if (status === 'SUBSCRIBED') {
         console.log(`[Jobs] Subscribed to job: ${jobId}`);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error(`[Jobs] Job subscription error:`, err);
-        callbacks.onError?.(new Error(`Job subscription failed: ${status}`));
+        console.error(`[Jobs] Job subscription error: ${status}`, err || '');
+        callbacks.onError?.(new Error(`Job subscription failed: ${status}${err ? ` - ${err}` : ''}`));
       }
     });
 

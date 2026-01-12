@@ -267,9 +267,39 @@ export async function fetchLatestSeq(documentId: string): Promise<number> {
 
 /**
  * Convert array of database records to Op array
+ * Optimizes ops by filtering out elements that are later removed
+ * This prevents "flash" effect when reloading the page
  */
 export function recordsToOps(records: OpsDbRecord[]): Op[] {
-  return records.map(recordToOp);
+  // Collect all removed layer IDs
+  const removedLayerIds = new Set<string>();
+  for (const record of records) {
+    if (record.op_type === 'removeLayer') {
+      const payload = record.payload as { id?: string };
+      if (payload.id) {
+        removedLayerIds.add(payload.id);
+      }
+    }
+  }
+
+  // Filter out ops for removed layers
+  const filteredRecords = records.filter(record => {
+    // Keep removeLayer ops (they're no-ops if element doesn't exist)
+    if (record.op_type === 'removeLayer') {
+      return false; // Skip removeLayer since element won't be created
+    }
+
+    // Check if this op creates or updates a removed layer
+    const payload = record.payload as { id?: string };
+    if (payload.id && removedLayerIds.has(payload.id)) {
+      // Skip ops for layers that will be removed
+      return false;
+    }
+
+    return true;
+  });
+
+  return filteredRecords.map(recordToOp);
 }
 
 /**

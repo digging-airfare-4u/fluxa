@@ -396,7 +396,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
                 const assistantMessage = await createMessage({
                   conversation_id: conversationId,
                   role: 'assistant',
-                  content: '图片已生成并添加到画布',
+                  content: '',
                   metadata: {
                     jobId: result.jobId,
                     imageUrl: imageUrl,
@@ -564,6 +564,25 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     }
   }, [onLocateImageByUrl]);
 
+  // Handle adding image to canvas from chat message
+  const handleAddToCanvas = useCallback(async (imageUrl: string) => {
+    console.log('[ChatPanel] handleAddToCanvas called', { imageUrl });
+    // This will be handled by the parent component via onOpsGenerated
+    // Create an addImage op and execute it
+    if (onOpsGenerated) {
+      const op: Op = {
+        type: 'addImage',
+        payload: {
+          id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          src: imageUrl,
+          x: 100 + Math.floor(Math.random() * 200),
+          y: 100 + Math.floor(Math.random() * 200),
+        },
+      };
+      onOpsGenerated([op]);
+    }
+  }, [onOpsGenerated]);
+
   if (isCollapsed) {
     return (
       <Tooltip>
@@ -645,6 +664,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
                   key={message.id}
                   message={message}
                   onImageClick={handleImageClick}
+                  onAddToCanvas={handleAddToCanvas}
                 />
               );
             })}

@@ -9,6 +9,7 @@ import {
   SetBackgroundOp,
   AddTextOp,
   AddImageOp,
+  AddRectOp,
   UpdateLayerOp,
   RemoveLayerOp,
   GradientConfig,
@@ -271,11 +272,20 @@ export class OpsExecutor {
       case 'addImage':
         await this.handleAddImage(op as AddImageOp);
         break;
+      case 'addRect':
+        this.handleAddRect(op as AddRectOp);
+        break;
       case 'updateLayer':
         this.handleUpdateLayer(op as UpdateLayerOp);
         break;
       case 'removeLayer':
         this.handleRemoveLayer(op as RemoveLayerOp);
+        break;
+      case 'setLayerVisibility':
+      case 'setLayerLock':
+      case 'renameLayer':
+        // These ops are handled by Layer Store, not OpsExecutor
+        // They are persisted for replay but don't affect canvas directly
         break;
       default:
         throw new Error(`Unknown op type: ${(op as Op).type}`);
@@ -402,8 +412,18 @@ export class OpsExecutor {
   private async handleAddText(op: AddTextOp): Promise<void> {
     const { payload } = op;
 
-    // Check if layer with this ID already exists (idempotency)
+    // Check if layer with this ID already exists in registry (idempotency)
     if (this.layerRegistry.has(payload.id)) {
+      return;
+    }
+
+    // Also check if object already exists on canvas (for manual tool creation)
+    const existingObject = this.canvas.getObjects().find(
+      (obj) => (obj as ExtendedFabricObject).id === payload.id
+    );
+    if (existingObject) {
+      // Object already exists on canvas, just register it
+      this.layerRegistry.set(payload.id, existingObject as ExtendedFabricObject);
       return;
     }
 
@@ -431,14 +451,64 @@ export class OpsExecutor {
   }
 
   /**
+   * Handle addRect op
+   * Requirement 8.4: Create Fabric Rect object with specified properties
+   */
+  private handleAddRect(op: AddRectOp): void {
+    const { payload } = op;
+
+    // Check if layer with this ID already exists in registry (idempotency)
+    if (this.layerRegistry.has(payload.id)) {
+      return;
+    }
+
+    // Also check if object already exists on canvas (for manual tool creation)
+    const existingObject = this.canvas.getObjects().find(
+      (obj) => (obj as ExtendedFabricObject).id === payload.id
+    );
+    if (existingObject) {
+      // Object already exists on canvas, just register it
+      this.layerRegistry.set(payload.id, existingObject as ExtendedFabricObject);
+      return;
+    }
+
+    const rect = new fabric.Rect({
+      left: payload.x,
+      top: payload.y,
+      width: payload.width,
+      height: payload.height,
+      fill: payload.fill ?? '#3b82f6',
+      stroke: payload.stroke,
+      strokeWidth: payload.strokeWidth ?? 0,
+    }) as ExtendedFabricObject;
+
+    rect.id = payload.id;
+    rect.name = `矩形`;
+    rect.layerType = 'rect';
+
+    this.canvas.add(rect);
+    this.layerRegistry.set(payload.id, rect);
+  }
+
+  /**
    * Handle addImage op
    * Requirement 9.6: Load image from URL and create Fabric Image object
    */
   private async handleAddImage(op: AddImageOp): Promise<void> {
     const { payload } = op;
 
-    // Check if layer with this ID already exists (idempotency)
+    // Check if layer with this ID already exists in registry (idempotency)
     if (this.layerRegistry.has(payload.id)) {
+      return;
+    }
+
+    // Also check if object already exists on canvas (for manual tool creation)
+    const existingObject = this.canvas.getObjects().find(
+      (obj) => (obj as ExtendedFabricObject).id === payload.id
+    );
+    if (existingObject) {
+      // Object already exists on canvas, just register it
+      this.layerRegistry.set(payload.id, existingObject as ExtendedFabricObject);
       return;
     }
 

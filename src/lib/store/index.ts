@@ -11,3 +11,13 @@ export {
   usePointsLoading,
   usePointsError,
 } from './usePointsStore';
+
+export {
+  useLayerStore,
+  useLayers,
+  useLayersArray,
+  useSelectedLayerId,
+  useIsPanelVisible,
+  useSelectedLayer,
+  useLayer,
+} from './useLayerStore';

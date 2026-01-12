@@ -33,6 +33,13 @@ export function ImageCard({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const leaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Handle drag start - set image URL as drag data
+  const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData('text/plain', src);
+    e.dataTransfer.setData('application/x-fluxa-image', JSON.stringify({ src, prompt }));
+    e.dataTransfer.effectAllowed = 'copy';
+  }, [src, prompt]);
+
   // Handle mouse enter with 80ms delay for overlay appearance
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true);
@@ -96,6 +103,8 @@ export function ImageCard({
         isHovered && 'scale-[1.01] shadow-[var(--shadow-hover)]',
         className
       )}
+      draggable
+      onDragStart={handleDragStart}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

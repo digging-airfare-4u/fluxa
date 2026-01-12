@@ -32,7 +32,7 @@ interface FullscreenLoadingProps {
 /**
  * Fullscreen loading overlay with Lottie animation
  */
-export function FullscreenLoading({ size = 150, text }: FullscreenLoadingProps) {
+export function FullscreenLoading({ size = 80, text }: FullscreenLoadingProps) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
       <LottieLoading size={size} />

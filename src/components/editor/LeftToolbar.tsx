@@ -34,6 +34,7 @@ interface LeftToolbarProps {
   onToolChange?: (tool: ToolType) => void;
   onImageUpload?: () => void;
   onAIClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 const tools: Tool[] = [
@@ -51,6 +52,7 @@ export function LeftToolbar({
   onToolChange,
   onImageUpload,
   onAIClick,
+  style,
 }: LeftToolbarProps) {
   const [currentTool, setCurrentTool] = useState<ToolType>(activeTool);
 
@@ -71,7 +73,8 @@ export function LeftToolbar({
 
   return (
     <div 
-      className="editor-toolbar z-40"
+      className="editor-toolbar z-40 transition-[left] duration-300 ease-in-out"
+      style={style}
       role="toolbar"
       aria-label="Canvas tools"
     >

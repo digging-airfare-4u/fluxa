@@ -2,7 +2,7 @@
 
 /**
  * Editor Layout Component - Main editor page layout (Lovart style)
- * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
+ * Requirements: 3.5, 3.6, 6.1, 6.4, 6.5, 6.6, 6.7
  */
 
 import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
@@ -17,8 +17,10 @@ import { LeftToolbar, ToolType } from './LeftToolbar';
 import CanvasStage, { CanvasStageRef, LayerInfo, LayerModifiedEvent } from '../canvas/CanvasStage';
 import { ChatPanel, ChatPanelRef } from '../chat/ChatPanel';
 import { PointsBalanceIndicator } from '@/components/points';
+import { LayerPanel, LayerPanelToggle, LAYER_PANEL_WIDTH } from '@/components/layer';
 import { OpsExecutor, createOpsExecutor } from '@/lib/canvas/opsExecutor';
 import { saveOp, createUpdateLayerOp } from '@/lib/supabase/queries/ops';
+import { useLayerStore, useIsPanelVisible } from '@/lib/store/useLayerStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,9 +85,38 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingModificationsRef = useRef<Map<string, LayerModifiedEvent['properties']>>(new Map());
 
+  // Get Layer Store actions for persistence
+  // Requirements: 8.3, 8.7
+  const { initializeFromOps, setPersistCallback, clearLayers } = useLayerStore();
+  
+  // Get layer panel visibility state for layout offset
+  const isLayerPanelVisible = useIsPanelVisible();
+
+  // Track if initial ops have been loaded
+  const initialOpsLoadedRef = useRef(false);
+
   useEffect(() => {
     setEditedName(projectName);
   }, [projectName]);
+
+  // Set up persistence callback for Layer Store
+  // Requirements: 8.1, 8.2, 9.1
+  useEffect(() => {
+    const persistCallback = async (op: Op) => {
+      await saveOp({ documentId, op });
+    };
+    setPersistCallback(persistCallback);
+
+    return () => {
+      setPersistCallback(null);
+    };
+  }, [documentId, setPersistCallback]);
+
+  // Clear layers when document changes
+  useEffect(() => {
+    clearLayers();
+    initialOpsLoadedRef.current = false;
+  }, [documentId, clearLayers]);
 
   useEffect(() => {
     if (isEditingName && inputRef.current) {
@@ -106,18 +137,33 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
       const modifications = pendingModificationsRef.current;
       pendingModificationsRef.current = new Map();
 
+      // Use OpsPersistenceManager to update and persist
+      // Requirements: 8.4
+      const persistenceManager = canvasRef.current?.getPersistenceManager();
+      
       for (const [layerId, properties] of modifications) {
         try {
-          const op = createUpdateLayerOp(layerId, {
-            left: properties.left,
-            top: properties.top,
-            scaleX: properties.scaleX,
-            scaleY: properties.scaleY,
-            angle: properties.angle,
-          });
-          
-          await saveOp({ documentId, op });
-          console.log('[Editor] Layer modification saved:', layerId);
+          if (persistenceManager) {
+            await persistenceManager.updateLayer(layerId, {
+              left: properties.left,
+              top: properties.top,
+              scaleX: properties.scaleX,
+              scaleY: properties.scaleY,
+              angle: properties.angle,
+            });
+            console.log('[Editor] Layer modification saved via persistence manager:', layerId);
+          } else {
+            // Fallback to direct saveOp if persistence manager not available
+            const op = createUpdateLayerOp(layerId, {
+              left: properties.left,
+              top: properties.top,
+              scaleX: properties.scaleX,
+              scaleY: properties.scaleY,
+              angle: properties.angle,
+            });
+            await saveOp({ documentId, op });
+            console.log('[Editor] Layer modification saved (fallback):', layerId);
+          }
         } catch (error) {
           console.error('[Editor] Failed to save layer modification:', error);
         }
@@ -196,11 +242,35 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     }
 
     try {
+      // Set synchronizer to updating mode to prevent duplicate layer creation
+      const synchronizer = canvasRef.current?.getSynchronizer();
+      if (synchronizer) {
+        synchronizer.setUpdating(true);
+      }
+      
       await opsExecutorRef.current.execute(ops, documentId);
+      
+      // Reset synchronizer updating mode
+      if (synchronizer) {
+        synchronizer.setUpdating(false);
+      }
+      
+      // Initialize layers from ops on first load
+      // Requirements: 8.3, 8.7
+      if (!initialOpsLoadedRef.current && ops.length > 0) {
+        initializeFromOps(ops);
+        initialOpsLoadedRef.current = true;
+        console.log('[Editor] Layers initialized from ops');
+      }
     } catch (error) {
+      // Reset synchronizer updating mode on error
+      const synchronizer = canvasRef.current?.getSynchronizer();
+      if (synchronizer) {
+        synchronizer.setUpdating(false);
+      }
       console.error('[Editor] Failed to execute ops:', error);
     }
-  }, [documentId]);
+  }, [documentId, initializeFromOps]);
 
   // Placeholder management for image generation
   const placeholdersRef = useRef<Map<string, fabric.FabricObject>>(new Map());
@@ -393,8 +463,15 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#0D0915]">
+      {/* Layer Panel - collapsible side panel (renders first for z-index) */}
+      {/* Requirements: 3.5 */}
+      <LayerPanel />
+
       {/* Floating top bar - logo and project name */}
-      <div className="fixed top-4 left-4 z-50 flex items-center gap-2">
+      <div 
+        className="fixed top-4 z-40 flex items-center gap-2 transition-[left] duration-300 ease-in-out"
+        style={{ left: isLayerPanelVisible ? LAYER_PANEL_WIDTH + 28 : 16 }}
+      >
         {/* Logo with dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -497,8 +574,13 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         )}
       </div>
 
-      {/* Floating bottom left - points and user */}
-      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2">
+      {/* Floating bottom left - layer toggle and points in same row */}
+      {/* Requirements: 3.6, 3.7, 3.8 */}
+      <div 
+        className="fixed bottom-4 z-40 flex items-center gap-2 transition-[left] duration-300 ease-in-out"
+        style={{ left: isLayerPanelVisible ? LAYER_PANEL_WIDTH + 28 : 16 }}
+      >
+        <LayerPanelToggle />
         <PointsBalanceIndicator />
       </div>
 
@@ -508,6 +590,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         onToolChange={handleToolChange}
         onImageUpload={handleImageUpload}
         onAIClick={handleAIClick}
+        style={{ left: isLayerPanelVisible ? LAYER_PANEL_WIDTH + 28 : 16 }}
       />
 
       {/* Main content area - full width, ChatPanel floats on top */}
