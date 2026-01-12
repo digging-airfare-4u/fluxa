@@ -516,8 +516,12 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       };
 
       const handleMouseUp = () => {
+        if (!isPanning) return; // Only handle if we were panning
         setIsPanning(false);
-        canvas.selection = true;
+        // Only restore selection for select/boxSelect tools
+        if (activeTool === 'select' || activeTool === 'boxSelect') {
+          canvas.selection = true;
+        }
         lastPosRef.current = null;
         if (containerRef.current) {
           containerRef.current.style.cursor = spacePressed ? 'grab' : 'default';
@@ -533,7 +537,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.off('mouse:move', handleMouseMove);
         canvas.off('mouse:up', handleMouseUp);
       };
-    }, [isPanning, spacePressed]);
+    }, [isPanning, spacePressed, activeTool]);
 
     // Generate unique layer ID
     const generateLayerId = useCallback(() => {
@@ -589,7 +593,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       const handleMouseDown = (opt: fabric.TPointerEventInfo<fabric.TPointerEvent>) => {
         if (spacePressed) return; // Don't draw while panning
         
-        const pointer = canvas.getViewportPoint(opt.e);
+        // Use getScenePoint for correct canvas coordinates in infinite canvas
+        const pointer = canvas.getScenePoint(opt.e);
         drawStartRef.current = { x: pointer.x, y: pointer.y };
         isDrawingRef.current = true;
 
@@ -614,7 +619,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (!isDrawingRef.current || !drawStartRef.current) return;
         if (activeTool !== 'rectangle') return;
 
-        const pointer = canvas.getViewportPoint(opt.e);
+        const pointer = canvas.getScenePoint(opt.e);
         const rect = currentShapeRef.current as fabric.Rect;
         if (!rect) return;
 
@@ -630,7 +635,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       const handleMouseUp = (opt: fabric.TPointerEventInfo<fabric.TPointerEvent>) => {
         if (!isDrawingRef.current || !drawStartRef.current) return;
 
-        const pointer = canvas.getViewportPoint(opt.e);
+        const pointer = canvas.getScenePoint(opt.e);
 
         if (activeTool === 'rectangle' && currentShapeRef.current) {
           const rect = currentShapeRef.current as fabric.Rect;

@@ -1,9 +1,9 @@
-# ChatCanvas Tech Stack
+# Fluxa Tech Stack
 
 ## Core Framework
 
 - **Next.js 16** with App Router (`src/app/`)
-- **React 19** with TypeScript
+- **React 19** with TypeScript (strict mode)
 - **pnpm** as package manager
 
 ## UI & Styling
@@ -66,8 +66,9 @@ pnpm lint         # Run ESLint
 ## Environment Variables
 
 Required in `.env`:
-- `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `AI_API_KEY` (OpenAI or compatible)
-- `AI_MODEL` (default: gpt-4o-mini)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+
+AI API keys are configured in Supabase Edge Function Secrets.

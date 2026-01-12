@@ -181,7 +181,7 @@ export function ProjectGrid({
   const router = useRouter();
 
   const handleProjectClick = (projectId: string) => {
-    router.push(`/app/p/${projectId}`);
+    window.open(`/app/p/${projectId}`, '_blank');
   };
 
   if (isLoading) {

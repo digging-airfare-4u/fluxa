@@ -56,6 +56,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [referencedImage, setReferencedImage] = useState<ReferencedImage | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +68,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   useEffect(() => {
     if (showMentionMenu && projectId) {
       setAssetsLoading(true);
+      setSelectedIndex(0);
       fetchProjectAssets(projectId)
         .then(setAssets)
         .catch(console.error)
@@ -100,6 +102,30 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   }, [message, disabled, isLoading, isBusy, onSend, selectedModel, referencedImage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle mention menu navigation
+    if (showMentionMenu && assets.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % assets.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + assets.length) % assets.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSelectAsset(assets[selectedIndex]);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleSelectAsset(assets[selectedIndex]);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -174,11 +200,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
             ) : assets.length === 0 ? (
               <div className="p-3 text-center text-xs text-[#888]">暂无图片</div>
             ) : (
-              assets.map((asset) => (
+              assets.map((asset, index) => (
                 <button
                   key={asset.id}
                   onClick={() => handleSelectAsset(asset)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 transition-colors",
+                    index === selectedIndex 
+                      ? "bg-black/10 dark:bg-white/10" 
+                      : "hover:bg-black/5 dark:hover:bg-white/5"
+                  )}
                 >
                   <img
                     src={asset.url}

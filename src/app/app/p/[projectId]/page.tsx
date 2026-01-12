@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import { EditorLayout, EditorLayoutRef } from '@/components/editor';
 import { 
   fetchProjectWithDetails, 
@@ -182,14 +182,7 @@ export default function EditorPage() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
-          <p className="text-text-secondary">加载项目中...</p>
-        </div>
-      </div>
-    );
+    return <FullscreenLoading />;
   }
 
   // Error state

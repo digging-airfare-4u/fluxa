@@ -1,17 +1,14 @@
 'use client';
 
 /**
- * Home Page - Fluxa homepage (Lovart style)
+ * Projects Page - 项目列表页面
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Plus, Home, FolderOpen, User, Info, Settings, LogOut,
-  Image, Star, PenTool, ShoppingBag, Video
+  Plus, Home, FolderOpen, User, Info, Settings, LogOut
 } from 'lucide-react';
-import { FullscreenLoading } from '@/components/ui/lottie-loading';
-import { HomeInput } from '@/components/home/HomeInput';
 import { ProjectGrid, type Project } from '@/components/home/ProjectGrid';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
@@ -31,15 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const QUICK_TAGS = [
-  { id: 'design', label: 'Design', icon: Image },
-  { id: 'branding', label: 'Branding', icon: Star },
-  { id: 'illustration', label: 'Illustration', icon: PenTool },
-  { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag },
-  { id: 'video', label: 'Video', icon: Video },
-];
-
-export default function HomePage() {
+export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,20 +59,6 @@ export default function HomePage() {
     }
   };
 
-  const handlePromptSubmit = useCallback(async (prompt: string) => {
-    try {
-      setIsCreating(true);
-      setError(null);
-      const { project } = await createProject();
-      // Pass prompt via URL parameter, will be auto-sent in editor
-      router.push(`/app/p/${project.id}?prompt=${encodeURIComponent(prompt)}`);
-    } catch (err) {
-      console.error('Failed to create project:', err);
-      setError('创建项目失败，请重试');
-      setIsCreating(false);
-    }
-  }, [router]);
-
   const handleNewProject = useCallback(async () => {
     try {
       setIsCreating(true);
@@ -107,26 +82,10 @@ export default function HomePage() {
     }
   }, []);
 
-  const handleTagClick = useCallback((tagId: string) => {
-    const prompts: Record<string, string> = {
-      'design': '设计一张现代简约风格的海报',
-      'branding': '设计一个品牌 Logo 和视觉识别',
-      'illustration': '创作一幅插画作品',
-      'ecommerce': '设计一张电商产品促销图',
-      'video': '设计一个视频封面缩略图',
-    };
-    handlePromptSubmit(prompts[tagId] || '设计一个作品');
-  }, [handlePromptSubmit]);
-
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     router.push('/auth');
   }, [router]);
-
-  // Show fullscreen loading on initial load
-  if (isLoading) {
-    return <FullscreenLoading />;
-  }
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
@@ -141,7 +100,7 @@ export default function HomePage() {
 
       {/* Left floating nav */}
       <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2">
-        {/* New project button - highlighted */}
+        {/* New project button */}
         <button
           onClick={handleNewProject}
           disabled={isCreating}
@@ -156,13 +115,13 @@ export default function HomePage() {
 
         {/* Nav buttons */}
         <div className="flex flex-col gap-1 p-1.5 rounded-2xl bg-white dark:bg-[#1A1028] shadow-md border border-black/5 dark:border-white/10">
-          <button className="size-9 rounded-xl flex items-center justify-center text-[#1A1A1A] dark:text-white bg-black/5 dark:bg-white/10">
-            <Home className="size-4" />
-          </button>
           <button 
-            onClick={() => router.push('/app/projects')}
+            onClick={() => router.push('/app')}
             className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
+            <Home className="size-4" />
+          </button>
+          <button className="size-9 rounded-xl flex items-center justify-center text-[#1A1A1A] dark:text-white bg-black/5 dark:bg-white/10">
             <FolderOpen className="size-4" />
           </button>
           <button 
@@ -216,49 +175,14 @@ export default function HomePage() {
       {/* Main content */}
       <main className="px-6 py-8 ml-16">
         <div className="max-w-5xl mx-auto pt-16 pb-8">
-          {/* Hero section */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <img 
-                src="/logo.png" 
-                alt="Fluxa" 
-                className="size-10 rounded-xl"
-              />
-              <h1 className="text-3xl font-heading font-bold text-[#1A1A1A] dark:text-white">
-                Fluxa
-              </h1>
-            </div>
-            <p className="text-[#666] dark:text-[#888]">
-              让 AI 帮你设计一切
+          {/* Page header */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-semibold text-[#1A1A1A] dark:text-white">
+              所有项目
+            </h1>
+            <p className="text-[#666] dark:text-[#888] mt-1">
+              共 {projects.length} 个项目
             </p>
-          </div>
-          
-          {/* Input section */}
-          <div className="flex justify-center mb-4">
-            <HomeInput 
-              onSubmit={handlePromptSubmit}
-              isLoading={isCreating}
-              placeholder="描述你想要的设计，AI 将为你生成..."
-            />
-          </div>
-          
-          {/* Quick tags - flat style with icons */}
-          <div className="flex justify-center gap-2 mb-12 flex-wrap">
-            {QUICK_TAGS.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => handleTagClick(tag.id)}
-                className={cn(
-                  "h-8 px-3 rounded-full flex items-center gap-1.5 text-sm transition-all",
-                  "bg-white dark:bg-[#1A1028] border border-black/10 dark:border-white/10",
-                  "text-[#444] dark:text-[#aaa] hover:border-black/20 dark:hover:border-white/20",
-                  "hover:shadow-sm"
-                )}
-              >
-                <tag.icon className="size-3.5" />
-                {tag.label}
-              </button>
-            ))}
           </div>
           
           {/* Error message */}
@@ -268,26 +192,13 @@ export default function HomePage() {
             </div>
           )}
           
-          {/* Recent projects section */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-[#1A1A1A] dark:text-white">
-                Recent Projects
-              </h2>
-              {projects.length > 3 && (
-                <button className="text-sm text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white transition-colors flex items-center gap-1">
-                  See All <span>›</span>
-                </button>
-              )}
-            </div>
-            
-            <ProjectGrid
-              projects={projects}
-              onNewProject={handleNewProject}
-              onDeleteProject={handleDeleteProject}
-              isLoading={isLoading}
-            />
-          </div>
+          {/* Projects grid */}
+          <ProjectGrid
+            projects={projects}
+            onNewProject={handleNewProject}
+            onDeleteProject={handleDeleteProject}
+            isLoading={isLoading}
+          />
         </div>
       </main>
 

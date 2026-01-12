@@ -195,11 +195,12 @@ async function generateImageVolcengine(
     prompt,
     size,
     watermark: false,
+    sequential_image_generation: 'disabled',
   };
 
-  // Image-to-image: add reference image
+  // Image-to-image: add reference image as array
   if (referenceImageUrl) {
-    requestBody.image = referenceImageUrl;
+    requestBody.image = [referenceImageUrl];
   }
 
   const response = await fetch(apiUrl, {

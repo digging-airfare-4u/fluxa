@@ -1,4 +1,4 @@
-# ChatCanvas Project Structure
+# Fluxa Project Structure
 
 ## Directory Layout
 
@@ -6,10 +6,13 @@
 src/
 ├── app/                    # Next.js App Router
 │   ├── api/               # API routes (Next.js)
-│   │   └── generate-ops/  # Proxy to Supabase Edge Function
+│   │   ├── generate-ops/  # Proxy to Supabase Edge Function
+│   │   └── generate-image/
 │   ├── app/               # Main app routes (authenticated)
 │   │   ├── page.tsx       # Home page with project grid
-│   │   └── p/[projectId]/ # Editor page
+│   │   ├── p/[projectId]/ # Editor page
+│   │   ├── profile/       # User profile
+│   │   └── projects/      # Projects list
 │   ├── auth/              # Authentication page
 │   ├── layout.tsx         # Root layout with ThemeProvider
 │   └── globals.css        # Global styles & CSS variables
@@ -28,9 +31,7 @@ src/
 │   │   ├── LeftToolbar.tsx    # Tool selection sidebar
 │   │   └── TopToolbar.tsx     # Top action bar
 │   ├── home/              # Home page components
-│   │   ├── HomeInput.tsx      # Prompt input
-│   │   ├── ProjectGrid.tsx    # Project cards grid
-│   │   └── QuickTags.tsx      # Quick prompt tags
+│   ├── points/            # Points/membership components
 │   └── ui/                # shadcn/ui components
 │
 ├── lib/
@@ -39,13 +40,12 @@ src/
 │   │   ├── opsExecutor.ts     # Executes ops on canvas
 │   │   └── export.ts          # Canvas export utilities
 │   ├── realtime/          # Supabase Realtime subscriptions
-│   │   ├── subscribeOps.ts    # Ops change subscription
-│   │   └── subscribeJobs.ts   # Job status subscription
+│   ├── store/             # Zustand stores
 │   ├── supabase/
 │   │   ├── client.ts          # Supabase client instance
-│   │   └── queries/           # Database query functions
-│   ├── theme/             # Theme context & toggle
-│   └── utils.ts           # Utility functions (cn, etc.)
+│   │   ├── queries/           # Database query functions
+│   │   └── types/             # TypeScript types
+│   └── theme/             # Theme context & toggle
 │
 └── ai/
     └── schema/            # JSON Schema for AI ops validation
@@ -56,16 +56,17 @@ supabase/
 ├── storage.sql           # Storage bucket config
 └── functions/            # Edge Functions (Deno)
     ├── generate-ops/     # AI ops generation
-    └── generate-image/   # AI image generation
+    ├── generate-image/   # AI image generation
+    └── get-points/       # Points balance
 
 tests/                    # Vitest test files
+├── ai/                  # AI/prompt tests
 ├── canvas/              # Canvas/ops tests
-├── schema/              # Schema validation tests
-└── rls/                 # RLS policy tests
+├── projects/            # Project tests
+├── rls/                 # RLS policy tests
+└── schema/              # Schema validation tests
 
-docs/                    # API documentation
-├── api.md              # Edge Function API docs
-└── storage.md          # Storage usage docs
+docs/                    # Documentation
 ```
 
 ## Key Patterns
