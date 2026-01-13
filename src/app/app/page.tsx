@@ -238,7 +238,6 @@ export default function HomePage() {
             <HomeInput 
               onSubmit={handlePromptSubmit}
               isLoading={isCreating}
-              placeholder="描述你想要的设计，AI 将为你生成..."
             />
           </div>
           

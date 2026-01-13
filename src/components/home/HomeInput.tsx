@@ -1,33 +1,88 @@
 'use client';
 
 /**
- * Home Input Component - Lovart style
+ * Home Input Component - Lovart style with typewriter placeholder
  */
 
-import { useState, useCallback, KeyboardEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, KeyboardEvent } from 'react';
 import { Paperclip, ArrowUp, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+const PLACEHOLDER_TEXTS = [
+  '帮我设计一张科技感的海报...',
+  '创建一个简约风格的名片...',
+  '设计一张生日派对邀请函...',
+  '制作一个产品宣传图...',
+  '帮我做一张社交媒体封面...',
+];
+
 interface HomeInputProps {
   onSubmit: (prompt: string) => void;
   isLoading?: boolean;
-  placeholder?: string;
 }
 
 export function HomeInput({
   onSubmit,
   isLoading = false,
-  placeholder = '描述你想要的设计...',
 }: HomeInputProps) {
   const [value, setValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [displayText, setDisplayText] = useState('');
+  const [textIndex, setTextIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Typewriter effect
+  useEffect(() => {
+    if (isFocused || value) {
+      // Stop animation when focused or has value
+      return;
+    }
+
+    const currentText = PLACEHOLDER_TEXTS[textIndex];
+    
+    const tick = () => {
+      if (isDeleting) {
+        // Deleting
+        setDisplayText(currentText.substring(0, charIndex - 1));
+        setCharIndex(prev => prev - 1);
+        
+        if (charIndex <= 1) {
+          setIsDeleting(false);
+          setTextIndex((prev) => (prev + 1) % PLACEHOLDER_TEXTS.length);
+        }
+      } else {
+        // Typing
+        setDisplayText(currentText.substring(0, charIndex + 1));
+        setCharIndex(prev => prev + 1);
+        
+        if (charIndex >= currentText.length) {
+          // Pause before deleting
+          timeoutRef.current = setTimeout(() => {
+            setIsDeleting(true);
+          }, 2000);
+          return;
+        }
+      }
+    };
+
+    const speed = isDeleting ? 30 : 80;
+    timeoutRef.current = setTimeout(tick, speed);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [charIndex, isDeleting, textIndex, isFocused, value]);
 
   const handleSubmit = useCallback(() => {
     const trimmedValue = value.trim();
     if (trimmedValue && !isLoading) {
       onSubmit(trimmedValue);
-      setValue('');
+      // Don't clear value - let parent handle navigation while keeping text visible
     }
   }, [value, isLoading, onSubmit]);
 
@@ -57,7 +112,7 @@ export function HomeInput({
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={placeholder}
+          placeholder={displayText || '描述你想要的设计...'}
           disabled={isLoading}
           rows={1}
           className={cn(

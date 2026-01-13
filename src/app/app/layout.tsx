@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { usePointsStore } from '@/lib/store/usePointsStore';
-import { Loader2 } from 'lucide-react';
+import { FullscreenLoading } from '@/components/ui/lottie-loading';
 
 /**
  * Points Initializer Component
@@ -89,25 +89,12 @@ export default function AppLayout({
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
-        </div>
-      </div>
-    );
+    return <FullscreenLoading />;
   }
 
   // Not authenticated - will redirect
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
-          <p className="text-text-secondary">跳转到登录页面...</p>
-        </div>
-      </div>
-    );
+    return <FullscreenLoading />;
   }
 
   return (
