@@ -49,7 +49,7 @@ export function InsufficientPointsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-sm p-6 rounded-2xl border-0 shadow-lg bg-muted/50 backdrop-blur-sm">
+      <DialogContent className="max-w-sm p-6 rounded-2xl border-0 shadow-lg bg-background backdrop-blur-sm">
         {/* Close button */}
         <button
           onClick={onClose}
