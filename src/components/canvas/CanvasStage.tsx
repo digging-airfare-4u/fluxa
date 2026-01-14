@@ -620,7 +620,20 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
     // Space key for panning mode
     useEffect(() => {
+      const isInputElement = (target: EventTarget | null): boolean => {
+        if (!target || !(target instanceof HTMLElement)) return false;
+        const tagName = target.tagName.toLowerCase();
+        return (
+          tagName === 'input' ||
+          tagName === 'textarea' ||
+          target.isContentEditable
+        );
+      };
+
       const handleKeyDown = (e: KeyboardEvent) => {
+        // Ignore space key when typing in input fields
+        if (isInputElement(e.target)) return;
+        
         if (e.code === 'Space' && !spacePressed) {
           setSpacePressed(true);
           if (containerRef.current) {
@@ -630,6 +643,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       };
 
       const handleKeyUp = (e: KeyboardEvent) => {
+        // Ignore space key when typing in input fields
+        if (isInputElement(e.target)) return;
+        
         if (e.code === 'Space') {
           setSpacePressed(false);
           setIsPanning(false);

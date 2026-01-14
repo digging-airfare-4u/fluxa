@@ -6,28 +6,25 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Plus, Home, FolderOpen, User, Info, Settings, LogOut,
-  Image, Star, PenTool, ShoppingBag, Video
+  Image, Star, PenTool, ShoppingBag, Video,
+  FileText, ShieldCheck
 } from 'lucide-react';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import { HomeInput } from '@/components/home/HomeInput';
 import { ProjectGrid, type Project } from '@/components/home/ProjectGrid';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
+import { UserPopover } from '@/components/layout';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   fetchProjects, 
   createProject, 
   deleteProject 
 } from '@/lib/supabase/queries/projects';
 import { supabase } from '@/lib/supabase/client';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -171,9 +168,70 @@ export default function HomePage() {
           >
             <User className="size-4" />
           </button>
-          <button className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-            <Info className="size-4" />
-          </button>
+          
+          {/* Info button with popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <Info className="size-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="end" className="w-40 p-1.5">
+              <div className="space-y-0.5">
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors"
+                >
+                  <FileText className="size-3.5 text-muted-foreground" />
+                  Terms of Service
+                </a>
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors"
+                >
+                  <ShieldCheck className="size-3.5 text-muted-foreground" />
+                  Privacy Policy
+                </a>
+              </div>
+              
+              {/* Social links */}
+              <div className="flex items-center justify-center gap-3 pt-2 mt-1.5 border-t">
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                </a>
+                <a
+                  href="mailto:support@fluxa.app"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                </a>
+                <a
+                  href="https://twitter.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </a>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -181,36 +239,7 @@ export default function HomePage() {
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <PointsBalanceIndicator />
         <ThemeToggle />
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 rounded-full bg-white dark:bg-[#1A1028] border border-black/5 dark:border-white/10 shadow-sm"
-            >
-              <User className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={() => setProfileOpen(true)}>
-              <User className="size-4 mr-2" />
-              个人中心
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="size-4 mr-2" />
-              设置
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={handleLogout}
-              className="text-red-500 focus:text-red-500"
-            >
-              <LogOut className="size-4 mr-2" />
-              退出登录
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserPopover />
       </div>
       
       {/* Main content */}

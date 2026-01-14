@@ -4,20 +4,19 @@
  * InsufficientPointsDialog Component
  * Requirements: 4.1, 4.2, 4.3, 4.4 - Display insufficient points message
  * 
- * Shows current balance, required points, and hints about future upgrade options.
+ * Shows upgrade offer with gift icon style.
  * Non-blocking - user can dismiss and continue browsing.
  */
 
-import { AlertCircle } from 'lucide-react';
+import { Gift, X } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { InsufficientPointsError, MembershipLevel } from '@/lib/supabase/types/points';
 
 interface InsufficientPointsDialogProps {
@@ -36,18 +35,6 @@ interface InsufficientPointsDialogProps {
 }
 
 /**
- * Get display name for membership level
- */
-function getMembershipDisplayName(level: MembershipLevel): string {
-  const names: Record<MembershipLevel, string> = {
-    free: '免费版',
-    pro: '专业版',
-    team: '团队版',
-  };
-  return names[level] || level;
-}
-
-/**
  * Dialog shown when user has insufficient points for an operation.
  * Requirements: 4.1-4.4
  */
@@ -57,45 +44,63 @@ export function InsufficientPointsDialog({
   currentBalance,
   requiredPoints,
   modelName,
-  membershipLevel = 'free',
 }: InsufficientPointsDialogProps) {
   const pointsNeeded = requiredPoints - currentBalance;
 
   return (
-    <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <AlertDialogContent className="max-w-xs p-4">
-        <AlertDialogHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="size-4 text-muted-foreground" />
-            <AlertDialogTitle className="text-base">点数不足</AlertDialogTitle>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-sm p-6 rounded-2xl border-0 shadow-lg bg-muted/50 backdrop-blur-sm">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <X className="size-5" />
+        </button>
+
+        {/* Gift icon */}
+        <div className="flex justify-center mb-4">
+          <div className="size-16 rounded-full bg-muted flex items-center justify-center">
+            <Gift className="size-8 text-foreground" strokeWidth={1.5} />
           </div>
-        </AlertDialogHeader>
-        <AlertDialogDescription asChild>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">当前余额</span>
-              <span className="text-foreground">{currentBalance.toLocaleString()} 点</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">{modelName ? `${modelName}` : '本次操作'}需要</span>
-              <span className="text-foreground">{requiredPoints.toLocaleString()} 点</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">还需</span>
-              <span className="text-foreground">+{pointsNeeded.toLocaleString()} 点</span>
-            </div>
-            <p className="text-muted-foreground text-xs pt-2">
-              当前为{getMembershipDisplayName(membershipLevel)}，升级可获得更多点数
-            </p>
-          </div>
-        </AlertDialogDescription>
-        <AlertDialogFooter className="pt-3">
-          <AlertDialogAction onClick={onClose}>
-            好的
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        </div>
+
+        {/* Title */}
+        <DialogTitle className="text-center text-xl font-bold mb-2">
+          限时优惠！
+        </DialogTitle>
+
+        {/* Description */}
+        <DialogDescription className="text-center text-muted-foreground mb-6">
+          升级即可畅享 365 天无限使用
+          {modelName && <><br />{modelName}</>}
+          {!modelName && <><br />所有 AI 模型</>}
+          ！
+          <span className="block text-xs mt-2 text-muted-foreground/70">
+            当前余额 {currentBalance} 点，还需 {pointsNeeded} 点
+          </span>
+        </DialogDescription>
+
+        {/* Buttons */}
+        <div className="flex gap-3 justify-center">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="px-6 rounded-full bg-muted hover:bg-muted/80 border-0"
+          >
+            稍后再说
+          </Button>
+          <Button
+            asChild
+            className="px-6 rounded-full bg-foreground text-background hover:bg-foreground/90"
+          >
+            <Link href="/pricing">
+              立即升级
+            </Link>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
