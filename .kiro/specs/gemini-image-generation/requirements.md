@@ -13,7 +13,8 @@
 - **Resolution_Permission**: 会员等级对应的最大可用分辨率权限
 - **Aspect_Ratio**: 图像宽高比（1:1, 16:9, 9:16, 4:3, 3:4 等）
 - **Reference_Image**: 图生图时提供的参考图像
-- **Chat_Session**: Gemini 多轮对话会话，用于持续编辑同一图像
+- **Chat_Session**: Gemini 多轮对话会话，通过 conversations 表的扩展字段持续编辑同一图像
+- **Provider_Context**: 存储各 AI provider 特有上下文的 JSONB 字段
 
 ## Requirements
 
@@ -39,13 +40,13 @@
 
 #### Acceptance Criteria
 
-1. THE System SHALL maintain a Gemini chat session per conversation for multi-turn editing
-2. WHEN a user sends a follow-up message in the same conversation, THE System SHALL use the existing chat session to preserve context
+1. THE System SHALL maintain multi-turn editing context per conversation via extended conversations table fields
+2. WHEN a user sends a follow-up message in the same conversation, THE System SHALL use the existing context to preserve editing history
 3. WHEN editing an existing image, THE System SHALL pass the previous image as context to Gemini
 4. THE System SHALL support commands like "change the background to blue" or "add a hat to the character"
-5. WHEN a new conversation starts, THE System SHALL create a fresh chat session
-6. THE System SHALL store chat session state to enable continuation across requests
-7. THE chat session state SHALL reference stored assets (asset_id/storage_path) instead of persisting raw base64 image data
+5. WHEN a new conversation starts, THE System SHALL start with fresh context
+6. THE conversations table SHALL include `last_generated_asset_id` to track the most recent generated image
+7. THE conversations table SHALL include `provider_context` JSONB to store provider-specific state (e.g., Gemini thought_signature)
 
 ### Requirement 3: 会员分辨率权限控制
 
@@ -110,10 +111,10 @@
 
 1. THE ai_models table SHALL include entries for gemini-2.5-flash-image and gemini-3-pro-image-preview
 2. THE membership_configs.perks SHALL be updated to include max_image_resolution for each level
-3. THE jobs table input JSONB SHALL support storing chat_session_id for multi-turn context
+3. THE jobs table input JSONB SHALL support storing conversationId for multi-turn context
 4. THE System SHALL store Gemini API key in Supabase Edge Function secrets as GEMINI_API_KEY
 5. THE system_settings table SHALL store Gemini API host with key `gemini_api_host`
 6. THE gemini_api_host setting SHALL default to `https://generativelanguage.googleapis.com` if not configured
 7. THE System SHALL query system_settings to get API host and construct URL as `${host}/v1beta/models/${model}:generateContent`
 8. THE system_settings table SHALL be publicly readable for Edge Functions to access configuration
-9. THE chat_sessions table SHALL apply RLS to enforce per-user access to their conversations and assets
+9. THE conversations table SHALL be extended with `last_generated_asset_id` and `provider_context` fields for multi-turn support

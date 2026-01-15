@@ -289,7 +289,12 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       
       // Determine which API to call based on model type
       const currentModel = models.find(m => m.name === (model || selectedModel));
-      const isImageModel = currentModel?.name.includes('seedream') || currentModel?.name.includes('dall-e');
+      // Check by type field first (preferred), then fallback to name-based detection
+      // Requirements: 6.6 - distinguish Gemini from other providers
+      const isImageModel = currentModel?.type === 'image' || 
+        currentModel?.name.includes('seedream') || 
+        currentModel?.name.includes('dall-e') ||
+        (currentModel?.name.includes('gemini') && currentModel?.name.includes('image'));
       
       if (isImageModel) {
         // Generate placeholder ID and position

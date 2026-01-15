@@ -1,9 +1,27 @@
 /**
  * Generate Image Edge Function
  * Supports text-to-image and image-to-image generation
+ * Providers: Volcengine (doubao), Google Gemini
+ * Requirements: 1.1-1.8, 2.1-2.7, 3.1-3.8, 4.1-4.4, 5.1-5.8
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
+import {
+  generateImageGemini,
+  calculateGeminiPointsCost,
+  GEMINI_MODELS,
+  RESOLUTION_PRESETS,
+  SUPPORTED_ASPECT_RATIOS,
+  type GeminiModelName,
+  type ResolutionPreset,
+  type AspectRatio,
+} from '../_shared/gemini-provider.ts';
+import {
+  getConversationContext,
+  updateConversationContext,
+  getLastGeneratedImageAsBase64,
+  type ConversationContext,
+} from '../_shared/conversation-context.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +34,8 @@ const ERROR_CODES = {
   IMAGE_ERROR: 'IMAGE_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   INSUFFICIENT_POINTS: 'INSUFFICIENT_POINTS',
+  RESOLUTION_NOT_ALLOWED: 'RESOLUTION_NOT_ALLOWED',
+  MODEL_RESOLUTION_MISMATCH: 'MODEL_RESOLUTION_MISMATCH',
 } as const;
 
 type JobStatus = 'queued' | 'processing' | 'done' | 'failed';
@@ -31,6 +51,9 @@ interface RequestBody {
   imageUrl?: string;
   placeholderX?: number;
   placeholderY?: number;
+  // Gemini-specific parameters
+  aspectRatio?: AspectRatio;
+  resolution?: ResolutionPreset;
 }
 
 interface Job {
@@ -63,6 +86,51 @@ interface InsufficientPointsError {
   current_balance: number;
   required_points: number;
   model_name: string;
+}
+
+/**
+ * Check if model is a Gemini model
+ */
+function isGeminiModel(model: string): model is GeminiModelName {
+  return model in GEMINI_MODELS;
+}
+
+/**
+ * Get user's max allowed resolution from membership
+ * Requirements: 3.2, 3.3, 3.4
+ */
+async function getUserMaxResolution(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<ResolutionPreset> {
+  const { data, error } = await supabase
+    .from('memberships')
+    .select('level, membership_configs!inner(perks)')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) {
+    // Default to free tier
+    return '1K';
+  }
+
+  const perks = (data.membership_configs as { perks: { max_image_resolution?: string } })?.perks;
+  const maxRes = perks?.max_image_resolution as ResolutionPreset | undefined;
+  
+  return maxRes && maxRes in RESOLUTION_PRESETS ? maxRes : '1K';
+}
+
+/**
+ * Validate resolution against user's membership level
+ * Requirements: 3.5
+ */
+function validateResolutionPermission(
+  requestedResolution: ResolutionPreset,
+  maxAllowedResolution: ResolutionPreset
+): boolean {
+  const requestedPixels = RESOLUTION_PRESETS[requestedResolution];
+  const maxPixels = RESOLUTION_PRESETS[maxAllowedResolution];
+  return requestedPixels <= maxPixels;
 }
 
 function validateRequest(body: unknown): body is RequestBody {
@@ -226,6 +294,67 @@ async function generateImageVolcengine(
   throw new Error('Invalid response: no url or b64_json');
 }
 
+/**
+ * Convert base64 image data to ArrayBuffer
+ */
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * Download and convert reference image to base64 for Gemini
+ * Requirements: 1.8
+ */
+async function getImageAsBase64(
+  supabase: ReturnType<typeof createClient>,
+  imageUrl: string,
+  userId: string
+): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    // If it's a Supabase storage URL, validate ownership
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    if (imageUrl.includes(supabaseUrl) && imageUrl.includes('/storage/')) {
+      // Extract storage path from URL
+      const pathMatch = imageUrl.match(/\/storage\/v1\/object\/(?:public|sign)\/assets\/(.+)/);
+      if (pathMatch) {
+        const storagePath = decodeURIComponent(pathMatch[1]);
+        // Check if path starts with user's ID (ownership check)
+        if (!storagePath.startsWith(userId + '/')) {
+          console.warn(`[Gemini] User ${userId} attempted to access image owned by another user`);
+          return null;
+        }
+      }
+    }
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.error(`[Gemini] Failed to fetch reference image: ${response.status}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+
+    return { base64, mimeType: contentType };
+  } catch (error) {
+    console.error('[Gemini] Error fetching reference image:', error);
+    return null;
+  }
+}
+
 async function downloadImage(url: string): Promise<{ data: ArrayBuffer; contentType: string; width?: number; height?: number }> {
   if (url.startsWith('data:')) {
     const matches = url.match(/^data:([^;]+);base64,(.+)$/);
@@ -287,7 +416,20 @@ async function processJob(
   job: Job,
   userId: string
 ): Promise<void> {
-  const { projectId, documentId, prompt, model, width, height, conversationId, imageUrl: refImage, placeholderX, placeholderY } = job.input as {
+  const { 
+    projectId, 
+    documentId, 
+    prompt, 
+    model, 
+    width, 
+    height, 
+    conversationId, 
+    imageUrl: refImage, 
+    placeholderX, 
+    placeholderY,
+    aspectRatio,
+    resolution,
+  } = job.input as {
     projectId: string;
     documentId: string;
     prompt: string;
@@ -298,16 +440,103 @@ async function processJob(
     imageUrl?: string;
     placeholderX?: number;
     placeholderY?: number;
+    aspectRatio?: AspectRatio;
+    resolution?: ResolutionPreset;
   };
 
   try {
     await updateJobStatus(supabase, job.id, 'processing');
 
-    const { imageUrl } = await generateImageVolcengine(prompt, width, height, model, refImage);
-    const { data: imageData, contentType } = await downloadImage(imageUrl);
+    let imageData: ArrayBuffer;
+    let contentType: string;
+    let imageDimensions: { width: number; height: number } | null = null;
+    let usedModel = model || 'doubao-seedream-4-5-251128';
 
-    // Get actual image dimensions
-    const imageDimensions = getImageDimensions(imageData, contentType);
+    // Route to appropriate provider based on model
+    if (model && isGeminiModel(model)) {
+      // Gemini provider
+      console.log(`[Gemini] Processing job ${job.id} with model ${model}`);
+      
+      // =========================================================================
+      // Multi-turn conversation context handling
+      // Requirements: 2.1, 2.2, 2.3, 2.5, 2.6, 2.7
+      // =========================================================================
+      let referenceImageBase64: string | undefined;
+      let referenceImageMimeType: string | undefined;
+      let conversationContext: ConversationContext | null = null;
+      
+      // Load conversation context if conversationId is provided
+      // Requirements: 2.1, 2.2
+      if (conversationId) {
+        conversationContext = await getConversationContext(supabase, conversationId);
+        console.log(`[Gemini] Loaded conversation context for ${conversationId}:`, {
+          hasLastAsset: !!conversationContext?.lastGeneratedAssetId,
+          hasGeminiContext: !!conversationContext?.providerContext?.gemini,
+        });
+      }
+      
+      // Priority for reference image:
+      // 1. Explicit imageUrl from request (user uploaded/selected image)
+      // 2. Last generated image from conversation context (multi-turn editing)
+      // Requirements: 2.3, 2.7
+      if (refImage) {
+        // User provided explicit reference image
+        const refImageData = await getImageAsBase64(supabase, refImage, userId);
+        if (refImageData) {
+          referenceImageBase64 = refImageData.base64;
+          referenceImageMimeType = refImageData.mimeType;
+          console.log(`[Gemini] Using explicit reference image from request`);
+        }
+      } else if (conversationContext?.lastGeneratedAssetId) {
+        // Use last generated image from conversation for multi-turn editing
+        // Requirements: 2.3, 2.7
+        const lastImageData = await getLastGeneratedImageAsBase64(
+          supabase,
+          conversationContext.lastGeneratedAssetId,
+          userId
+        );
+        if (lastImageData) {
+          referenceImageBase64 = lastImageData.base64;
+          referenceImageMimeType = lastImageData.mimeType;
+          console.log(`[Gemini] Using last generated image ${conversationContext.lastGeneratedAssetId} for multi-turn editing`);
+        }
+      }
+
+      const geminiResponse = await generateImageGemini(supabase, {
+        prompt,
+        model: model as GeminiModelName,
+        aspectRatio: aspectRatio || '1:1',
+        resolution: resolution || '1K',
+        referenceImageBase64,
+        referenceImageMimeType,
+      });
+
+      // Convert base64 response to ArrayBuffer
+      imageData = base64ToArrayBuffer(geminiResponse.imageBase64);
+      contentType = geminiResponse.mimeType;
+      imageDimensions = getImageDimensions(imageData, contentType);
+      usedModel = model;
+
+      // Update conversation context with thought signature if available
+      // Requirements: 2.6, 2.7
+      if (conversationId && geminiResponse.thoughtSignature) {
+        await updateConversationContext(supabase, conversationId, {
+          providerContext: {
+            gemini: {
+              thought_signature: geminiResponse.thoughtSignature,
+              updated_at: new Date().toISOString(),
+            },
+          },
+        });
+      }
+    } else {
+      // Volcengine provider (default)
+      const { imageUrl } = await generateImageVolcengine(prompt, width, height, model, refImage);
+      const downloaded = await downloadImage(imageUrl);
+      imageData = downloaded.data;
+      contentType = downloaded.contentType;
+      imageDimensions = getImageDimensions(imageData, contentType);
+    }
     
     const assetId = crypto.randomUUID();
     const extension = contentType === 'image/jpeg' ? 'jpg' : 'png';
@@ -329,12 +558,29 @@ async function processJob(
       size_bytes: imageData.byteLength,
       metadata: {
         source: { type: 'generate', origin: 'ai_generation', timestamp: new Date().toISOString() },
-        generation: { model: model || 'doubao-seedream-4-5-251128', prompt, parameters: { width, height } },
+        generation: { 
+          model: usedModel, 
+          prompt, 
+          parameters: { 
+            width, 
+            height,
+            aspectRatio: aspectRatio || undefined,
+            resolution: resolution || undefined,
+          } 
+        },
         scan: { status: 'pending' },
         dimensions: imageDimensions,
       },
     });
     if (assetError) throw new Error(`Asset creation failed: ${assetError.message}`);
+
+    // Update conversation with last generated asset ID
+    // Requirements: 2.6
+    if (conversationId) {
+      await updateConversationContext(supabase, conversationId, {
+        lastGeneratedAssetId: assetId,
+      });
+    }
 
     // Use public URL instead of signed URL (bucket is public)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -348,16 +594,16 @@ async function processJob(
     
     if (imageDimensions) {
       const { width: imgWidth, height: imgHeight } = imageDimensions;
-      const aspectRatio = imgWidth / imgHeight;
+      const aspectRatioValue = imgWidth / imgHeight;
       
-      if (aspectRatio >= 1) {
+      if (aspectRatioValue >= 1) {
         // Landscape or square: width is the limiting factor
         displayWidth = MAX_DISPLAY_SIZE;
-        displayHeight = Math.round(MAX_DISPLAY_SIZE / aspectRatio);
+        displayHeight = Math.round(MAX_DISPLAY_SIZE / aspectRatioValue);
       } else {
         // Portrait: height is the limiting factor
         displayHeight = MAX_DISPLAY_SIZE;
-        displayWidth = Math.round(MAX_DISPLAY_SIZE * aspectRatio);
+        displayWidth = Math.round(MAX_DISPLAY_SIZE * aspectRatioValue);
       }
     }
 
@@ -388,6 +634,9 @@ async function processJob(
 
     await updateJobStatus(supabase, job.id, 'done', {
       assetId, storagePath, publicUrl, layerId, op: addImageOp,
+      model: usedModel,
+      resolution: resolution || undefined,
+      aspectRatio: aspectRatio || undefined,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -439,7 +688,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { projectId, documentId, prompt, model, width = 1024, height = 1024, conversationId, imageUrl, placeholderX, placeholderY } = body;
+    const { projectId, documentId, prompt, model, width = 1024, height = 1024, conversationId, imageUrl, placeholderX, placeholderY, aspectRatio, resolution } = body;
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -483,15 +732,83 @@ Deno.serve(async (req: Request) => {
     }
 
     // =========================================================================
-    // Points Deduction Logic
-    // Requirements: 2.2, 2.5, 2.6
+    // Gemini-specific validation
+    // Requirements: 3.2-3.5, 3.8
     // =========================================================================
     
     // Determine the model name for points calculation
     const imageModel = model || Deno.env.get('VOLCENGINE_IMAGE_MODEL') || 'doubao-seedream-4-5-251128';
+    const isGemini = isGeminiModel(imageModel);
     
-    // Get points cost for the selected model
-    const pointsCost = await getModelPointsCost(supabaseService, imageModel);
+    // Validate resolution for Gemini models
+    let effectiveResolution: ResolutionPreset = '1K';
+    if (isGemini) {
+      effectiveResolution = resolution || '1K';
+      
+      // Validate aspect ratio
+      if (aspectRatio && !SUPPORTED_ASPECT_RATIOS.includes(aspectRatio)) {
+        return new Response(
+          JSON.stringify({ 
+            error: { 
+              code: ERROR_CODES.INVALID_REQUEST, 
+              message: `Unsupported aspect ratio: ${aspectRatio}. Supported: ${SUPPORTED_ASPECT_RATIOS.join(', ')}` 
+            } 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Check user's membership resolution permission
+      // Requirements: 3.2, 3.3, 3.4, 3.5
+      const userMaxResolution = await getUserMaxResolution(supabaseService, user.id);
+      if (!validateResolutionPermission(effectiveResolution, userMaxResolution)) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: ERROR_CODES.RESOLUTION_NOT_ALLOWED,
+              message: `您的会员等级最高支持 ${userMaxResolution} 分辨率，请升级会员以使用 ${effectiveResolution}`,
+              requested_resolution: effectiveResolution,
+              max_allowed_resolution: userMaxResolution,
+            },
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Validate model supports requested resolution
+      // Requirements: 3.8
+      const geminiModel = GEMINI_MODELS[imageModel as GeminiModelName];
+      const modelMaxPixels = RESOLUTION_PRESETS[geminiModel.maxResolution];
+      const requestedPixels = RESOLUTION_PRESETS[effectiveResolution];
+      if (requestedPixels > modelMaxPixels) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: ERROR_CODES.MODEL_RESOLUTION_MISMATCH,
+              message: `模型 ${imageModel} 最高支持 ${geminiModel.maxResolution} 分辨率`,
+              requested_resolution: effectiveResolution,
+              model_max_resolution: geminiModel.maxResolution,
+            },
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // =========================================================================
+    // Points Deduction Logic
+    // Requirements: 2.2, 2.5, 2.6, 5.2-5.5, 5.8
+    // =========================================================================
+    
+    // Get base points cost for the selected model
+    let pointsCost = await getModelPointsCost(supabaseService, imageModel);
+    
+    // Apply resolution multiplier for Gemini models
+    // Requirements: 5.3, 5.4, 5.5
+    if (isGemini) {
+      pointsCost = calculateGeminiPointsCost(pointsCost, effectiveResolution);
+      console.log(`[Gemini] Points cost: base=${await getModelPointsCost(supabaseService, imageModel)}, resolution=${effectiveResolution}, total=${pointsCost}`);
+    }
     
     // Attempt to deduct points before processing
     const deductionResult = await deductPoints(
@@ -504,6 +821,7 @@ Deno.serve(async (req: Request) => {
     );
     
     // If points deduction failed due to insufficient balance, return error
+    // Requirements: 5.6
     if (!deductionResult.success) {
       // Get display name for better UX
       const displayName = await getModelDisplayName(supabaseService, imageModel);
@@ -533,7 +851,21 @@ Deno.serve(async (req: Request) => {
         user_id: user.id,
         type: 'generate-image',
         status: 'queued',
-        input: { projectId, documentId, prompt, model, width, height, conversationId, imageUrl, placeholderX, placeholderY },
+        input: { 
+          projectId, 
+          documentId, 
+          prompt, 
+          model: imageModel, 
+          width, 
+          height, 
+          conversationId, 
+          imageUrl, 
+          placeholderX, 
+          placeholderY,
+          // Gemini-specific parameters
+          aspectRatio: isGemini ? (aspectRatio || '1:1') : undefined,
+          resolution: isGemini ? effectiveResolution : undefined,
+        },
       })
       .select()
       .single();

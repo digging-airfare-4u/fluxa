@@ -49,3 +49,24 @@ export async function getSystemSetting(key: string): Promise<SystemSetting | nul
 
   return data;
 }
+
+/**
+ * Get the Gemini API host URL
+ * Returns the configured host or the default Google API endpoint
+ */
+export async function getGeminiApiHost(): Promise<string> {
+  const DEFAULT_HOST = 'https://generativelanguage.googleapis.com';
+  
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'gemini_api_host')
+    .single();
+
+  if (error) {
+    console.error('[Settings] Failed to fetch gemini_api_host:', error);
+    return DEFAULT_HOST;
+  }
+
+  return (data?.value as { host?: string })?.host ?? DEFAULT_HOST;
+}

@@ -131,6 +131,12 @@ INSERT INTO system_settings (key, value, description) VALUES
   ('payment_enabled', '{"enabled": true}'::jsonb, '充值入口开关，设为 false 关闭充值功能')
 ON CONFLICT (key) DO NOTHING;
 
+-- Seed Data: Gemini API host configuration
+-- Requirements: 7.5, 7.6, 7.7, 7.8
+INSERT INTO system_settings (key, value, description) VALUES
+  ('gemini_api_host', '{"host": "https://generativelanguage.googleapis.com"}'::jsonb, 'Gemini API host URL, can be customized for proxy')
+ON CONFLICT (key) DO NOTHING;
+
 -- Trigger for updated_at timestamp
 CREATE TRIGGER update_membership_configs_updated_at
   BEFORE UPDATE ON membership_configs
@@ -146,10 +152,11 @@ CREATE POLICY "Anyone can read membership configs"
   USING (true);
 
 -- Seed Data
+-- Requirements: 3.1, 7.2 - max_image_resolution controls resolution permissions per membership level
 INSERT INTO membership_configs (level, display_name, initial_points, perks) VALUES
-  ('free', '免费版', 100, '{"no_watermark": false, "priority_queue": false}'::jsonb),
-  ('pro', '专业版', 500, '{"no_watermark": true, "priority_queue": false}'::jsonb),
-  ('team', '团队版', 2000, '{"no_watermark": true, "priority_queue": true}'::jsonb)
+  ('free', '免费版', 100, '{"no_watermark": false, "priority_queue": false, "max_image_resolution": "1K"}'::jsonb),
+  ('pro', '专业版', 500, '{"no_watermark": true, "priority_queue": false, "max_image_resolution": "2K"}'::jsonb),
+  ('team', '团队版', 2000, '{"no_watermark": true, "priority_queue": true, "max_image_resolution": "4K"}'::jsonb)
 ON CONFLICT (level) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   initial_points = EXCLUDED.initial_points,
@@ -168,6 +175,8 @@ UPDATE ai_models SET points_cost = 25 WHERE name = 'gpt-4-turbo';
 UPDATE ai_models SET points_cost = 8 WHERE name = 'claude-3-haiku';
 UPDATE ai_models SET points_cost = 15 WHERE name = 'claude-3-sonnet';
 UPDATE ai_models SET points_cost = 30 WHERE name = 'doubao-seedream-4-5-251128';
+-- Gemini image model points cost (Requirements: 5.1, 5.3)
+UPDATE ai_models SET points_cost = 40 WHERE name = 'gemini-3-pro-image-preview';
 
 -- ============================================================================
 -- Function: handle_new_user

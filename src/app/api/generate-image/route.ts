@@ -1,6 +1,8 @@
 /**
  * API Route: Generate Image
  * Proxies requests to Supabase Edge Function for image generation
+ * Supports Gemini models with aspectRatio and resolution parameters
+ * Requirements: 1.1-1.8, 3.1-3.8, 4.1-4.4
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,7 +13,21 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectId, documentId, prompt, width, height, conversationId, imageUrl } = body;
+    const { 
+      projectId, 
+      documentId, 
+      prompt, 
+      model,
+      width, 
+      height, 
+      conversationId, 
+      imageUrl,
+      placeholderX,
+      placeholderY,
+      // Gemini-specific parameters
+      aspectRatio,
+      resolution,
+    } = body;
 
     if (!projectId || !documentId || !prompt) {
       return NextResponse.json(
@@ -22,9 +38,22 @@ export async function POST(request: NextRequest) {
 
     const authHeader = request.headers.get('authorization');
     
-    // Debug: log auth header presence
+    // Debug: log auth header details
     console.log('[API] generate-image auth header present:', !!authHeader);
-    console.log('[API] generate-image auth header prefix:', authHeader?.substring(0, 20));
+    console.log('[API] generate-image model:', model);
+    if (authHeader) {
+      // Log token prefix to help debug (don't log full token for security)
+      const tokenParts = authHeader.split(' ');
+      console.log('[API] generate-image auth type:', tokenParts[0]);
+      console.log('[API] generate-image token length:', tokenParts[1]?.length || 0);
+    }
+
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Missing authorization header' } },
+        { status: 401 }
+      );
+    }
 
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/generate-image`;
     
@@ -33,9 +62,23 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         'apikey': supabaseAnonKey,
-        ...(authHeader ? { 'Authorization': authHeader } : {}),
+        'Authorization': authHeader,
       },
-      body: JSON.stringify({ projectId, documentId, prompt, width, height, conversationId, imageUrl }),
+      body: JSON.stringify({ 
+        projectId, 
+        documentId, 
+        prompt, 
+        model,
+        width, 
+        height, 
+        conversationId, 
+        imageUrl,
+        placeholderX,
+        placeholderY,
+        // Gemini-specific parameters
+        aspectRatio,
+        resolution,
+      }),
     });
 
     const data = await response.json();

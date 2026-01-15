@@ -35,12 +35,16 @@ CREATE TABLE documents (
 -- ============================================================================
 -- Table 3: conversations
 -- Chat conversations linked to projects and optionally documents
+-- Includes multi-turn image editing context for AI providers
 -- ============================================================================
 CREATE TABLE conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Multi-turn image editing support (Requirements: 2.6, 2.7, 7.9)
+  last_generated_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+  provider_context JSONB DEFAULT '{}'::jsonb
 );
 
 

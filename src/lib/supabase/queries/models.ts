@@ -10,9 +10,11 @@ export interface AIModel {
   display_name: string;
   provider: string;
   description: string | null;
+  type: string; // 'ops' for text generation, 'image' for image generation
   is_default: boolean;
   is_enabled: boolean;
   sort_order: number;
+  points_cost: number;
 }
 
 /**
@@ -27,6 +29,25 @@ export async function fetchModels(): Promise<AIModel[]> {
 
   if (error) {
     console.error('Failed to fetch models:', error);
+    return [];
+  }
+
+  return data as AIModel[];
+}
+
+/**
+ * Fetch only image generation models
+ */
+export async function fetchImageModels(): Promise<AIModel[]> {
+  const { data, error } = await supabase
+    .from('ai_models')
+    .select('*')
+    .eq('is_enabled', true)
+    .eq('type', 'image')
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch image models:', error);
     return [];
   }
 

@@ -56,12 +56,11 @@ interface GeminiGenerateOptions {
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '2:3' | '3:2' | '4:5' | '5:4' | '21:9';
   imageSize?: '1K' | '2K' | '4K';
   referenceImageUrl?: string;
-  chatSessionId?: string;
+  conversationId?: string;
 }
 
 interface GeminiGenerateResult {
   imageUrl: string;  // base64 data URL
-  chatSessionId: string;
   thoughtSignature?: string;
 }
 
@@ -70,27 +69,23 @@ async function generateImageGemini(options: GeminiGenerateOptions): Promise<Gemi
 
 - imageSize → `imageConfig` mapping: 1K→`maxDimension=1024`, 2K→2048, 4K→4096; width/height derived from aspect ratio.
 - Use `system_settings.gemini_api_host` to build the `generateContent` URL; default to `https://generativelanguage.googleapis.com`.
-- Use the returned base64 data URL only for upload to Supabase Storage; do not persist raw base64 in chat_sessions.
+- Use the returned base64 data URL only for upload to Supabase Storage; do not persist raw base64.
 - Validate model/resolution compatibility before calling the API to avoid 4xx from Gemini.
 
-### 2. Chat Session Manager
+### 2. Conversation Context Manager
 
 ```typescript
-interface ChatSession {
-  id: string;
-  conversationId: string;
-  history: ChatMessage[];
-  lastAssetId?: string;
-  lastImageStoragePath?: string;
-  thoughtSignature?: string;
-  createdAt: Date;
-  updatedAt: Date;
+interface ConversationContext {
+  lastGeneratedAssetId?: string;
+  providerContext: {
+    gemini?: { thoughtSignature?: string };
+    volcengine?: { taskId?: string };
+  };
 }
 
-interface ChatMessage {
-  role: 'user' | 'model';
-  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
-}
+// Functions to manage conversation context
+async function getConversationContext(conversationId: string): Promise<ConversationContext>
+async function updateConversationContext(conversationId: string, updates: Partial<ConversationContext>): Promise<void>
 ```
 
 ### 3. Resolution Permission Checker
@@ -125,7 +120,6 @@ interface GenerateImageRequest {
   // New Gemini-specific fields
   aspectRatio?: string;
   imageSize?: '1K' | '2K' | '4K';
-  chatSessionId?: string;
 }
 
 interface GenerateImageResponse {
@@ -133,7 +127,6 @@ interface GenerateImageResponse {
   pointsDeducted: number;
   remainingPoints: number;
   modelUsed: string;
-  chatSessionId?: string;
 }
 ```
 
@@ -151,8 +144,8 @@ interface GenerateImageResponse {
 
 ### jobs Table (existing)
 - Reuse `jobs` table for `generate-image` with Gemini payload; states remain `queued → processing → done/failed`.
-- `input` JSON MUST include model, aspectRatio, imageSize, chatSessionId, and reference image metadata.
-- `output` JSON MUST include asset_id, storage_path, public_url, layer_id/op payload, model_used, points_deducted, and chatSessionId for chaining.
+- `input` JSON MUST include model, aspectRatio, imageSize, conversationId, and reference image metadata.
+- `output` JSON MUST include asset_id, storage_path, public_url, layer_id/op payload, model_used, and points_deducted.
 
 ### ai_models Table Extension
 
@@ -179,26 +172,22 @@ INSERT INTO system_settings (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 ```
 
-### chat_sessions Table (New)
+### conversations Table Extension (Multi-Turn Support)
 
 ```sql
-CREATE TABLE chat_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  history JSONB NOT NULL DEFAULT '[]'::jsonb,
-  last_asset_id UUID REFERENCES assets(id),
-  last_image_storage_path TEXT,
-  thought_signature TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Add fields for multi-turn image editing context
+-- Requirements: 2.6, 2.7, 7.9
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS 
+  last_generated_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL;
 
-CREATE INDEX idx_chat_sessions_conversation_id ON chat_sessions(conversation_id);
-ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
--- RLS: only owner can read/write their chat sessions
-CREATE POLICY "chat_sessions_owner_rw" ON chat_sessions
-  FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS 
+  provider_context JSONB DEFAULT '{}'::jsonb;
+
+-- provider_context stores provider-specific state:
+-- {
+--   "gemini": { "thought_signature": "xxx" },
+--   "volcengine": { "task_id": "yyy" }
+-- }
 ```
 
 ## Multi-Turn Chat Flow
@@ -213,20 +202,20 @@ sequenceDiagram
     
     User->>Frontend: Send prompt "Create a cat"
     Frontend->>EdgeFunction: POST /generate-image
-    EdgeFunction->>DB: Check/Create chat_session
-    EdgeFunction->>Gemini: generateContent (new session)
+    EdgeFunction->>DB: Get conversation context
+    EdgeFunction->>Gemini: generateContent (new request)
     Gemini-->>EdgeFunction: Image + thought_signature
-    EdgeFunction->>DB: Store session history
+    EdgeFunction->>DB: Update conversation (last_generated_asset_id, provider_context)
     EdgeFunction->>DB: Create asset & op
-    EdgeFunction-->>Frontend: { jobId, chatSessionId }
+    EdgeFunction-->>Frontend: { jobId }
     
     User->>Frontend: Send "Add a hat"
-    Frontend->>EdgeFunction: POST /generate-image (with chatSessionId)
-    EdgeFunction->>DB: Load chat_session history
-    EdgeFunction->>Gemini: generateContent (with history + previous image)
+    Frontend->>EdgeFunction: POST /generate-image (same conversationId)
+    EdgeFunction->>DB: Load conversation context + previous image from last_generated_asset_id
+    EdgeFunction->>Gemini: generateContent (with previous image as context)
     Gemini-->>EdgeFunction: Modified image
-    EdgeFunction->>DB: Update session history
-    EdgeFunction-->>Frontend: { jobId, chatSessionId }
+    EdgeFunction->>DB: Update conversation context
+    EdgeFunction-->>Frontend: { jobId }
 ```
 
 
@@ -246,9 +235,9 @@ sequenceDiagram
 
 **Validates: Requirements 5.3, 5.4, 5.5**
 
-### Property 3: Chat Session Lifecycle
+### Property 3: Conversation Context Lifecycle
 
-*For any* conversation, the first image generation request SHALL create a new chat session, and *for any* subsequent request in the same conversation, the system SHALL reuse the existing session ID and include previous context.
+*For any* conversation, the first image generation request SHALL initialize the conversation context, and *for any* subsequent request in the same conversation, the system SHALL reuse the existing context and include the previous generated image.
 
 **Validates: Requirements 2.1, 2.2, 2.5, 2.6**
 
@@ -294,12 +283,12 @@ sequenceDiagram
 - Test resolution permission checker with different membership levels
 - Test points cost calculator with different resolutions
 - Test aspect ratio validation
-- Test chat session creation and retrieval
+- Test conversation context retrieval and update
 
 ### Property-Based Tests (fast-check)
 - Property 1: Generate random membership levels and resolutions, verify permission logic
 - Property 2: Generate random resolutions, verify points multiplier calculation
-- Property 3: Generate sequences of requests, verify session reuse
+- Property 3: Generate sequences of requests, verify context reuse
 - Property 6: Generate random aspect ratios from valid set, verify passthrough
 
 ### Integration Tests

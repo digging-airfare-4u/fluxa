@@ -7,4 +7,4 @@ inclusion: always
    Learn about inclusion modes: https://kiro.dev/docs/steering/#inclusion-modes
 ------------------------------------------------------------------------------------->
 
-在查询和添加数据库表结构的时候 不仅要有sql 还需要你使用superbase的mcp直接处理 项目名称是fluxa 
+在查询和添加数据库表结构的时候 不仅要有sql 还需要你使用superbase 的mcp直接处理 项目名称是fluxa  (注意是power-superbase  不是pgsql 也不是 mysql)

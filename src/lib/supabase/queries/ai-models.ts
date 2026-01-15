@@ -11,6 +11,7 @@ export interface AIModel {
   display_name: string;
   provider: string;
   description: string | null;
+  type: string; // 'ops' for text generation, 'image' for image generation
   is_default: boolean;
   is_enabled: boolean;
   sort_order: number;
@@ -48,6 +49,26 @@ export async function getEnabledAIModels(): Promise<AIModel[]> {
   if (error) {
     console.error('Failed to fetch enabled AI models:', error);
     throw new Error(`Failed to fetch enabled AI models: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Fetch only image generation models
+ * Requirements: 6.1
+ */
+export async function getImageModels(): Promise<AIModel[]> {
+  const { data, error } = await supabase
+    .from('ai_models')
+    .select('*')
+    .eq('is_enabled', true)
+    .eq('type', 'image')
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch image models:', error);
+    throw new Error(`Failed to fetch image models: ${error.message}`);
   }
 
   return data || [];
