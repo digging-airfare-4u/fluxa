@@ -8,30 +8,35 @@
 import { useEffect, useState } from 'react';
 import { Zap, Sparkles, ImageIcon, Download, Gift } from 'lucide-react';
 import { getAIModels, type AIModel } from '@/lib/supabase/queries/ai-models';
+import { getMembershipConfigs } from '@/lib/supabase/queries/membership';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-const EARN_RULES = [
-  { icon: Gift, label: '新用户注册', points: 100, description: '首次注册即送' },
-  { icon: Zap, label: '每日登录', points: 10, description: '每天首次登录' },
-];
-
 export function PointsRules() {
   const [models, setModels] = useState<AIModel[]>([]);
+  const [registrationPoints, setRegistrationPoints] = useState(100);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchModels() {
+    async function fetchData() {
       try {
-        const data = await getAIModels();
-        setModels(data);
+        const [modelsData, configs] = await Promise.all([
+          getAIModels(),
+          getMembershipConfigs(),
+        ]);
+        setModels(modelsData);
+        // 获取 free 等级的初始积分
+        const freeConfig = configs.find(c => c.level === 'free');
+        if (freeConfig) {
+          setRegistrationPoints(freeConfig.initial_points);
+        }
       } catch (err) {
-        console.error('Failed to fetch models:', err);
+        console.error('[PointsRules] Failed to fetch data:', err);
       } finally {
         setLoading(false);
       }
     }
-    fetchModels();
+    fetchData();
   }, []);
 
   return (
@@ -117,25 +122,37 @@ export function PointsRules() {
             </div>
 
             <div className="space-y-2">
-              {EARN_RULES.map((rule, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <rule.icon className="size-4 text-green-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{rule.label}</p>
-                      <p className="text-xs text-muted-foreground">{rule.description}</p>
-                    </div>
+              {/* 新用户注册 */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                    <Gift className="size-4 text-green-500" />
                   </div>
-                  <div className="flex items-center gap-1 text-sm font-semibold text-green-500">
-                    +{rule.points}
+                  <div>
+                    <p className="text-sm font-medium">新用户注册</p>
+                    <p className="text-xs text-muted-foreground">首次注册即送</p>
                   </div>
                 </div>
-              ))}
+                <div className="flex items-center gap-1 text-sm font-semibold text-green-500">
+                  +{registrationPoints}
+                </div>
+              </div>
+
+              {/* 每日登录 */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                    <Zap className="size-4 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">每日登录</p>
+                    <p className="text-xs text-muted-foreground">每天首次登录</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-sm font-semibold text-green-500">
+                  +10
+                </div>
+              </div>
 
               {/* 购买积分 */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">

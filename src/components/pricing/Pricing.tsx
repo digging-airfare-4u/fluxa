@@ -27,18 +27,21 @@ export interface PricingPlan {
   buttonText: string;
   href: string;
   isPopular: boolean;
+  level?: 'free' | 'pro' | 'team';
 }
 
 interface PricingProps {
   plans: PricingPlan[];
   title?: string;
   description?: string;
+  paymentEnabled?: boolean;
 }
 
 export function Pricing({
   plans,
   title = '简单透明的定价',
   description = '选择适合你的方案\n所有方案都包含 AI 设计生成、画布编辑和项目管理功能',
+  paymentEnabled = true,
 }: PricingProps) {
   const [isMonthly, setIsMonthly] = useState(true);
   const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -127,33 +130,43 @@ export function Pricing({
             )}
             <div className="flex-1 flex flex-col">
               <p className="text-sm font-semibold text-muted-foreground">{plan.name}</p>
-              <div className="mt-4 flex items-baseline justify-center gap-x-1">
-                <span className="text-3xl font-bold tracking-tight text-foreground">
-                  <NumberFlow
-                    value={isMonthly ? Number(plan.price) : Number(plan.yearlyPrice)}
-                    format={{
-                      style: 'currency',
-                      currency: 'CNY',
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    }}
-                    transformTiming={{
-                      duration: 500,
-                      easing: 'ease-out',
-                    }}
-                    willChange
-                    className="tabular-nums"
-                  />
-                </span>
-                {plan.period !== 'Next 3 months' && (
-                  <span className="text-xs text-muted-foreground">
-                    / {plan.period === 'month' ? '月' : plan.period}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isMonthly ? '按月计费' : '按年计费'}
-              </p>
+              
+              {/* 价格显示：充值关闭时隐藏付费套餐价格 */}
+              {paymentEnabled || plan.level === 'free' ? (
+                <>
+                  <div className="mt-4 flex items-baseline justify-center gap-x-1">
+                    <span className="text-3xl font-bold tracking-tight text-foreground">
+                      <NumberFlow
+                        value={isMonthly ? Number(plan.price) : Number(plan.yearlyPrice)}
+                        format={{
+                          style: 'currency',
+                          currency: 'CNY',
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        }}
+                        transformTiming={{
+                          duration: 500,
+                          easing: 'ease-out',
+                        }}
+                        willChange
+                        className="tabular-nums"
+                      />
+                    </span>
+                    {plan.period !== 'Next 3 months' && (
+                      <span className="text-xs text-muted-foreground">
+                        / {plan.period === 'month' ? '月' : plan.period}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isMonthly ? '按月计费' : '按年计费'}
+                  </p>
+                </>
+              ) : (
+                <div className="mt-4 h-12 flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">暂不可用</span>
+                </div>
+              )}
 
               <ul className="mt-4 gap-1.5 flex flex-col text-sm">
                 {plan.features.map((feature, idx) => (
@@ -165,19 +178,33 @@ export function Pricing({
               </ul>
 
               <div className="mt-auto pt-4">
-                <Link
-                  href={plan.href}
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                    'w-full font-medium',
-                    'transition-all duration-200 hover:ring-2 hover:ring-primary hover:ring-offset-1',
-                    plan.isPopular
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                      : ''
-                  )}
-                >
-                  {plan.buttonText}
-                </Link>
+                {/* 按钮：充值关闭时付费套餐显示禁用状态 */}
+                {paymentEnabled || plan.level === 'free' ? (
+                  <Link
+                    href={plan.href}
+                    className={cn(
+                      buttonVariants({ variant: 'outline', size: 'sm' }),
+                      'w-full font-medium',
+                      'transition-all duration-200 hover:ring-2 hover:ring-primary hover:ring-offset-1',
+                      plan.isPopular
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                        : ''
+                    )}
+                  >
+                    {plan.buttonText}
+                  </Link>
+                ) : (
+                  <button
+                    disabled
+                    onClick={() => alert('充值入口暂时关闭，请稍后再试')}
+                    className={cn(
+                      buttonVariants({ variant: 'outline', size: 'sm' }),
+                      'w-full font-medium opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    充值入口已关闭
+                  </button>
+                )}
                 <p className="mt-3 text-xs text-muted-foreground">{plan.description}</p>
               </div>
             </div>

@@ -9,19 +9,25 @@ import { useEffect, useState } from 'react';
 import { Pricing, PointsRules, type PricingPlan } from '@/components/pricing';
 import { SiteHeader } from '@/components/layout';
 import { getMembershipConfigs, transformToPricingPlans } from '@/lib/supabase/queries/membership';
+import { isPaymentEnabled } from '@/lib/supabase/queries/settings';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PricingPage() {
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentEnabled, setPaymentEnabled] = useState(true);
 
   useEffect(() => {
-    async function fetchPlans() {
+    async function fetchData() {
       try {
-        const configs = await getMembershipConfigs();
+        const [configs, enabled] = await Promise.all([
+          getMembershipConfigs(),
+          isPaymentEnabled(),
+        ]);
         const pricingPlans = transformToPricingPlans(configs);
         setPlans(pricingPlans);
+        setPaymentEnabled(enabled);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
@@ -29,7 +35,7 @@ export default function PricingPage() {
       }
     }
 
-    fetchPlans();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -65,7 +71,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <Pricing plans={plans} />
+      <Pricing plans={plans} paymentEnabled={paymentEnabled} />
       <PointsRules />
     </div>
   );

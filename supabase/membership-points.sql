@@ -100,6 +100,37 @@ CREATE TABLE membership_configs (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ============================================================================
+-- Table 4: system_settings
+-- Global system configuration including feature toggles
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Trigger for updated_at timestamp
+CREATE TRIGGER update_system_settings_updated_at
+  BEFORE UPDATE ON system_settings
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable RLS
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for system_settings (public read)
+CREATE POLICY "Anyone can read system settings"
+  ON system_settings FOR SELECT
+  USING (true);
+
+-- Seed Data: Payment toggle (default enabled)
+INSERT INTO system_settings (key, value, description) VALUES
+  ('payment_enabled', '{"enabled": true}'::jsonb, '充值入口开关，设为 false 关闭充值功能')
+ON CONFLICT (key) DO NOTHING;
+
 -- Trigger for updated_at timestamp
 CREATE TRIGGER update_membership_configs_updated_at
   BEFORE UPDATE ON membership_configs
