@@ -4,18 +4,11 @@
  * Home Input Component - Lovart style with typewriter placeholder
  */
 
-import { useState, useCallback, useEffect, useRef, KeyboardEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, KeyboardEvent, useMemo } from 'react';
 import { Paperclip, ArrowUp, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-const PLACEHOLDER_TEXTS = [
-  '帮我设计一张科技感的海报...',
-  '创建一个简约风格的名片...',
-  '设计一张生日派对邀请函...',
-  '制作一个产品宣传图...',
-  '帮我做一张社交媒体封面...',
-];
 
 interface HomeInputProps {
   onSubmit: (prompt: string) => void;
@@ -26,6 +19,7 @@ export function HomeInput({
   onSubmit,
   isLoading = false,
 }: HomeInputProps) {
+  const t = useTranslations('home');
   const [value, setValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [displayText, setDisplayText] = useState('');
@@ -34,6 +28,17 @@ export function HomeInput({
   const [isDeleting, setIsDeleting] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Get placeholder texts from translations
+  const placeholderTexts = useMemo(() => [
+    t('input.placeholders.tech_poster'),
+    t('input.placeholders.business_card'),
+    t('input.placeholders.birthday'),
+    t('input.placeholders.product'),
+    t('input.placeholders.social_cover'),
+  ], [t]);
+
+  const defaultPlaceholder = t('input.default_placeholder');
+
   // Typewriter effect
   useEffect(() => {
     if (isFocused || value) {
@@ -41,7 +46,7 @@ export function HomeInput({
       return;
     }
 
-    const currentText = PLACEHOLDER_TEXTS[textIndex];
+    const currentText = placeholderTexts[textIndex];
     
     const tick = () => {
       if (isDeleting) {
@@ -51,7 +56,7 @@ export function HomeInput({
         
         if (charIndex <= 1) {
           setIsDeleting(false);
-          setTextIndex((prev) => (prev + 1) % PLACEHOLDER_TEXTS.length);
+          setTextIndex((prev) => (prev + 1) % placeholderTexts.length);
         }
       } else {
         // Typing
@@ -76,7 +81,7 @@ export function HomeInput({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [charIndex, isDeleting, textIndex, isFocused, value]);
+  }, [charIndex, isDeleting, textIndex, isFocused, value, placeholderTexts]);
 
   const handleSubmit = useCallback(() => {
     const trimmedValue = value.trim();
@@ -112,7 +117,7 @@ export function HomeInput({
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={displayText || '描述你想要的设计...'}
+          placeholder={displayText || defaultPlaceholder}
           disabled={isLoading}
           rows={1}
           className={cn(

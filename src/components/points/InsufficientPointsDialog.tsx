@@ -10,6 +10,7 @@
 
 import { Gift, X } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -46,6 +47,7 @@ export function InsufficientPointsDialog({
   modelName,
 }: InsufficientPointsDialogProps) {
   const pointsNeeded = requiredPoints - currentBalance;
+  const t = useTranslations('points');
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -67,17 +69,17 @@ export function InsufficientPointsDialog({
 
         {/* Title */}
         <DialogTitle className="text-center text-xl font-bold mb-2">
-          限时优惠！
+          {t('insufficient.title')}
         </DialogTitle>
 
         {/* Description */}
         <DialogDescription className="text-center text-muted-foreground mb-6">
-          升级即可畅享 365 天无限使用
-          {modelName && <><br />{modelName}</>}
-          {!modelName && <><br />所有 AI 模型</>}
+          {t('insufficient.description')}
+          {modelName && <><br />{t('insufficient.model_specific', { modelName })}</>}
+          {!modelName && <><br />{t('insufficient.all_models')}</>}
           ！
           <span className="block text-xs mt-2 text-muted-foreground/70">
-            当前余额 {currentBalance} 点，还需 {pointsNeeded} 点
+            {t('insufficient.current_balance', { balance: currentBalance, needed: pointsNeeded })}
           </span>
         </DialogDescription>
 
@@ -88,14 +90,14 @@ export function InsufficientPointsDialog({
             onClick={onClose}
             className="px-6 rounded-full bg-muted hover:bg-muted/80 border-0"
           >
-            稍后再说
+            {t('insufficient.later')}
           </Button>
           <Button
             asChild
             className="px-6 rounded-full bg-foreground text-background hover:bg-foreground/90"
           >
             <Link href="/pricing">
-              立即升级
+              {t('insufficient.upgrade')}
             </Link>
           </Button>
         </div>

@@ -3,9 +3,11 @@
 /**
  * Quick Tags Component
  * Requirements: 5.1 - Quick tags below the input for common design categories
+ * Requirements: 13.1 - Translate all aria-label attributes
  */
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 interface QuickTag {
   id: string;
@@ -35,8 +37,10 @@ export function QuickTags({
   onTagClick,
   selectedTagId,
 }: QuickTagsProps) {
+  const t = useT('common');
+  
   return (
-    <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="快捷标签">
+    <div className="flex flex-wrap justify-center gap-2" role="group" aria-label={t('accessibility.quick_tags')}>
       {tags.map((tag) => (
         <button
           key={tag.id}

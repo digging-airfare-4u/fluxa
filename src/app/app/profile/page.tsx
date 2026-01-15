@@ -9,13 +9,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { ArrowLeft, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { UserProfilePoints } from '@/components/points';
 import { supabase } from '@/lib/supabase/client';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const t = useTranslations('home');
   const [userId, setUserId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -32,19 +35,22 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0D0915]">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0D0915]/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="shrink-0"
-          >
-            <ArrowLeft className="size-5" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <User className="size-5 text-muted-foreground" />
-            <h1 className="text-lg font-semibold">个人中心</h1>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.back()}
+              className="shrink-0"
+            >
+              <ArrowLeft className="size-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <User className="size-5 text-muted-foreground" />
+              <h1 className="text-lg font-semibold">{t('profile.title')}</h1>
+            </div>
           </div>
+          <LanguageSwitcher />
         </div>
       </header>
 

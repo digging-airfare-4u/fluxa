@@ -1,0 +1,56 @@
+{
+  "actions": {
+    "add_to_canvas": "添加到画布",
+    "copy_prompt": "复制提示词",
+    "download": "下载"
+  },
+  "assets": {
+    "generated_image": "生成的图片",
+    "loading": "加载中...",
+    "no_images": "暂无图片",
+    "reference_image": "引用图片",
+    "this_project": "当前项目"
+  },
+  "empty_state": {
+    "description": "描述你想要的设计，AI 将为你生成可编辑的画布",
+    "title": "开始设计"
+  },
+  "input": {
+    "attach": "添加附件",
+    "placeholder": "描述你想要的设计...",
+    "send": "发送",
+    "stop": "停止"
+  },
+  "message": {
+    "add_to_canvas": "添加到画布",
+    "copy": "复制",
+    "design_details": "设计方案详情",
+    "image_preview": "图片预览",
+    "locate_on_canvas": "在画布上定位",
+    "ops_count": "包含 {count} 个操作步骤",
+    "regenerate": "重新生成",
+    "view_full_report": "查看完整报告"
+  },
+  "model_selector": {
+    "image_models": "图像模型",
+    "label": "选择模型",
+    "text_models": "文本模型"
+  },
+  "panel": {
+    "collapse": "收起面板",
+    "expand": "展开聊天面板",
+    "title": "Fluxa"
+  },
+  "placeholders": [
+    "帮我设计一张科技感的海报...",
+    "创建一个简约风格的名片...",
+    "设计一张生日派对邀请函...",
+    "制作一个产品宣传图...",
+    "帮我做一张社交媒体封面..."
+  ],
+  "status": {
+    "generating": "正在生成...",
+    "processing": "处理中...",
+    "thinking": "思考中..."
+  }
+}

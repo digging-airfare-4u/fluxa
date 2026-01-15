@@ -2,7 +2,7 @@
 
 /**
  * LayerItem Component - Individual layer list item
- * Requirements: 3.2, 3.3, 9.1
+ * Requirements: 3.2, 3.3, 9.1, 14.3
  * 
  * Displays a single layer with:
  * - Type icon and name
@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 import type { Layer, LayerType } from '@/lib/canvas/layer.types';
 
 /**
@@ -66,6 +67,7 @@ export function LayerItem({
   onLockToggle,
   onRename,
 }: LayerItemProps) {
+  const t = useT('editor');
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -125,7 +127,7 @@ export function LayerItem({
       role="button"
       tabIndex={0}
       aria-selected={isSelected}
-      aria-label={`Layer: ${layer.name}`}
+      aria-label={t('layer_panel.layer_aria', { name: layer.name })}
     >
       {/* Layer type icon */}
       <span className="text-muted-foreground shrink-0">
@@ -142,7 +144,7 @@ export function LayerItem({
           onBlur={handleBlur}
           onClick={(e) => e.stopPropagation()}
           className="h-6 px-1 py-0 text-sm flex-1 min-w-0"
-          aria-label="Edit layer name"
+          aria-label={t('layer_panel.edit_name')}
         />
       ) : (
         <span
@@ -172,7 +174,7 @@ export function LayerItem({
             e.stopPropagation();
             onVisibilityToggle();
           }}
-          aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
+          aria-label={layer.visible ? t('layer_panel.hidden') : t('layer_panel.visible')}
         >
           {layer.visible ? (
             <Eye className="size-3.5" strokeWidth={1.5} />
@@ -193,7 +195,7 @@ export function LayerItem({
             e.stopPropagation();
             onLockToggle();
           }}
-          aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
+          aria-label={layer.locked ? t('layer_panel.unlock') : t('layer_panel.lock')}
         >
           {layer.locked ? (
             <Lock className="size-3.5" strokeWidth={1.5} />

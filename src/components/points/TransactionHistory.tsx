@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Loader2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,44 +57,6 @@ function getSourceIcon(source: TransactionSource): React.ReactNode {
 }
 
 /**
- * Get display name for transaction source
- */
-function getSourceName(source: TransactionSource, modelName?: string | null): string {
-  const names: Record<TransactionSource, string> = {
-    registration: '注册奖励',
-    generate_ops: modelName ? `AI 设计 (${modelName})` : 'AI 设计生成',
-    generate_image: modelName ? `图片生成 (${modelName})` : '图片生成',
-    export: '导出',
-    admin: '管理员调整',
-  };
-  return names[source] || source;
-}
-
-/**
- * Format timestamp to relative or absolute time
- */
-function formatTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return '刚刚';
-  if (diffMins < 60) return `${diffMins} 分钟前`;
-  if (diffHours < 24) return `${diffHours} 小时前`;
-  if (diffDays < 7) return `${diffDays} 天前`;
-
-  return date.toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/**
  * Transaction history list with pagination and filtering
  */
 export function TransactionHistory({
@@ -107,10 +70,50 @@ export function TransactionHistory({
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('points');
 
   const totalPages = Math.ceil(total / pageSize);
   const hasMore = page < totalPages;
   const hasPrev = page > 1;
+
+  /**
+   * Get display name for transaction source
+   */
+  const getSourceName = useCallback((source: TransactionSource, modelName?: string | null): string => {
+    if (modelName) {
+      if (source === 'generate_ops') {
+        return t('transaction.source.generate_ops_with_model', { modelName });
+      }
+      if (source === 'generate_image') {
+        return t('transaction.source.generate_image_with_model', { modelName });
+      }
+    }
+    return t(`transaction.source.${source}`);
+  }, [t]);
+
+  /**
+   * Format timestamp to relative or absolute time
+   */
+  const formatTime = useCallback((timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return t('transaction.time.just_now');
+    if (diffMins < 60) return t('transaction.time.minutes_ago', { count: diffMins });
+    if (diffHours < 24) return t('transaction.time.hours_ago', { count: diffHours });
+    if (diffDays < 7) return t('transaction.time.days_ago', { count: diffDays });
+
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [t]);
 
   /**
    * Fetch transactions from database
@@ -192,13 +195,13 @@ export function TransactionHistory({
           className="justify-start"
         >
           <ToggleGroupItem value="all" size="sm">
-            全部
+            {t('transaction.filter.all')}
           </ToggleGroupItem>
           <ToggleGroupItem value="earn" size="sm">
-            收入
+            {t('transaction.filter.earn')}
           </ToggleGroupItem>
           <ToggleGroupItem value="spend" size="sm">
-            支出
+            {t('transaction.filter.spend')}
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -220,20 +223,26 @@ export function TransactionHistory({
         ) : error ? (
           // Error state
           <div className="text-center py-8 text-muted-foreground">
-            <p>{error}</p>
+            <p>{t('transaction.error')}</p>
             <Button variant="ghost" size="sm" onClick={fetchTransactions} className="mt-2">
-              重试
+              {t('transaction.retry')}
             </Button>
           </div>
         ) : transactions.length === 0 ? (
           // Empty state
           <div className="text-center py-8 text-muted-foreground">
-            <p>暂无交易记录</p>
+            <p>{t('transaction.empty')}</p>
           </div>
         ) : (
           // Transaction items
           transactions.map((tx) => (
-            <TransactionItem key={tx.id} transaction={tx} />
+            <TransactionItem 
+              key={tx.id} 
+              transaction={tx} 
+              getSourceName={getSourceName}
+              formatTime={formatTime}
+              t={t}
+            />
           ))
         )}
       </div>
@@ -242,7 +251,7 @@ export function TransactionHistory({
       {!isLoading && transactions.length > 0 && totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <span className="text-sm text-muted-foreground">
-            第 {page} / {totalPages} 页，共 {total} 条
+            {t('transaction.pagination.page_info', { current: page, total: totalPages, count: total })}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -252,7 +261,7 @@ export function TransactionHistory({
               disabled={!hasPrev}
             >
               <ChevronLeft className="size-4" />
-              上一页
+              {t('transaction.pagination.previous')}
             </Button>
             <Button
               variant="outline"
@@ -260,7 +269,7 @@ export function TransactionHistory({
               onClick={handleNextPage}
               disabled={!hasMore}
             >
-              下一页
+              {t('transaction.pagination.next')}
               <ChevronRight className="size-4" />
             </Button>
           </div>
@@ -273,7 +282,17 @@ export function TransactionHistory({
 /**
  * Single transaction item
  */
-function TransactionItem({ transaction }: { transaction: PointTransaction }) {
+function TransactionItem({ 
+  transaction, 
+  getSourceName, 
+  formatTime,
+  t 
+}: { 
+  transaction: PointTransaction;
+  getSourceName: (source: TransactionSource, modelName?: string | null) => string;
+  formatTime: (timestamp: string) => string;
+  t: ReturnType<typeof useTranslations<'points'>>;
+}) {
   const isEarn = transaction.type === 'earn';
   const isAdjust = transaction.type === 'adjust';
 
@@ -315,7 +334,7 @@ function TransactionItem({ transaction }: { transaction: PointTransaction }) {
           {isEarn ? '+' : ''}{transaction.amount.toLocaleString()}
         </p>
         <p className="text-xs text-muted-foreground">
-          余额: {transaction.balance_after.toLocaleString()}
+          {t('transaction.balance_after', { balance: transaction.balance_after.toLocaleString() })}
         </p>
       </div>
     </div>

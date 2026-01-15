@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { AlertCircle, X, RotateCcw } from 'lucide-react';
+import { useT } from '@/lib/i18n/hooks';
 
 interface InlineErrorProps {
   message: string;
@@ -23,7 +24,7 @@ interface InlineErrorProps {
  * 
  * Respects prefers-reduced-motion via CSS for fade-in animation.
  * 
- * @see Requirements 7.2, 7.3
+ * @see Requirements 7.2, 7.3, 13.1
  */
 function InlineError({
   message,
@@ -33,6 +34,7 @@ function InlineError({
   autoDismissDelay = 8000,
   className,
 }: InlineErrorProps) {
+  const t = useT('common');
   const [isVisible, setIsVisible] = useState(true);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
@@ -94,10 +96,10 @@ function InlineError({
             'transition-colors duration-150',
             'focus:outline-none focus:ring-2 focus:ring-orange-400/50'
           )}
-          aria-label="Retry"
+          aria-label={t('accessibility.retry')}
         >
           <RotateCcw className="w-3 h-3" />
-          Retry
+          {t('actions.retry')}
         </button>
       )}
 
@@ -112,7 +114,7 @@ function InlineError({
             'transition-colors duration-150',
             'focus:outline-none focus:ring-2 focus:ring-orange-400/50'
           )}
-          aria-label="Dismiss error"
+          aria-label={t('accessibility.dismiss_error')}
         >
           <X className="w-4 h-4" />
         </button>

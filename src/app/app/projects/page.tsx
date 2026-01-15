@@ -2,6 +2,7 @@
 
 /**
  * Projects Page - 项目列表页面
+ * Requirements: 13.2 - Translate all alt attributes
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ProjectGrid, type Project } from '@/components/home/ProjectGrid';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
 import { 
   fetchProjects, 
@@ -27,9 +29,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const tCommon = useT('common');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -93,7 +97,7 @@ export default function ProjectsPage() {
       <div className="fixed top-4 left-4 z-50">
         <img 
           src="/logo.png" 
-          alt="Fluxa" 
+          alt={tCommon('accessibility.logo_alt')} 
           className="size-10 rounded-xl"
         />
       </div>
@@ -139,6 +143,7 @@ export default function ProjectsPage() {
       {/* Top right controls */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <PointsBalanceIndicator />
+        <LanguageSwitcher />
         <ThemeToggle />
         
         <DropdownMenu>

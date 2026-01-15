@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * Context menu for canvas elements - using shadcn styling
+ * Requirements: 14.2
+ */
+
 import React, { useEffect, useRef } from 'react';
 import {
   Copy,
@@ -11,6 +16,7 @@ import {
   ChevronsDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 export interface ContextMenuProps {
   x: number;
@@ -86,6 +92,7 @@ export function ContextMenu({
   onSendToBack,
   canPaste,
 }: ContextMenuProps) {
+  const t = useT('editor');
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -129,13 +136,13 @@ export function ContextMenu({
     >
       <MenuItem
         icon={<Copy />}
-        label="复制"
+        label={t('context_menu.copy')}
         shortcut="⌘C"
         onClick={() => { onCopy(); onClose(); }}
       />
       <MenuItem
         icon={<Clipboard />}
-        label="粘贴"
+        label={t('context_menu.paste')}
         shortcut="⌘V"
         onClick={() => { onPaste(); onClose(); }}
         disabled={!canPaste}
@@ -143,26 +150,26 @@ export function ContextMenu({
       
       <MenuDivider />
       
-      <MenuLabel>图层</MenuLabel>
+      <MenuLabel>{t('context_menu.layer')}</MenuLabel>
       
       <MenuItem
         icon={<ChevronsUp />}
-        label="置于顶层"
+        label={t('context_menu.bring_to_front')}
         onClick={() => { onBringToFront(); onClose(); }}
       />
       <MenuItem
         icon={<ArrowUp />}
-        label="上移一层"
+        label={t('context_menu.bring_forward')}
         onClick={() => { onBringForward(); onClose(); }}
       />
       <MenuItem
         icon={<ArrowDown />}
-        label="下移一层"
+        label={t('context_menu.send_backward')}
         onClick={() => { onSendBackward(); onClose(); }}
       />
       <MenuItem
         icon={<ChevronsDown />}
-        label="置于底层"
+        label={t('context_menu.send_to_back')}
         onClick={() => { onSendToBack(); onClose(); }}
       />
       
@@ -170,7 +177,7 @@ export function ContextMenu({
       
       <MenuItem
         icon={<Trash2 />}
-        label="删除"
+        label={t('context_menu.delete')}
         shortcut="⌫"
         onClick={() => { onDelete(); onClose(); }}
         destructive

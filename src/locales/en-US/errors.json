@@ -1,0 +1,39 @@
+{
+  "api": {
+    "export_failed": "Export failed",
+    "forbidden": "No permission to perform this action",
+    "generation_failed": "Generation failed, please try again",
+    "image_generation_failed": "Image generation failed",
+    "insufficient_points": "Insufficient points",
+    "load_messages_failed": "Failed to load messages",
+    "not_found": "Resource not found",
+    "rate_limit": "Too many requests, please try again later",
+    "send_message_failed": "Failed to send message",
+    "session_expired": "Please log in again",
+    "unauthorized": "Please log in first",
+    "unknown": "An unknown error occurred",
+    "upload_failed": "Upload failed"
+  },
+  "network": {
+    "offline": "Network connection lost",
+    "server_error": "Server error, please try again later",
+    "timeout": "Request timed out, please try again"
+  },
+  "pages": {
+    "not_found": {
+      "back_home": "Back to Home",
+      "description": "Page not found",
+      "title": "404"
+    },
+    "server_error": {
+      "description": "Server error",
+      "retry": "Retry",
+      "title": "500"
+    }
+  },
+  "validation": {
+    "invalid_email": "Please enter a valid email address",
+    "invalid_format": "Invalid format",
+    "required": "This field is required"
+  }
+}

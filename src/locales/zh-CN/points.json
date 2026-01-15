@@ -1,0 +1,85 @@
+{
+  "balance": {
+    "click_for_details": "点数余额 · 点击查看详情",
+    "points": "{count} 点",
+    "title": "积分余额",
+    "unlimited": "无限"
+  },
+  "insufficient": {
+    "all_models": "所有 AI 模型",
+    "current_balance": "当前余额 {balance} 点，还需 {needed} 点",
+    "description": "升级即可畅享 365 天无限使用",
+    "later": "稍后再说",
+    "model_specific": "{modelName}",
+    "title": "限时优惠！",
+    "upgrade": "立即升级"
+  },
+  "pricing": {
+    "billing_monthly": "按月计费",
+    "billing_yearly": "按年计费",
+    "description": "选择适合你的方案\n所有方案都包含 AI 设计生成、画布编辑和项目管理功能",
+    "free": {
+      "features": [
+        "每日 {count} 点积分",
+        "基础 AI 模型",
+        "标准导出质量"
+      ],
+      "name": "免费版",
+      "price": "¥0"
+    },
+    "not_available": "暂不可用",
+    "payment_closed": "充值入口已关闭",
+    "per_month": "月",
+    "pro": {
+      "features": [
+        "无限积分",
+        "所有 AI 模型",
+        "高清导出",
+        "优先支持"
+      ],
+      "name": "专业版",
+      "price": "¥{price}/月"
+    },
+    "recommended": "推荐",
+    "save_percent": "省 20%",
+    "title": "简单透明的定价",
+    "yearly": "年付"
+  },
+  "transaction": {
+    "balance_after": "余额: {balance}",
+    "empty": "暂无交易记录",
+    "error": "加载失败",
+    "filter": {
+      "all": "全部",
+      "earn": "收入",
+      "spend": "支出"
+    },
+    "pagination": {
+      "next": "下一页",
+      "page_info": "第 {current} / {total} 页，共 {count} 条",
+      "previous": "上一页"
+    },
+    "retry": "重试",
+    "source": {
+      "admin": "管理员调整",
+      "export": "导出",
+      "generate_image": "图片生成",
+      "generate_image_with_model": "图片生成 ({modelName})",
+      "generate_ops": "AI 设计生成",
+      "generate_ops_with_model": "AI 设计 ({modelName})",
+      "registration": "注册奖励"
+    },
+    "time": {
+      "days_ago": "{count} 天前",
+      "hours_ago": "{count} 小时前",
+      "just_now": "刚刚",
+      "minutes_ago": "{count} 分钟前"
+    },
+    "title": "交易记录",
+    "type": {
+      "earn": "获得",
+      "refund": "退款",
+      "spend": "消费"
+    }
+  }
+}

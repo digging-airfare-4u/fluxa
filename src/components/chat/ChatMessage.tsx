@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import { Copy, Check, ChevronDown, Search, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ImageCard } from './ImageCard';
 import {
@@ -38,6 +39,7 @@ export function ChatMessage({
   onImageDownload,
   onAddToCanvas,
 }: ChatMessageProps) {
+  const t = useTranslations('chat');
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -192,7 +194,7 @@ export function ChatMessage({
         <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="mt-3">
           <CollapsibleTrigger className="chat-collapsible-trigger w-full">
             <Search className="size-3.5" />
-            <span>查看完整报告</span>
+            <span>{t('message.view_full_report')}</span>
             <ChevronDown className={cn(
               "size-3 ml-auto transition-transform",
               detailsOpen && "rotate-180"
@@ -200,13 +202,13 @@ export function ChatMessage({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="chat-quote-card">
-              <p className="text-xs text-foreground mb-2 font-medium">设计方案详情</p>
+              <p className="text-xs text-foreground mb-2 font-medium">{t('message.design_details')}</p>
               <p className="text-xs text-muted-foreground whitespace-pre-wrap">
                 {metadata.plan}
               </p>
               {metadata.ops && metadata.ops.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  • 包含 {metadata.ops.length} 个操作步骤
+                  • {t('message.ops_count', { count: metadata.ops.length })}
                 </p>
               )}
             </div>
@@ -231,7 +233,7 @@ export function ChatMessage({
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/90 border-none">
           <VisuallyHidden>
-            <DialogTitle>图片预览</DialogTitle>
+            <DialogTitle>{t('message.image_preview')}</DialogTitle>
           </VisuallyHidden>
           <button
             onClick={() => setPreviewOpen(false)}

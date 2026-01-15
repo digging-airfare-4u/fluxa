@@ -1,0 +1,74 @@
+{
+  "accessibility": {
+    "account": "Account",
+    "home": "Home",
+    "new_project": "New Project",
+    "projects_list": "Projects List",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "empty_state": {
+      "description": "Create your first design project",
+      "title": "No projects yet"
+    },
+    "new_project": "New Project",
+    "recent_projects": "Recent Projects",
+    "see_all": "See All",
+    "title": "My Projects"
+  },
+  "delete_dialog": {
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "description": "This action cannot be undone. The project will be permanently deleted.",
+    "title": "Are you sure you want to delete this project?"
+  },
+  "errors": {
+    "create_failed": "Failed to create project, please try again",
+    "delete_failed": "Failed to delete project, please try again",
+    "load_failed": "Failed to load projects, please refresh"
+  },
+  "hero": {
+    "tagline": "Let AI design everything for you"
+  },
+  "input": {
+    "default_placeholder": "Describe your design...",
+    "placeholders": {
+      "birthday": "Design a birthday party invitation...",
+      "business_card": "Create a minimalist business card...",
+      "product": "Make a product promotional image...",
+      "social_cover": "Help me create a social media cover...",
+      "tech_poster": "Help me design a tech-style poster..."
+    }
+  },
+  "landing": {
+    "cta": "Get Started",
+    "tagline": "AI Design"
+  },
+  "profile": {
+    "title": "Profile"
+  },
+  "project_card": {
+    "created_at": "Created {date}",
+    "delete": "Delete",
+    "last_refined": "Last refined on {date}",
+    "open": "Open",
+    "rename": "Rename",
+    "unnamed": "Untitled",
+    "updated_at": "Updated {date}"
+  },
+  "quick_tags": {
+    "banner": "Banner",
+    "card": "Business Card",
+    "invitation": "Invitation",
+    "poster": "Poster",
+    "prompts": {
+      "branding": "Design a brand logo and visual identity",
+      "default": "Design a creative work",
+      "design": "Design a modern minimalist poster",
+      "ecommerce": "Design an e-commerce product promotion image",
+      "illustration": "Create an illustration artwork",
+      "video": "Design a video cover thumbnail"
+    },
+    "social": "Social Media"
+  }
+}

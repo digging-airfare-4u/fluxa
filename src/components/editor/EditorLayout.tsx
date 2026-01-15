@@ -2,7 +2,7 @@
 
 /**
  * Editor Layout Component - Main editor page layout (Lovart style)
- * Requirements: 3.5, 3.6, 6.1, 6.4, 6.5, 6.6, 6.7
+ * Requirements: 3.5, 3.6, 6.1, 6.4, 6.5, 6.6, 6.7, 7.2, 14.2
  */
 
 import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
@@ -17,10 +17,13 @@ import { LeftToolbar, ToolType } from './LeftToolbar';
 import CanvasStage, { CanvasStageRef, LayerInfo, LayerModifiedEvent } from '../canvas/CanvasStage';
 import { ChatPanel, ChatPanelRef } from '../chat/ChatPanel';
 import { PointsBalanceIndicator } from '@/components/points';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { LayerPanel, LayerPanelToggle, LAYER_PANEL_WIDTH } from '@/components/layer';
 import { OpsExecutor, createOpsExecutor } from '@/lib/canvas/opsExecutor';
 import { saveOp, createUpdateLayerOp } from '@/lib/supabase/queries/ops';
 import { useLayerStore, useIsPanelVisible } from '@/lib/store/useLayerStore';
+import { useT } from '@/lib/i18n/hooks';
+import { useTranslations } from 'next-intl';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +63,8 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
   initialPrompt,
 }, ref) {
   const router = useRouter();
+  const t = useT('editor');
+  const tCommon = useTranslations('common');
   
   // Canvas ref and state
   const canvasRef = useRef<CanvasStageRef>(null);
@@ -488,7 +493,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
               ) : (
                 <img 
                   src="/logo.png" 
-                  alt="Fluxa" 
+                  alt={tCommon('accessibility.logo_alt')} 
                   className="size-8 rounded-lg"
                 />
               )}
@@ -497,56 +502,56 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
           <DropdownMenuContent align="start" className="w-48 text-xs">
             <DropdownMenuItem onClick={handleBack} className="text-xs py-1.5">
               <Home className="size-3.5 mr-2" />
-              主页
+              {t('menu.home')}
             </DropdownMenuItem>
             <DropdownMenuItem className="text-xs py-1.5">
               <FolderOpen className="size-3.5 mr-2" />
-              项目库
+              {t('menu.projects')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-xs py-1.5">
               <Plus className="size-3.5 mr-2" />
-              新建项目
+              {t('menu.new_project')}
             </DropdownMenuItem>
             <DropdownMenuItem className="text-xs py-1.5 text-red-500 focus:text-red-500">
               <Trash2 className="size-3.5 mr-2" />
-              删除当前项目
+              {t('menu.delete_project')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleImageUpload} className="text-xs py-1.5">
               <ImageIcon className="size-3.5 mr-2" />
-              导入图片
+              {t('menu.import_image')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled className="text-xs py-1.5">
               <Undo className="size-3.5 mr-2" />
-              撤销
+              {t('menu.undo')}
               <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem disabled className="text-xs py-1.5">
               <Redo className="size-3.5 mr-2" />
-              重做
+              {t('menu.redo')}
               <DropdownMenuShortcut>⌘⇧Z</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem disabled className="text-xs py-1.5">
               <Copy className="size-3.5 mr-2" />
-              复制对象
+              {t('menu.copy_object')}
               <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-xs py-1.5">
               <Eye className="size-3.5 mr-2" />
-              显示画布所有图片
+              {t('menu.show_all_images')}
               <DropdownMenuShortcut>⇧1</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem className="text-xs py-1.5">
               <ZoomIn className="size-3.5 mr-2" />
-              放大
+              {t('menu.zoom_in')}
               <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem className="text-xs py-1.5">
               <ZoomOut className="size-3.5 mr-2" />
-              缩小
+              {t('menu.zoom_out')}
               <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -572,6 +577,9 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
             {projectName}
           </span>
         )}
+
+        {/* Language Switcher */}
+        <LanguageSwitcher />
       </div>
 
       {/* Floating bottom left - layer toggle and points in same row */}

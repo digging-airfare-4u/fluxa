@@ -1,0 +1,83 @@
+{
+  "canvas": {
+    "drag_to_pan": "拖拽平移",
+    "fit_view": "适应视图 (⌘0)",
+    "reset_zoom": "重置缩放",
+    "zoom_in": "放大",
+    "zoom_out": "缩小"
+  },
+  "context_menu": {
+    "bring_forward": "上移一层",
+    "bring_to_front": "置于顶层",
+    "copy": "复制",
+    "delete": "删除",
+    "duplicate": "复制",
+    "layer": "图层",
+    "lock": "锁定",
+    "paste": "粘贴",
+    "send_backward": "下移一层",
+    "send_to_back": "置于底层",
+    "unlock": "解锁"
+  },
+  "export": {
+    "download": "下载",
+    "format": "格式",
+    "quality": "质量",
+    "scale": "缩放",
+    "title": "导出"
+  },
+  "layer_panel": {
+    "collapse": "收起图层面板",
+    "delete": "删除图层",
+    "edit_name": "编辑图层名称",
+    "expand": "展开图层面板",
+    "hidden": "隐藏",
+    "layer_aria": "图层: {name}",
+    "lock": "锁定",
+    "no_layers": "暂无图层",
+    "panel_aria": "图层面板",
+    "title": "图层",
+    "unlock": "解锁",
+    "visible": "显示"
+  },
+  "menu": {
+    "copy_object": "复制对象",
+    "delete_project": "删除当前项目",
+    "home": "主页",
+    "import_image": "导入图片",
+    "new_project": "新建项目",
+    "projects": "项目库",
+    "redo": "重做",
+    "show_all_images": "显示画布所有图片",
+    "undo": "撤销",
+    "zoom_in": "放大",
+    "zoom_out": "缩小"
+  },
+  "text_toolbar": {
+    "align_center": "居中",
+    "align_left": "左对齐",
+    "align_right": "右对齐",
+    "bold": "加粗",
+    "color": "文字颜色",
+    "color_option": "颜色 {color}",
+    "italic": "斜体",
+    "strikethrough": "删除线",
+    "underline": "下划线"
+  },
+  "toolbar": {
+    "ai": "AI 功能",
+    "aria_label": "画布工具",
+    "box_select": "框选工具",
+    "hand": "移动画布",
+    "image": "图片上传",
+    "pencil": "画笔工具",
+    "rectangle": "矩形工具",
+    "select": "选择工具",
+    "shapes": "形状",
+    "text": "文字工具"
+  },
+  "tooltips": {
+    "collapse_panel": "收起面板",
+    "expand_panel": "展开面板"
+  }
+}

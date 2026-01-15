@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput, ChatInputRef } from './ChatInput';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Skeleton } from '@/components/ui/skeleton';
 import { GeneratingPlaceholder, GeneratingPlaceholderBox } from '@/components/ui/GeneratingPlaceholder';
 import { InlineError } from '@/components/ui/InlineError';
+import { useErrorMessages } from '@/lib/i18n';
 import { 
   fetchMessages, 
   createMessage,
@@ -76,6 +78,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   initialCollapsed = false,
   initialPrompt,
 }, ref) {
+  const t = useTranslations('chat');
+  const { getApiError } = useErrorMessages();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle');
@@ -109,7 +113,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         const data = await fetchMessages(conversationId);
         setMessages(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load messages');
+        setError(err instanceof Error ? err.message : getApiError('LOAD_MESSAGES_FAILED'));
       } finally {
         setIsLoading(false);
       }
@@ -239,14 +243,14 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
        */
       setGenerationPhase('phase-a');
       
-      // Add pending "正在生成" message
+      // Add pending generating message
       const pendingMessageId = `pending-${Date.now()}`;
       const currentModelName = models.find(m => m.name === (model || selectedModel))?.display_name || selectedModel;
       const pendingMessage: Message = {
         id: pendingMessageId,
         conversation_id: conversationId,
         role: 'assistant',
-        content: '正在生成...',
+        content: t('status.generating'),
         created_at: new Date().toISOString(),
         metadata: { isPending: true, modelName: currentModelName },
       };
@@ -280,7 +284,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
       if (sessionError || !session) {
         console.error('Failed to refresh session:', sessionError);
-        throw new Error('请重新登录后再试');
+        throw new Error(getApiError('SESSION_EXPIRED'));
       }
       
       // Determine which API to call based on model type
@@ -345,7 +349,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
             onGeneratingChange?.(false);
             return;
           }
-          throw new Error(errorData?.error?.message || 'Failed to generate image');
+          throw new Error(errorData?.error?.message || getApiError('IMAGE_GENERATION_FAILED'));
         }
 
         const result = await response.json();
@@ -480,7 +484,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
             onGeneratingChange?.(false);
             return;
           }
-          throw new Error(errorData?.error?.message || 'Failed to generate design');
+          throw new Error(errorData?.error?.message || getApiError('GENERATION_FAILED'));
         }
 
         const result = await response.json();
@@ -535,7 +539,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
        * Requirements: 4.5 - Display inline error on failure
        */
       setGenerationPhase('failed');
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      setError(err instanceof Error ? err.message : getApiError('SEND_MESSAGE_FAILED'));
       
       // Notify canvas generation complete (on error)
       onGeneratingChange?.(false);
@@ -545,7 +549,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     } finally {
       abortControllerRef.current = null;
     }
-  }, [conversationId, projectId, documentId, onOpsGenerated, selectedModel, models]);
+  }, [conversationId, projectId, documentId, onOpsGenerated, selectedModel, models, t, getApiError]);
 
   const handleImageClick = useCallback((imageUrl: string, layerId?: string) => {
     console.log('[ChatPanel] handleImageClick called', { imageUrl, layerId, hasOnLocateImage: !!onLocateImage });
@@ -594,7 +598,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
             <ChevronLeft className="size-4" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left">展开聊天面板</TooltipContent>
+        <TooltipContent side="left">{t('panel.expand')}</TooltipContent>
       </Tooltip>
     );
   }
@@ -606,8 +610,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       {/* Header - no border */}
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Fluxa" className="size-5" />
-          <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">Fluxa</h2>
+          <img src="/logo.png" alt={t('panel.title')} className="size-5" />
+          <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">{t('panel.title')}</h2>
         </div>
         <div className="flex items-center gap-0">
           <Tooltip>
@@ -616,7 +620,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
                 <ChevronRight className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>收起面板</TooltipContent>
+            <TooltipContent>{t('panel.collapse')}</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -634,12 +638,12 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
           <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in-slow">
             <img 
               src="/logo.png" 
-              alt="Fluxa" 
+              alt={t('panel.title')} 
               className="size-16 rounded-2xl mb-4"
             />
-            <h3 className="font-semibold mb-2">开始设计</h3>
+            <h3 className="font-semibold mb-2">{t('empty_state.title')}</h3>
             <p className="text-sm text-muted-foreground max-w-[240px]">
-              描述你想要的设计，AI 将为你生成可编辑的画布
+              {t('empty_state.description')}
             </p>
           </div>
         ) : (

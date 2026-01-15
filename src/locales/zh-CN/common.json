@@ -1,0 +1,57 @@
+{
+  "accessibility": {
+    "dismiss_error": "关闭错误",
+    "edit_layer_name": "编辑图层名称",
+    "layer": "图层: {name}",
+    "layer_panel": "图层面板",
+    "loading": "加载中",
+    "logo_alt": "Fluxa",
+    "main_navigation": "主导航",
+    "quick_tags": "快捷标签",
+    "retry": "重试",
+    "switch_language": "切换语言",
+    "switch_to_dark": "切换到深色模式",
+    "switch_to_light": "切换到浅色模式",
+    "wechat_qr": "微信群二维码"
+  },
+  "app": {
+    "name": "Fluxa",
+    "tagline": "AI 驱动的设计生成平台"
+  },
+  "actions": {
+    "back": "返回",
+    "cancel": "取消",
+    "close": "关闭",
+    "confirm": "确认",
+    "copy": "复制",
+    "delete": "删除",
+    "edit": "编辑",
+    "generating": "生成中...",
+    "loading": "加载中...",
+    "next": "下一步",
+    "ok": "确定",
+    "retry": "重试",
+    "save": "保存",
+    "saving": "保存中...",
+    "submit": "提交",
+    "uploading": "上传中..."
+  },
+  "pagination": {
+    "next": "下一页",
+    "page": "第 {current} 页，共 {total} 页",
+    "previous": "上一页"
+  },
+  "status": {
+    "empty": "暂无数据",
+    "error": "操作失败",
+    "loading": "加载中",
+    "no_permission": "无权限访问",
+    "success": "操作成功"
+  },
+  "time": {
+    "days_ago": "{count} 天前",
+    "hours_ago": "{count} 小时前",
+    "just_now": "刚刚",
+    "minutes_ago": "{count} 分钟前"
+  }
+}

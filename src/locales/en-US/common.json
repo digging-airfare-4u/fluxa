@@ -1,0 +1,57 @@
+{
+  "accessibility": {
+    "dismiss_error": "Dismiss error",
+    "edit_layer_name": "Edit layer name",
+    "layer": "Layer: {name}",
+    "layer_panel": "Layer panel",
+    "loading": "Loading",
+    "logo_alt": "Fluxa",
+    "main_navigation": "Main navigation",
+    "quick_tags": "Quick tags",
+    "retry": "Retry",
+    "switch_language": "Switch language",
+    "switch_to_dark": "Switch to dark mode",
+    "switch_to_light": "Switch to light mode",
+    "wechat_qr": "WeChat group QR code"
+  },
+  "app": {
+    "name": "Fluxa",
+    "tagline": "AI-Powered Design Generation Platform"
+  },
+  "actions": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "copy": "Copy",
+    "delete": "Delete",
+    "edit": "Edit",
+    "generating": "Generating...",
+    "loading": "Loading...",
+    "next": "Next",
+    "ok": "OK",
+    "retry": "Retry",
+    "save": "Save",
+    "saving": "Saving...",
+    "submit": "Submit",
+    "uploading": "Uploading..."
+  },
+  "pagination": {
+    "next": "Next",
+    "page": "Page {current} of {total}",
+    "previous": "Previous"
+  },
+  "status": {
+    "empty": "No data",
+    "error": "Operation failed",
+    "loading": "Loading",
+    "no_permission": "No permission",
+    "success": "Success"
+  },
+  "time": {
+    "days_ago": "{count} days ago",
+    "hours_ago": "{count} hours ago",
+    "just_now": "Just now",
+    "minutes_ago": "{count} minutes ago"
+  }
+}

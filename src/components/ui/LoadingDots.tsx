@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 interface LoadingDotsProps {
   className?: string;
@@ -26,13 +27,16 @@ const gapClasses = {
  * to create a smooth, calm loading indicator.
  * 
  * Respects prefers-reduced-motion via CSS.
+ * Requirements: 13.1 - Translate all aria-label attributes
  */
 function LoadingDots({ className, size = 'md' }: LoadingDotsProps) {
+  const t = useT('common');
+  
   return (
     <div
       className={cn('inline-flex items-center', gapClasses[size], className)}
       role="status"
-      aria-label="Loading"
+      aria-label={t('accessibility.loading')}
     >
       <span
         className={cn(
@@ -52,7 +56,7 @@ function LoadingDots({ className, size = 'md' }: LoadingDotsProps) {
           sizeClasses[size]
         )}
       />
-      <span className="sr-only">Loading...</span>
+      <span className="sr-only">{t('actions.loading')}</span>
     </div>
   );
 }

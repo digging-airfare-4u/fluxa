@@ -9,6 +9,7 @@
 
 import { useCallback } from 'react';
 import { Zap } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePointsStore } from '@/lib/store/usePointsStore';
@@ -27,6 +28,7 @@ interface PointsBalanceIndicatorProps {
 export function PointsBalanceIndicator({ className }: PointsBalanceIndicatorProps) {
   const { points, isLoading, isInitialized } = usePointsStore();
   const [profileOpen, setProfileOpen] = useState(false);
+  const t = useTranslations('points');
 
   const handleClick = useCallback(() => {
     setProfileOpen(true);
@@ -61,7 +63,7 @@ export function PointsBalanceIndicator({ className }: PointsBalanceIndicatorProp
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>点数余额 · 点击查看详情</p>
+          <p>{t('balance.click_for_details')}</p>
         </TooltipContent>
       </Tooltip>
 

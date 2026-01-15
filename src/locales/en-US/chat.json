@@ -1,0 +1,56 @@
+{
+  "actions": {
+    "add_to_canvas": "Add to canvas",
+    "copy_prompt": "Copy prompt",
+    "download": "Download"
+  },
+  "assets": {
+    "generated_image": "Generated image",
+    "loading": "Loading...",
+    "no_images": "No images",
+    "reference_image": "Reference image",
+    "this_project": "This project"
+  },
+  "empty_state": {
+    "description": "Describe your design, and AI will generate an editable canvas for you",
+    "title": "Start Designing"
+  },
+  "input": {
+    "attach": "Attach",
+    "placeholder": "Describe your design...",
+    "send": "Send",
+    "stop": "Stop"
+  },
+  "message": {
+    "add_to_canvas": "Add to Canvas",
+    "copy": "Copy",
+    "design_details": "Design Details",
+    "image_preview": "Image Preview",
+    "locate_on_canvas": "Locate on Canvas",
+    "ops_count": "Contains {count} operation steps",
+    "regenerate": "Regenerate",
+    "view_full_report": "View Full Report"
+  },
+  "model_selector": {
+    "image_models": "Image Models",
+    "label": "Select Model",
+    "text_models": "Text Models"
+  },
+  "panel": {
+    "collapse": "Collapse panel",
+    "expand": "Expand chat panel",
+    "title": "Fluxa"
+  },
+  "placeholders": [
+    "Help me design a tech-style poster...",
+    "Create a minimalist business card...",
+    "Design a birthday party invitation...",
+    "Make a product promotional image...",
+    "Help me create a social media cover..."
+  ],
+  "status": {
+    "generating": "Generating...",
+    "processing": "Processing...",
+    "thinking": "Thinking..."
+  }
+}

@@ -3,6 +3,7 @@
 /**
  * Auth Page - Email/Password Login and Registration
  * Supports light/dark theme
+ * Requirements: 13.2 - Translate all alt attributes
  */
 
 import { useState, useCallback } from 'react';
@@ -14,11 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 type AuthMode = 'login' | 'register';
 
 export default function AuthPage() {
   const router = useRouter();
+  const tCommon = useT('common');
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -122,7 +125,7 @@ export default function AuthPage() {
         <div className="text-center mb-8">
           <img 
             src="/logo.png" 
-            alt="Fluxa" 
+            alt={tCommon('accessibility.logo_alt')} 
             className="size-16 rounded-2xl mx-auto mb-4"
           />
           <h1 className="text-3xl font-bold text-[#1A1A1A] dark:text-white">

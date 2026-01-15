@@ -3,10 +3,12 @@
 /**
  * AuthDialog - Login/Register Dialog Component
  * Modal-based authentication instead of page redirect
+ * Requirements: 7.5, 8.1, 8.2, 8.3, 11.2, 13.2
  */
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 type AuthMode = 'login' | 'register';
 
@@ -35,6 +38,8 @@ export function AuthDialog({
   redirectTo = '/app'
 }: AuthDialogProps) {
   const router = useRouter();
+  const t = useTranslations('auth');
+  const tCommon = useT('common');
   const [mode, setMode] = useState<AuthMode>(defaultMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,17 +55,17 @@ export function AuthDialog({
     setSuccess(null);
 
     if (!email || !password) {
-      setError('请填写邮箱和密码');
+      setError(t('errors.email_required') + ' ' + t('errors.password_required'));
       return;
     }
 
     if (mode === 'register' && password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError(t('errors.password_mismatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('密码至少需要 6 个字符');
+      setError(t('errors.password_too_short'));
       return;
     }
 
@@ -75,9 +80,9 @@ export function AuthDialog({
 
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            setError('邮箱或密码错误');
+            setError(t('errors.invalid_credentials'));
           } else if (error.message.includes('Email not confirmed')) {
-            setError('请先验证邮箱后再登录');
+            setError(t('errors.email_not_confirmed'));
           } else {
             setError(error.message);
           }
@@ -98,24 +103,24 @@ export function AuthDialog({
 
         if (error) {
           if (error.message.includes('already registered')) {
-            setError('该邮箱已被注册');
+            setError(t('errors.email_already_registered'));
           } else {
             setError(error.message);
           }
           return;
         }
 
-        setSuccess('注册成功！请查收验证邮件，点击链接完成验证后即可登录。');
+        setSuccess(t('register.success'));
         setMode('login');
         setPassword('');
         setConfirmPassword('');
       }
     } catch {
-      setError('操作失败，请重试');
+      setError(t('errors.generic_error'));
     } finally {
       setIsLoading(false);
     }
-  }, [mode, email, password, confirmPassword, router, onOpenChange, redirectTo]);
+  }, [mode, email, password, confirmPassword, router, onOpenChange, redirectTo, t]);
 
   const toggleMode = useCallback(() => {
     setMode(mode === 'login' ? 'register' : 'login');
@@ -144,11 +149,11 @@ export function AuthDialog({
           <div className="flex flex-col items-center gap-3">
             <img 
               src="/logo.png" 
-              alt="Fluxa" 
+              alt={tCommon('accessibility.logo_alt')} 
               className="size-12 rounded-xl"
             />
             <DialogTitle className="text-xl font-semibold">
-              {mode === 'login' ? '登录 Fluxa' : '注册 Fluxa'}
+              {mode === 'login' ? t('login.title') : t('register.title')}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -157,7 +162,7 @@ export function AuthDialog({
           {/* Email Input */}
           <div>
             <label htmlFor="auth-email" className="block text-sm font-medium mb-1.5 text-muted-foreground">
-              邮箱
+              {t('login.email_label')}
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -166,7 +171,7 @@ export function AuthDialog({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                placeholder={t('login.email_placeholder')}
                 className="pl-10 h-10"
                 disabled={isLoading}
               />
@@ -176,7 +181,7 @@ export function AuthDialog({
           {/* Password Input */}
           <div>
             <label htmlFor="auth-password" className="block text-sm font-medium mb-1.5 text-muted-foreground">
-              密码
+              {t('login.password_label')}
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -185,7 +190,7 @@ export function AuthDialog({
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少 6 个字符"
+                placeholder={t('login.password_placeholder')}
                 className="pl-10 pr-10 h-10"
                 disabled={isLoading}
               />
@@ -205,7 +210,7 @@ export function AuthDialog({
           {mode === 'register' && (
             <div>
               <label htmlFor="auth-confirm-password" className="block text-sm font-medium mb-1.5 text-muted-foreground">
-                确认密码
+                {t('register.confirm_password_label')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -214,7 +219,7 @@ export function AuthDialog({
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="再次输入密码"
+                  placeholder={t('register.confirm_password_placeholder')}
                   className="pl-10 h-10"
                   disabled={isLoading}
                 />
@@ -248,17 +253,17 @@ export function AuthDialog({
             {isLoading ? (
               <>
                 <Loader2 className="size-4 animate-spin mr-2" />
-                {mode === 'login' ? '登录中...' : '注册中...'}
+                {mode === 'login' ? t('login.submitting') : t('register.submitting')}
               </>
             ) : (
-              mode === 'login' ? '登录' : '注册'
+              mode === 'login' ? t('login.submit') : t('register.submit')
             )}
           </Button>
 
           {/* Toggle Mode */}
           <div className="text-center text-sm">
             <span className="text-muted-foreground">
-              {mode === 'login' ? '还没有账户？' : '已有账户？'}
+              {mode === 'login' ? t('login.no_account') : t('register.has_account')}
             </span>
             <Button
               type="button"
@@ -266,7 +271,7 @@ export function AuthDialog({
               onClick={toggleMode}
               className="ml-1 p-0 h-auto font-medium text-primary"
             >
-              {mode === 'login' ? '立即注册' : '立即登录'}
+              {mode === 'login' ? t('login.register_link') : t('register.login_link')}
             </Button>
           </div>
         </form>

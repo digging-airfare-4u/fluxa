@@ -4,6 +4,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useT } from '@/lib/i18n/hooks';
 
 interface ThemeToggleProps {
   className?: string;
@@ -11,6 +12,11 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ className = '' }: ThemeToggleProps) {
   const { theme, toggleTheme } = useTheme();
+  const t = useT('common');
+
+  const ariaLabel = theme === 'light' 
+    ? t('accessibility.switch_to_dark') 
+    : t('accessibility.switch_to_light');
 
   return (
     <Tooltip>
@@ -20,7 +26,7 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
           size="icon"
           onClick={toggleTheme}
           className={className}
-          aria-label={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+          aria-label={ariaLabel}
         >
           {theme === 'light' ? (
             <Moon className="size-5" />
@@ -30,7 +36,7 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+        {ariaLabel}
       </TooltipContent>
     </Tooltip>
   );

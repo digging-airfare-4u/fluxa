@@ -3,6 +3,7 @@
 /**
  * Top Toolbar Component - Editor header with project name and controls
  * Requirements: 6.3 - Top toolbar with project name and action buttons
+ * Requirements: 13.1, 13.2 - Translate all aria-label and alt attributes
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -34,6 +35,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu';
+import { useT } from '@/lib/i18n/hooks';
 
 interface TopToolbarProps {
   projectName: string;
@@ -61,6 +63,8 @@ export function TopToolbar({
   hasTextSelection = false,
 }: TopToolbarProps) {
   const router = useRouter();
+  const t = useT('editor');
+  const tCommon = useT('common');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(projectName);
   const [isLogoHovered, setIsLogoHovered] = useState(false);
@@ -120,7 +124,7 @@ export function TopToolbar({
               ) : (
                 <img 
                   src="/logo.png" 
-                  alt="Fluxa" 
+                  alt={tCommon('accessibility.logo_alt')} 
                   className="size-8 rounded-lg"
                 />
               )}
@@ -129,56 +133,56 @@ export function TopToolbar({
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuItem onClick={handleBack}>
               <Home className="size-4 mr-2" />
-              主页
+              {t('menu.home')}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <FolderOpen className="size-4 mr-2" />
-              项目库
+              {t('menu.projects')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onNewProject}>
               <Plus className="size-4 mr-2" />
-              新建项目
+              {t('menu.new_project')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDeleteProject} className="text-red-500 focus:text-red-500">
               <Trash2 className="size-4 mr-2" />
-              删除当前项目
+              {t('menu.delete_project')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onImportImage}>
               <ImageIcon className="size-4 mr-2" />
-              导入图片
+              {t('menu.import_image')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled>
               <Undo className="size-4 mr-2" />
-              撤销
+              {t('menu.undo')}
               <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem disabled>
               <Redo className="size-4 mr-2" />
-              重做
+              {t('menu.redo')}
               <DropdownMenuShortcut>⌘⇧Z</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem disabled>
               <Copy className="size-4 mr-2" />
-              复制对象
+              {t('menu.copy_object')}
               <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Eye className="size-4 mr-2" />
-              显示画布所有图片
+              {t('menu.show_all_images')}
               <DropdownMenuShortcut>⇧1</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <ZoomIn className="size-4 mr-2" />
-              放大
+              {t('menu.zoom_in')}
               <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <ZoomOut className="size-4 mr-2" />
-              缩小
+              {t('menu.zoom_out')}
               <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuContent>

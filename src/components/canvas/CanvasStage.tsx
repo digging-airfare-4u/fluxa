@@ -2,7 +2,7 @@
 
 /**
  * CanvasStage Component - Main Fabric.js canvas wrapper
- * Requirements: 2.1, 2.2, 2.3, 7.1
+ * Requirements: 2.1, 2.2, 2.3, 7.1, 13.1, 13.3
  * 
  * Integrates with Layer Store via CanvasSynchronizer for bidirectional
  * state synchronization between layers and canvas objects.
@@ -24,6 +24,7 @@ import { Minus, Plus, Maximize2, MousePointer2 } from 'lucide-react';
 import { CanvasSynchronizer, createCanvasSynchronizer } from '@/lib/canvas/canvasSynchronizer';
 import { useLayerStore } from '@/lib/store/useLayerStore';
 import { OpsPersistenceManager, createOpsPersistenceManager } from '@/lib/canvas/opsPersistenceManager';
+import { useT } from '@/lib/i18n/hooks';
 
 export type ToolType = 'select' | 'boxSelect' | 'rectangle' | 'text' | 'pencil' | 'image' | 'ai';
 
@@ -99,6 +100,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     },
     ref
   ) => {
+    const t = useT('editor');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<fabric.Canvas | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -1312,7 +1314,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           <button
             onClick={() => handleZoom(zoom - ZOOM_STEP)}
             disabled={zoom <= MIN_ZOOM}
-            title="缩小"
+            title={t('canvas.zoom_out')}
           >
             <Minus size={14} />
           </button>
@@ -1320,7 +1322,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           <button
             onClick={() => handleZoom(1)}
             className="min-w-[44px] text-xs font-medium text-gray-300"
-            title="重置缩放"
+            title={t('canvas.reset_zoom')}
           >
             {Math.round(zoom * 100)}%
           </button>
@@ -1328,7 +1330,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           <button
             onClick={() => handleZoom(zoom + ZOOM_STEP)}
             disabled={zoom >= MAX_ZOOM}
-            title="放大"
+            title={t('canvas.zoom_in')}
           >
             <Plus size={14} />
           </button>
@@ -1337,7 +1339,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
           <button
             onClick={resetView}
-            title="适应视图 (⌘0)"
+            title={t('canvas.fit_view')}
           >
             <Maximize2 size={14} />
           </button>
@@ -1352,7 +1354,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
                  border: '1px solid rgba(255, 255, 255, 0.1)',
                }}>
             <MousePointer2 size={14} />
-            <span>拖拽平移</span>
+            <span>{t('canvas.drag_to_pan')}</span>
           </div>
         )}
       </div>

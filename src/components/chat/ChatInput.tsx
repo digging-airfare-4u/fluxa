@@ -7,6 +7,7 @@
 
 import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react';
 import { Paperclip, AtSign, Lightbulb, Globe, Smile, ArrowUp } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LoadingDots } from '@/components/ui/LoadingDots';
@@ -46,17 +47,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   disabled = false,
   isLoading = false,
   isBusy = false,
-  placeholder = '请输入你的设计需求',
+  placeholder,
   selectedModel = 'gpt-4o-mini',
   onModelChange,
   projectId,
 }, ref) {
+  const t = useTranslations('chat');
+  const tCommon = useTranslations('common');
   const [message, setMessage] = useState('');
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [referencedImage, setReferencedImage] = useState<ReferencedImage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  
+  // Use provided placeholder or default from translations
+  const inputPlaceholder = placeholder || t('input.placeholder');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
 
@@ -192,13 +198,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
           className="absolute bottom-full left-3 right-3 mb-2 bg-white dark:bg-[#1A1028] rounded-lg border border-black/10 dark:border-white/10 shadow-lg overflow-hidden z-50"
         >
           <div className="px-2 py-1.5 border-b border-black/5 dark:border-white/5">
-            <span className="text-xs text-[#888]">This project</span>
+            <span className="text-xs text-[#888]">{t('assets.this_project')}</span>
           </div>
           <div className="max-h-[160px] overflow-y-auto">
             {assetsLoading ? (
-              <div className="p-3 text-center text-xs text-[#888]">加载中...</div>
+              <div className="p-3 text-center text-xs text-[#888]">{tCommon('actions.loading')}</div>
             ) : assets.length === 0 ? (
-              <div className="p-3 text-center text-xs text-[#888]">暂无图片</div>
+              <div className="p-3 text-center text-xs text-[#888]">{t('assets.no_images')}</div>
             ) : (
               assets.map((asset, index) => (
                 <button
@@ -217,7 +223,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                     className="size-6 rounded object-cover bg-[#f0f0f0] dark:bg-[#333]"
                   />
                   <span className="text-xs text-[#1A1A1A] dark:text-white truncate flex-1 text-left">
-                    {asset.metadata?.generation?.prompt || asset.filename || '生成的图片'}
+                    {asset.metadata?.generation?.prompt || asset.filename || t('assets.generated_image')}
                   </span>
                 </button>
               ))
@@ -262,7 +268,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              placeholder={placeholder}
+              placeholder={inputPlaceholder}
               disabled={disabled || isLoading}
               readOnly={isBusy}
               rows={6}
@@ -319,7 +325,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   <AtSign className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>引用图片</TooltipContent>
+              <TooltipContent>{t('assets.reference_image')}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -388,7 +394,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>发送</TooltipContent>
+              <TooltipContent>{t('input.send')}</TooltipContent>
             </Tooltip>
           </div>
         </div>

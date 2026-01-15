@@ -1,6 +1,7 @@
 /**
  * ImageCard Component
  * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5 - Image card with appearance animation and hover overlay
+ * Requirements: 13.1, 13.3 - Translate all aria-label and title attributes
  */
 
 'use client';
@@ -8,6 +9,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Download, Copy, PlusSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 interface ImageCardProps {
   src: string;
@@ -21,13 +23,14 @@ interface ImageCardProps {
 
 export function ImageCard({
   src,
-  alt = 'Generated image',
+  alt,
   prompt,
   onDownload,
   onCopyPrompt,
   onAddToCanvas,
   className,
 }: ImageCardProps) {
+  const t = useT('chat');
   const [isHovered, setIsHovered] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -111,7 +114,7 @@ export function ImageCard({
       {/* Image */}
       <img
         src={src}
-        alt={alt}
+        alt={alt || t('assets.generated_image')}
         className="w-full h-auto object-cover"
         loading="lazy"
       />
@@ -141,7 +144,7 @@ export function ImageCard({
                 'transition-colors duration-150',
                 'backdrop-blur-sm'
               )}
-              title="下载"
+              title={t('actions.download')}
             >
               <Download className="size-4" />
             </button>
@@ -158,7 +161,7 @@ export function ImageCard({
                 'transition-colors duration-150',
                 'backdrop-blur-sm'
               )}
-              title="复制提示词"
+              title={t('actions.copy_prompt')}
             >
               <Copy className="size-4" />
             </button>
@@ -175,7 +178,7 @@ export function ImageCard({
                 'transition-colors duration-150',
                 'backdrop-blur-sm'
               )}
-              title="添加到画布"
+              title={t('actions.add_to_canvas')}
             >
               <PlusSquare className="size-4" />
             </button>

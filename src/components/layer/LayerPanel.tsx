@@ -2,7 +2,7 @@
 
 /**
  * LayerPanel Component - Layer list panel
- * Requirements: 3.1, 3.4, 3.5
+ * Requirements: 3.1, 3.4, 3.5, 14.3
  * 
  * Displays all layers in a vertical list with:
  * - Layer items with visibility/lock toggles
@@ -15,6 +15,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LayerItem } from './LayerItem';
+import { useT } from '@/lib/i18n/hooks';
 import {
   useLayersArray,
   useSelectedLayerId,
@@ -31,6 +32,7 @@ export interface LayerPanelProps {
 }
 
 export function LayerPanel({ className }: LayerPanelProps) {
+  const t = useT('editor');
   const layers = useLayersArray();
   const selectedLayerId = useSelectedLayerId();
   const isPanelVisible = useIsPanelVisible();
@@ -100,13 +102,13 @@ export function LayerPanel({ className }: LayerPanelProps) {
       )}
       style={{ width: LAYER_PANEL_WIDTH }}
       role="region"
-      aria-label="Layer panel"
+      aria-label={t('layer_panel.panel_aria')}
       aria-hidden={!isPanelVisible}
     >
       {/* Panel header */}
       <div className="flex items-center gap-2 px-3 py-3 border-b border-border shrink-0">
         <Layers className="size-4 text-muted-foreground" strokeWidth={1.5} />
-        <span className="text-sm font-medium">图层</span>
+        <span className="text-sm font-medium">{t('layer_panel.title')}</span>
         <span className="text-xs text-muted-foreground ml-auto">
           {layers.length}
         </span>
@@ -116,7 +118,7 @@ export function LayerPanel({ className }: LayerPanelProps) {
       <div className="flex-1 p-2 overflow-y-auto space-y-0.5">
         {layers.length === 0 ? (
           <div className="text-center py-6 text-sm text-muted-foreground">
-            暂无图层
+            {t('layer_panel.no_layers')}
           </div>
         ) : (
           // Render layers in reverse order (top layer first)

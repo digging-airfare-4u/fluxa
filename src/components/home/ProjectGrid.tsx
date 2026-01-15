@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, MoreHorizontal, Trash2 } from 'lucide-react';
+import { useTranslations, useFormatter } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -41,15 +42,6 @@ interface ProjectGridProps {
   isLoading?: boolean;
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return `Last refined on ${date.toLocaleDateString('en-US', { 
-    month: 'long', 
-    day: 'numeric', 
-    year: 'numeric' 
-  })}`;
-}
-
 interface ProjectCardProps {
   project: Project;
   onClick: () => void;
@@ -57,11 +49,24 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
+  const t = useTranslations('home');
+  const format = useFormatter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleDelete = () => {
     onDelete?.();
     setShowDeleteDialog(false);
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return t('project_card.last_refined', {
+      date: format.dateTime(date, { 
+        month: 'long', 
+        day: 'numeric', 
+        year: 'numeric' 
+      })
+    });
   };
 
   return (
@@ -108,7 +113,7 @@ function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
                 className="text-red-500 focus:text-red-500"
               >
                 <Trash2 className="size-4 mr-2" />
-                Delete
+                {t('project_card.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -117,7 +122,7 @@ function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
         {/* Info */}
         <div className="p-3">
           <p className="font-medium text-sm text-[#1A1A1A] dark:text-white truncate">
-            {project.name || '未命名'}
+            {project.name || t('project_card.unnamed')}
           </p>
           <p className="text-xs text-[#888] dark:text-[#666] mt-0.5">
             {formatDate(project.updated_at)}
@@ -128,18 +133,18 @@ function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>确定要删除这个项目吗？</AlertDialogTitle>
+            <AlertDialogTitle>{t('delete_dialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              此操作无法撤销，项目将被永久删除。
+              {t('delete_dialog.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t('delete_dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-[#1A1A1A] hover:bg-[#333] text-white"
               onClick={handleDelete}
             >
-              删除
+              {t('delete_dialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -153,6 +158,8 @@ interface NewProjectCardProps {
 }
 
 function NewProjectCard({ onClick }: NewProjectCardProps) {
+  const t = useTranslations('home');
+  
   return (
     <div 
       className={cn(
@@ -166,7 +173,7 @@ function NewProjectCard({ onClick }: NewProjectCardProps) {
     >
       <div className="text-center py-12">
         <Plus className="size-6 mx-auto mb-2 text-[#666] dark:text-[#888]" />
-        <p className="text-sm text-[#666] dark:text-[#888]">New Project</p>
+        <p className="text-sm text-[#666] dark:text-[#888]">{t('dashboard.new_project')}</p>
       </div>
     </div>
   );

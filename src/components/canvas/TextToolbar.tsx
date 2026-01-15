@@ -3,6 +3,7 @@
 /**
  * TextToolbar Component - Floating toolbar for text editing
  * Appears when a text object is selected or being edited
+ * Requirements: 13.1 - Translate all aria-label attributes
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -30,6 +31,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 export interface TextProperties {
   fontFamily: string;
@@ -78,6 +80,7 @@ export function TextToolbar({
   onPropertyChange,
   className,
 }: TextToolbarProps) {
+  const t = useT('editor');
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
   const handleBoldToggle = useCallback(() => {
@@ -187,7 +190,7 @@ export function TextToolbar({
           pressed={properties.fontWeight === 'bold'}
           onPressedChange={handleBoldToggle}
           className="h-7 w-7 p-0"
-          aria-label="加粗"
+          aria-label={t('text_toolbar.bold')}
         >
           <Bold className="size-3.5" />
         </Toggle>
@@ -198,7 +201,7 @@ export function TextToolbar({
           pressed={properties.fontStyle === 'italic'}
           onPressedChange={handleItalicToggle}
           className="h-7 w-7 p-0"
-          aria-label="斜体"
+          aria-label={t('text_toolbar.italic')}
         >
           <Italic className="size-3.5" />
         </Toggle>
@@ -209,7 +212,7 @@ export function TextToolbar({
           pressed={properties.underline}
           onPressedChange={handleUnderlineToggle}
           className="h-7 w-7 p-0"
-          aria-label="下划线"
+          aria-label={t('text_toolbar.underline')}
         >
           <Underline className="size-3.5" />
         </Toggle>
@@ -220,7 +223,7 @@ export function TextToolbar({
           pressed={properties.linethrough}
           onPressedChange={handleLinethroughToggle}
           className="h-7 w-7 p-0"
-          aria-label="删除线"
+          aria-label={t('text_toolbar.strikethrough')}
         >
           <Strikethrough className="size-3.5" />
         </Toggle>
@@ -233,7 +236,7 @@ export function TextToolbar({
           pressed={properties.textAlign === 'left'}
           onPressedChange={() => onPropertyChange('textAlign', 'left')}
           className="h-7 w-7 p-0"
-          aria-label="左对齐"
+          aria-label={t('text_toolbar.align_left')}
         >
           <AlignLeft className="size-3.5" />
         </Toggle>
@@ -242,7 +245,7 @@ export function TextToolbar({
           pressed={properties.textAlign === 'center'}
           onPressedChange={() => onPropertyChange('textAlign', 'center')}
           className="h-7 w-7 p-0"
-          aria-label="居中"
+          aria-label={t('text_toolbar.align_center')}
         >
           <AlignCenter className="size-3.5" />
         </Toggle>
@@ -251,7 +254,7 @@ export function TextToolbar({
           pressed={properties.textAlign === 'right'}
           onPressedChange={() => onPropertyChange('textAlign', 'right')}
           className="h-7 w-7 p-0"
-          aria-label="右对齐"
+          aria-label={t('text_toolbar.align_right')}
         >
           <AlignRight className="size-3.5" />
         </Toggle>
@@ -265,7 +268,7 @@ export function TextToolbar({
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0"
-              aria-label="文字颜色"
+              aria-label={t('text_toolbar.color')}
             >
               <div
                 className="size-4 rounded border border-border"
@@ -287,7 +290,7 @@ export function TextToolbar({
                     onPropertyChange('fill', color);
                     setColorPickerOpen(false);
                   }}
-                  aria-label={`颜色 ${color}`}
+                  aria-label={t('text_toolbar.color_option', { color })}
                 />
               ))}
             </div>

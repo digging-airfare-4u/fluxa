@@ -1,0 +1,83 @@
+{
+  "canvas": {
+    "drag_to_pan": "Drag to pan",
+    "fit_view": "Fit view (⌘0)",
+    "reset_zoom": "Reset zoom",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out"
+  },
+  "context_menu": {
+    "bring_forward": "Bring Forward",
+    "bring_to_front": "Bring to Front",
+    "copy": "Copy",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "layer": "Layer",
+    "lock": "Lock",
+    "paste": "Paste",
+    "send_backward": "Send Backward",
+    "send_to_back": "Send to Back",
+    "unlock": "Unlock"
+  },
+  "export": {
+    "download": "Download",
+    "format": "Format",
+    "quality": "Quality",
+    "scale": "Scale",
+    "title": "Export"
+  },
+  "layer_panel": {
+    "collapse": "Collapse layer panel",
+    "delete": "Delete layer",
+    "edit_name": "Edit layer name",
+    "expand": "Expand layer panel",
+    "hidden": "Hidden",
+    "layer_aria": "Layer: {name}",
+    "lock": "Lock",
+    "no_layers": "No layers",
+    "panel_aria": "Layer panel",
+    "title": "Layers",
+    "unlock": "Unlock",
+    "visible": "Visible"
+  },
+  "menu": {
+    "copy_object": "Copy Object",
+    "delete_project": "Delete Project",
+    "home": "Home",
+    "import_image": "Import Image",
+    "new_project": "New Project",
+    "projects": "Projects",
+    "redo": "Redo",
+    "show_all_images": "Show All Images",
+    "undo": "Undo",
+    "zoom_in": "Zoom In",
+    "zoom_out": "Zoom Out"
+  },
+  "text_toolbar": {
+    "align_center": "Center align",
+    "align_left": "Left align",
+    "align_right": "Right align",
+    "bold": "Bold",
+    "color": "Text color",
+    "color_option": "Color {color}",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "underline": "Underline"
+  },
+  "toolbar": {
+    "ai": "AI Assistant",
+    "aria_label": "Canvas tools",
+    "box_select": "Box Select",
+    "hand": "Pan Canvas",
+    "image": "Upload Image",
+    "pencil": "Pencil Tool",
+    "rectangle": "Rectangle Tool",
+    "select": "Select Tool",
+    "shapes": "Shapes",
+    "text": "Text Tool"
+  },
+  "tooltips": {
+    "collapse_panel": "Collapse panel",
+    "expand_panel": "Expand panel"
+  }
+}

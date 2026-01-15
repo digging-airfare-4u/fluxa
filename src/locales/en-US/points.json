@@ -1,0 +1,85 @@
+{
+  "balance": {
+    "click_for_details": "Points Balance · Click for details",
+    "points": "{count} points",
+    "title": "Points Balance",
+    "unlimited": "Unlimited"
+  },
+  "insufficient": {
+    "all_models": "All AI Models",
+    "current_balance": "Current balance: {balance} points, need {needed} more",
+    "description": "Upgrade for 365 days of unlimited access",
+    "later": "Maybe Later",
+    "model_specific": "{modelName}",
+    "title": "Limited Time Offer!",
+    "upgrade": "Upgrade Now"
+  },
+  "pricing": {
+    "billing_monthly": "Billed monthly",
+    "billing_yearly": "Billed yearly",
+    "description": "Choose the plan that works for you\nAll plans include AI design generation, canvas editing, and project management",
+    "free": {
+      "features": [
+        "{count} points daily",
+        "Basic AI models",
+        "Standard export quality"
+      ],
+      "name": "Free",
+      "price": "$0"
+    },
+    "not_available": "Not Available",
+    "payment_closed": "Payment Unavailable",
+    "per_month": "month",
+    "pro": {
+      "features": [
+        "Unlimited points",
+        "All AI models",
+        "HD export",
+        "Priority support"
+      ],
+      "name": "Pro",
+      "price": "${price}/month"
+    },
+    "recommended": "Recommended",
+    "save_percent": "Save 20%",
+    "title": "Simple, Transparent Pricing",
+    "yearly": "Yearly"
+  },
+  "transaction": {
+    "balance_after": "Balance: {balance}",
+    "empty": "No transactions yet",
+    "error": "Failed to load",
+    "filter": {
+      "all": "All",
+      "earn": "Income",
+      "spend": "Expense"
+    },
+    "pagination": {
+      "next": "Next",
+      "page_info": "Page {current} / {total}, {count} total",
+      "previous": "Previous"
+    },
+    "retry": "Retry",
+    "source": {
+      "admin": "Admin Adjustment",
+      "export": "Export",
+      "generate_image": "Image Generation",
+      "generate_image_with_model": "Image Generation ({modelName})",
+      "generate_ops": "AI Design Generation",
+      "generate_ops_with_model": "AI Design ({modelName})",
+      "registration": "Registration Bonus"
+    },
+    "time": {
+      "days_ago": "{count} days ago",
+      "hours_ago": "{count} hours ago",
+      "just_now": "Just now",
+      "minutes_ago": "{count} minutes ago"
+    },
+    "title": "Transaction History",
+    "type": {
+      "earn": "Earned",
+      "refund": "Refund",
+      "spend": "Spent"
+    }
+  }
+}

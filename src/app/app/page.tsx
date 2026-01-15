@@ -6,9 +6,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { useT } from '@/lib/i18n/hooks';
 import { 
-  Plus, Home, FolderOpen, User, Info, Settings, LogOut,
+  Plus, Home, FolderOpen, User, Info,
   Image, Star, PenTool, ShoppingBag, Video,
   FileText, ShieldCheck
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import { HomeInput } from '@/components/home/HomeInput';
 import { ProjectGrid, type Project } from '@/components/home/ProjectGrid';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,8 +26,6 @@ import {
   createProject, 
   deleteProject 
 } from '@/lib/supabase/queries/projects';
-import { supabase } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const QUICK_TAGS = [
@@ -38,6 +38,8 @@ const QUICK_TAGS = [
 
 export default function HomePage() {
   const router = useRouter();
+  const t = useTranslations('home');
+  const tCommon = useT('common');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -61,7 +63,7 @@ export default function HomePage() {
       })));
     } catch (err) {
       console.error('Failed to load projects:', err);
-      setError('加载项目失败，请刷新重试');
+      setError(t('errors.load_failed'));
     } finally {
       setIsLoading(false);
     }
@@ -76,10 +78,10 @@ export default function HomePage() {
       router.push(`/app/p/${project.id}?prompt=${encodeURIComponent(prompt)}`);
     } catch (err) {
       console.error('Failed to create project:', err);
-      setError('创建项目失败，请重试');
+      setError(t('errors.create_failed'));
       setIsCreating(false);
     }
-  }, [router]);
+  }, [router, t]);
 
   const handleNewProject = useCallback(async () => {
     try {
@@ -89,10 +91,10 @@ export default function HomePage() {
       router.push(`/app/p/${project.id}`);
     } catch (err) {
       console.error('Failed to create project:', err);
-      setError('创建项目失败，请重试');
+      setError(t('errors.create_failed'));
       setIsCreating(false);
     }
-  }, [router]);
+  }, [router, t]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     try {
@@ -100,25 +102,15 @@ export default function HomePage() {
       setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch (err) {
       console.error('Failed to delete project:', err);
-      setError('删除项目失败，请重试');
+      setError(t('errors.delete_failed'));
     }
-  }, []);
+  }, [t]);
 
   const handleTagClick = useCallback((tagId: string) => {
-    const prompts: Record<string, string> = {
-      'design': '设计一张现代简约风格的海报',
-      'branding': '设计一个品牌 Logo 和视觉识别',
-      'illustration': '创作一幅插画作品',
-      'ecommerce': '设计一张电商产品促销图',
-      'video': '设计一个视频封面缩略图',
-    };
-    handlePromptSubmit(prompts[tagId] || '设计一个作品');
-  }, [handlePromptSubmit]);
-
-  const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-    router.push('/auth');
-  }, [router]);
+    const promptKey = `quick_tags.prompts.${tagId}` as const;
+    const prompt = t.has(promptKey) ? t(promptKey) : t('quick_tags.prompts.default');
+    handlePromptSubmit(prompt);
+  }, [handlePromptSubmit, t]);
 
   // Show fullscreen loading on initial load
   if (isLoading) {
@@ -131,7 +123,7 @@ export default function HomePage() {
       <div className="fixed top-4 left-4 z-50">
         <img 
           src="/logo.png" 
-          alt="Fluxa" 
+          alt={tCommon('accessibility.logo_alt')} 
           className="size-10 rounded-xl"
         />
       </div>
@@ -228,7 +220,7 @@ export default function HomePage() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-2" side="top">
-                    <img src="/contactwechat.png" alt="微信群" className="w-48 h-48 object-contain" />
+                    <img src="/contactwechat.png" alt={tCommon('accessibility.wechat_qr')} className="w-48 h-48 object-contain" />
                     <p className="text-xs text-center text-muted-foreground mt-1">扫码加入微信群</p>
                   </PopoverContent>
                 </Popover>
@@ -241,6 +233,7 @@ export default function HomePage() {
       {/* Top right controls */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <PointsBalanceIndicator />
+        <LanguageSwitcher />
         <ThemeToggle />
         <UserPopover />
       </div>
@@ -253,7 +246,7 @@ export default function HomePage() {
             <div className="flex items-center justify-center gap-2 mb-3">
               <img 
                 src="/logo.png" 
-                alt="Fluxa" 
+                alt={tCommon('accessibility.logo_alt')} 
                 className="size-10 rounded-xl"
               />
               <h1 className="text-3xl font-heading font-bold text-[#1A1A1A] dark:text-white">
@@ -261,7 +254,7 @@ export default function HomePage() {
               </h1>
             </div>
             <p className="text-[#666] dark:text-[#888]">
-              让 AI 帮你设计一切
+              {t('hero.tagline')}
             </p>
           </div>
           
@@ -303,11 +296,11 @@ export default function HomePage() {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-[#1A1A1A] dark:text-white">
-                Recent Projects
+                {t('dashboard.recent_projects')}
               </h2>
               {projects.length > 3 && (
                 <button className="text-sm text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white transition-colors flex items-center gap-1">
-                  See All <span>›</span>
+                  {t('dashboard.see_all')} <span>›</span>
                 </button>
               )}
             </div>

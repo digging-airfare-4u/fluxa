@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import NumberFlow from '@number-flow/react';
+import { useTranslations } from 'next-intl';
 
 export interface PricingPlan {
   name: string;
@@ -39,13 +40,18 @@ interface PricingProps {
 
 export function Pricing({
   plans,
-  title = '简单透明的定价',
-  description = '选择适合你的方案\n所有方案都包含 AI 设计生成、画布编辑和项目管理功能',
+  title,
+  description,
   paymentEnabled = true,
 }: PricingProps) {
   const [isMonthly, setIsMonthly] = useState(true);
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const switchRef = useRef<HTMLButtonElement>(null);
+  const t = useTranslations('points');
+
+  // Use translations as defaults if not provided
+  const displayTitle = title ?? t('pricing.title');
+  const displayDescription = description ?? t('pricing.description');
 
   const handleToggle = (checked: boolean) => {
     setIsMonthly(!checked);
@@ -80,8 +86,8 @@ export function Pricing({
   return (
     <div className="container py-12">
       <div className="text-center space-y-2 mb-8">
-        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h2>
-        <p className="text-muted-foreground text-sm whitespace-pre-line">{description}</p>
+        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{displayTitle}</h2>
+        <p className="text-muted-foreground text-sm whitespace-pre-line">{displayDescription}</p>
       </div>
 
       <div className="flex justify-center mb-8">
@@ -96,7 +102,7 @@ export function Pricing({
           </Label>
         </label>
         <span className="ml-2 text-sm font-medium">
-          年付 <span className="text-primary">(省 20%)</span>
+          {t('pricing.yearly')} <span className="text-primary">({t('pricing.save_percent')})</span>
         </span>
       </div>
 
@@ -124,7 +130,7 @@ export function Pricing({
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary py-0.5 px-3 rounded-full flex items-center">
                 <Star className="text-primary-foreground h-3 w-3 fill-current" />
                 <span className="text-primary-foreground ml-1 text-xs font-semibold">
-                  推荐
+                  {t('pricing.recommended')}
                 </span>
               </div>
             )}
@@ -154,17 +160,17 @@ export function Pricing({
                     </span>
                     {plan.period !== 'Next 3 months' && (
                       <span className="text-xs text-muted-foreground">
-                        / {plan.period === 'month' ? '月' : plan.period}
+                        / {plan.period === 'month' ? t('pricing.per_month') : plan.period}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {isMonthly ? '按月计费' : '按年计费'}
+                    {isMonthly ? t('pricing.billing_monthly') : t('pricing.billing_yearly')}
                   </p>
                 </>
               ) : (
                 <div className="mt-4 h-12 flex items-center justify-center">
-                  <span className="text-sm text-muted-foreground">暂不可用</span>
+                  <span className="text-sm text-muted-foreground">{t('pricing.not_available')}</span>
                 </div>
               )}
 
@@ -196,13 +202,12 @@ export function Pricing({
                 ) : (
                   <button
                     disabled
-                    onClick={() => alert('充值入口暂时关闭，请稍后再试')}
                     className={cn(
                       buttonVariants({ variant: 'outline', size: 'sm' }),
                       'w-full font-medium opacity-50 cursor-not-allowed'
                     )}
                   >
-                    充值入口已关闭
+                    {t('pricing.payment_closed')}
                   </button>
                 )}
                 <p className="mt-3 text-xs text-muted-foreground">{plan.description}</p>

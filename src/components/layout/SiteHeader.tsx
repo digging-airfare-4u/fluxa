@@ -3,6 +3,7 @@
 /**
  * SiteHeader Component
  * Common header with logo, navigation, and user controls
+ * Requirements: 13.2 - Translate all alt attributes
  */
 
 import { useEffect, useState } from 'react';
@@ -15,6 +16,7 @@ import { UserPopover } from './UserPopover';
 import { AuthDialog } from '@/components/auth';
 import { supabase } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 
 const NAV_ITEMS = [
   { href: '/app', label: '首页' },
@@ -23,6 +25,7 @@ const NAV_ITEMS = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const tCommon = useT('common');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -50,7 +53,7 @@ export function SiteHeader() {
           {/* Left: Logo */}
           <div className="flex-1">
             <Link href="/" className="flex items-center gap-2 w-fit">
-              <img src="/logo.png" alt="Fluxa" className="size-8 rounded-lg" />
+              <img src="/logo.png" alt={tCommon('accessibility.logo_alt')} className="size-8 rounded-lg" />
               <span className="font-semibold text-lg">Fluxa</span>
             </Link>
           </div>

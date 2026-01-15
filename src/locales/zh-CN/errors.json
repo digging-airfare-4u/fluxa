@@ -1,0 +1,39 @@
+{
+  "api": {
+    "export_failed": "导出失败",
+    "forbidden": "无权限执行此操作",
+    "generation_failed": "生成失败，请重试",
+    "image_generation_failed": "图片生成失败",
+    "insufficient_points": "积分不足",
+    "load_messages_failed": "加载消息失败",
+    "not_found": "资源不存在",
+    "rate_limit": "请求过于频繁，请稍后重试",
+    "send_message_failed": "发送消息失败",
+    "session_expired": "请重新登录后再试",
+    "unauthorized": "请先登录",
+    "unknown": "发生未知错误",
+    "upload_failed": "上传失败"
+  },
+  "network": {
+    "offline": "网络连接已断开",
+    "server_error": "服务器错误，请稍后重试",
+    "timeout": "请求超时，请重试"
+  },
+  "pages": {
+    "not_found": {
+      "back_home": "返回首页",
+      "description": "页面不存在",
+      "title": "404"
+    },
+    "server_error": {
+      "description": "服务器错误",
+      "retry": "重试",
+      "title": "500"
+    }
+  },
+  "validation": {
+    "invalid_email": "请输入有效的邮箱地址",
+    "invalid_format": "格式不正确",
+    "required": "此字段为必填项"
+  }
+}

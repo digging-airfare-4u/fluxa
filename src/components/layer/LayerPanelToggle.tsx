@@ -2,7 +2,7 @@
 
 /**
  * LayerPanelToggle Component - Toggle button for layer panel
- * Requirements: 3.6, 3.7, 3.8
+ * Requirements: 3.6, 3.7, 3.8, 14.3
  * 
  * Positioned at the bottom-left corner of the canvas area.
  * Displays a Layers icon and toggles the panel visibility on click.
@@ -12,6 +12,7 @@ import { useCallback } from 'react';
 import { Layers } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/hooks';
 import { useIsPanelVisible, useLayerStore } from '@/lib/store/useLayerStore';
 
 export interface LayerPanelToggleProps {
@@ -22,12 +23,17 @@ export interface LayerPanelToggleProps {
 }
 
 export function LayerPanelToggle({ className, style }: LayerPanelToggleProps) {
+  const t = useT('editor');
   const isPanelVisible = useIsPanelVisible();
   const togglePanel = useLayerStore((state) => state.togglePanel);
 
   const handleToggle = useCallback(() => {
     togglePanel();
   }, [togglePanel]);
+
+  const toggleLabel = isPanelVisible 
+    ? t('layer_panel.collapse') 
+    : t('layer_panel.expand');
 
   return (
     <Tooltip>
@@ -43,14 +49,14 @@ export function LayerPanelToggle({ className, style }: LayerPanelToggleProps) {
           )}
           style={style}
           onClick={handleToggle}
-          aria-label={isPanelVisible ? '隐藏图层面板' : '显示图层面板'}
+          aria-label={toggleLabel}
           aria-expanded={isPanelVisible}
         >
           <Layers className="size-4" strokeWidth={1.5} />
         </button>
       </TooltipTrigger>
       <TooltipContent side="top">
-        {isPanelVisible ? '隐藏图层面板' : '显示图层面板'}
+        {toggleLabel}
       </TooltipContent>
     </Tooltip>
   );

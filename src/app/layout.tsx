@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/lib/theme/ThemeContext";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
+import { getLocale } from "@/lib/i18n/actions";
+import { getMessages } from "next-intl/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,16 +10,25 @@ export const metadata: Metadata = {
   description: "Create beautiful designs with AI through natural conversation",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider>
-          {children}
+          <I18nProvider
+            locale={locale}
+            messages={messages}
+            timeZone="Asia/Shanghai"
+          >
+            {children}
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>
