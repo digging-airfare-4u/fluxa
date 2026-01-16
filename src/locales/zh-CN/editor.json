@@ -53,6 +53,25 @@
     "zoom_in": "放大",
     "zoom_out": "缩小"
   },
+  "image_toolbar": {
+    "upscale": "放大",
+    "remove_background": "移除背景",
+    "erase": "擦除",
+    "expand": "扩展",
+    "download": "下载",
+    "more": "更多",
+    "copy": "复制",
+    "delete": "删除",
+    "bring_to_front": "置于顶层",
+    "send_to_back": "置于底层",
+    "bring_forward": "上移一层",
+    "send_backward": "下移一层",
+    "lock": "锁定",
+    "unlock": "解锁",
+    "processing": "处理中...",
+    "insufficient_points": "积分不足",
+    "error_processing": "处理失败，请重试"
+  },
   "text_toolbar": {
     "align_center": "居中",
     "align_left": "左对齐",

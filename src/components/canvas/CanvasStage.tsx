@@ -20,6 +20,8 @@ import * as fabric from 'fabric';
 import { ContextMenu } from './ContextMenu';
 import { SelectionInfo, QuickEditHint } from './SelectionInfo';
 import { TextToolbar, type TextProperties } from './TextToolbar';
+import { ImageToolbar } from './ImageToolbar';
+import type { ImageToolbarLoadingStates } from './ImageToolbar.types';
 import { Minus, Plus, Maximize2, MousePointer2 } from 'lucide-react';
 import { CanvasSynchronizer, createCanvasSynchronizer } from '@/lib/canvas/canvasSynchronizer';
 import { useLayerStore } from '@/lib/store/useLayerStore';
@@ -84,6 +86,15 @@ interface TextToolbarState {
   properties: TextProperties;
 }
 
+interface ImageToolbarState {
+  x: number;
+  y: number;
+  imageWidth: number;
+  imageHeight: number;
+  positionBelow: boolean;
+  isLocked: boolean;
+}
+
 interface ContextMenuState {
   x: number;
   y: number;
@@ -118,7 +129,15 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     // Selection state
     const [selectionInfo, setSelectionInfo] = useState<SelectionInfoState | null>(null);
     const [textToolbarInfo, setTextToolbarInfo] = useState<TextToolbarState | null>(null);
+    const [imageToolbarInfo, setImageToolbarInfo] = useState<ImageToolbarState | null>(null);
+    const [imageToolbarLoading, setImageToolbarLoading] = useState<ImageToolbarLoadingStates>({
+      removeBackground: false,
+      upscale: false,
+      erase: false,
+      expand: false,
+    });
     const selectedTextRef = useRef<fabric.IText | null>(null);
+    const selectedImageRef = useRef<fabric.FabricImage | null>(null);
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -200,6 +219,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         y: screenY,
       });
 
+      // Check if selected object is a text type
       if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
         const textObj = obj as fabric.IText;
         selectedTextRef.current = textObj;
@@ -217,9 +237,50 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             linethrough: textObj.linethrough || false,
           },
         });
-      } else {
+        // Clear image toolbar when text is selected
+        selectedImageRef.current = null;
+        setImageToolbarInfo(null);
+      } else if (obj.type === 'activeselection') {
+        // Multi-select (ActiveSelection): hide both toolbars
         selectedTextRef.current = null;
         setTextToolbarInfo(null);
+        selectedImageRef.current = null;
+        setImageToolbarInfo(null);
+      } else if (obj.type === 'image') {
+        // Single image selection
+        const imageObj = obj as fabric.FabricImage;
+        selectedImageRef.current = imageObj;
+        
+        // Calculate screen coordinates for toolbar positioning
+        const scaledWidth = boundingRect.width * vpt[0];
+        const scaledHeight = boundingRect.height * vpt[3];
+        
+        // Check if image is near top edge of viewport (need to position toolbar below)
+        const toolbarHeight = 44; // Approximate toolbar height
+        const edgeMargin = 8;
+        const positionBelow = screenY < toolbarHeight + edgeMargin;
+        
+        // Check if image is locked
+        const isLocked = !imageObj.selectable || !imageObj.evented;
+        
+        setImageToolbarInfo({
+          x: screenX,
+          y: screenY,
+          imageWidth: scaledWidth,
+          imageHeight: scaledHeight,
+          positionBelow,
+          isLocked,
+        });
+        
+        // Clear text toolbar when image is selected
+        selectedTextRef.current = null;
+        setTextToolbarInfo(null);
+      } else {
+        // Non-text, non-image object: clear both toolbars
+        selectedTextRef.current = null;
+        setTextToolbarInfo(null);
+        selectedImageRef.current = null;
+        setImageToolbarInfo(null);
       }
     }, []);
 
@@ -259,6 +320,36 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       if (activeObject) {
         activeObject.clone().then((cloned: fabric.FabricObject) => {
           clipboardRef.current = cloned;
+        });
+      }
+    }, []);
+
+    /**
+     * Duplicate the selected object with offset position
+     * Requirements: 12.3, 12.4 - Duplicate with Cmd/Ctrl+D, offset position
+     */
+    const handleDuplicate = useCallback(() => {
+      if (!fabricRef.current) return;
+      const activeObject = fabricRef.current.getActiveObject();
+      if (activeObject) {
+        activeObject.clone().then((cloned: fabric.FabricObject) => {
+          // Offset the duplicated object by 20px
+          cloned.set({ 
+            left: (cloned.left || 0) + 20, 
+            top: (cloned.top || 0) + 20 
+          });
+          
+          // Generate new ID for the duplicated object
+          const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          (cloned as fabric.FabricObject & { id?: string }).id = newId;
+          
+          fabricRef.current?.add(cloned);
+          fabricRef.current?.setActiveObject(cloned);
+          fabricRef.current?.requestRenderAll();
+          
+          console.log('[CanvasStage] Object duplicated successfully');
+        }).catch((error: Error) => {
+          console.error('[CanvasStage] Failed to duplicate object:', error);
         });
       }
     }, []);
@@ -307,6 +398,164 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         fabricRef.current.sendObjectToBack(activeObject);
         fabricRef.current.requestRenderAll();
       }
+    }, []);
+
+    // Image toolbar handlers
+    /**
+     * Download the selected image at its original resolution
+     * Requirements: 3.1, 3.2, 3.3, 3.4 - Export original resolution, trigger download with timestamp filename, error handling
+     */
+    const handleImageDownload = useCallback(async () => {
+      const imageObj = selectedImageRef.current;
+      if (!imageObj) {
+        console.error('[CanvasStage] No image selected for download');
+        return;
+      }
+      
+      try {
+        // Get the original image source
+        const src = imageObj.getSrc?.() || (imageObj as unknown as { _element?: HTMLImageElement })._element?.src;
+        if (!src) {
+          console.error('[CanvasStage] No image source found - EXPORT_FAILED');
+          // TODO: Show error notification when toast system is available
+          return;
+        }
+        
+        // Fetch the image to get original resolution (not scaled by canvas zoom)
+        const response = await fetch(src);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        
+        // Validate blob
+        if (!blob || blob.size === 0) {
+          throw new Error('Downloaded image is empty or invalid');
+        }
+        
+        const url = URL.createObjectURL(blob);
+        
+        // Generate filename with timestamp (format: image-YYYYMMDD-HHmmss.png)
+        const now = new Date();
+        const timestamp = now.toISOString()
+          .replace(/[-:]/g, '')
+          .replace('T', '-')
+          .slice(0, 15);
+        const filename = `image-${timestamp}.png`;
+        
+        // Create download link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        console.log('[CanvasStage] Image downloaded successfully:', filename);
+      } catch (error) {
+        // Log error with context for debugging
+        console.error('[CanvasStage] Failed to download image - EXPORT_FAILED:', {
+          error: error instanceof Error ? error.message : String(error),
+          imageType: imageObj.type,
+        });
+        // TODO: Show error toast notification when toast system is available
+        // toast.error(t('image_toolbar.error_processing'));
+      }
+    }, []);
+
+    /**
+     * Copy the selected image to internal clipboard
+     * Requirements: 4.1, 4.2 - Copy to clipboard with success feedback
+     */
+    const handleImageCopy = useCallback(() => {
+      const imageObj = selectedImageRef.current;
+      if (!imageObj || !fabricRef.current) {
+        console.warn('[CanvasStage] No image selected for copy');
+        return;
+      }
+      
+      imageObj.clone().then((cloned: fabric.FabricObject) => {
+        clipboardRef.current = cloned;
+        console.log('[CanvasStage] Image copied to clipboard successfully');
+        // TODO: Show success toast notification when toast system is available
+        // toast.success(t('image_toolbar.copy_success'));
+      }).catch((error: Error) => {
+        console.error('[CanvasStage] Failed to copy image - COPY_FAILED:', error);
+        // TODO: Show error toast notification when toast system is available
+      });
+    }, []);
+
+    /**
+     * Delete the selected image from canvas
+     * Requirements: 5.1, 5.2 - Remove image, toolbar disappears, recorded in undo history
+     */
+    const handleImageDelete = useCallback(() => {
+      const imageObj = selectedImageRef.current;
+      if (!imageObj || !fabricRef.current) {
+        console.warn('[CanvasStage] No image selected for deletion');
+        return;
+      }
+      
+      const layerId = (imageObj as fabric.FabricImage & { id?: string }).id;
+      
+      // Use persistence manager if available (handles undo history)
+      if (layerId && persistenceManagerRef.current) {
+        persistenceManagerRef.current.removeLayer(layerId).catch((error) => {
+          console.error('[CanvasStage] Failed to remove layer via persistence manager:', error);
+        });
+      } else {
+        // Fallback: directly remove from canvas
+        fabricRef.current.remove(imageObj);
+      }
+      
+      // Clear selection and toolbar
+      fabricRef.current.discardActiveObject();
+      fabricRef.current.requestRenderAll();
+      
+      // Clear image toolbar state (Requirements: 5.2 - toolbar disappears)
+      setImageToolbarInfo(null);
+      selectedImageRef.current = null;
+      
+      console.log('[CanvasStage] Image deleted successfully', layerId ? `(layer: ${layerId})` : '');
+    }, []);
+
+    const handleImageRemoveBackground = useCallback(async () => {
+      // TODO: Implement AI background removal in task 12
+      console.log('[CanvasStage] Remove background - not yet implemented');
+    }, []);
+
+    const handleImageUpscale = useCallback(async () => {
+      // TODO: Implement AI upscale in task 13
+      console.log('[CanvasStage] Upscale - not yet implemented');
+    }, []);
+
+    const handleImageErase = useCallback(() => {
+      // TODO: Implement AI erase in task 14
+      console.log('[CanvasStage] Erase - not yet implemented');
+    }, []);
+
+    const handleImageExpand = useCallback(() => {
+      // TODO: Implement AI expand in task 15
+      console.log('[CanvasStage] Expand - not yet implemented');
+    }, []);
+
+    const handleImageToggleLock = useCallback(() => {
+      const imageObj = selectedImageRef.current;
+      if (!imageObj || !fabricRef.current) return;
+      
+      const isCurrentlyLocked = !imageObj.selectable || !imageObj.evented;
+      const newLockState = !isCurrentlyLocked;
+      
+      imageObj.set({
+        selectable: !newLockState,
+        evented: !newLockState,
+      });
+      
+      fabricRef.current.requestRenderAll();
+      
+      // Update toolbar state
+      setImageToolbarInfo(prev => prev ? { ...prev, isLocked: newLockState } : null);
     }, []);
 
     // Reset view
@@ -499,7 +748,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         onSelectionChange?.(null);
         setSelectionInfo(null);
         setTextToolbarInfo(null);
+        setImageToolbarInfo(null);
         selectedTextRef.current = null;
+        selectedImageRef.current = null;
       });
 
       // Object modification events
@@ -818,6 +1069,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     }, [activeTool, generateLayerId]);
 
     // Keyboard shortcuts
+    // Requirements: 12.1, 12.2, 12.3, 12.4 - Delete, Copy (Cmd/Ctrl+C), Duplicate (Cmd/Ctrl+D)
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!fabricRef.current) return;
@@ -840,11 +1092,21 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           e.preventDefault();
           resetView();
         }
+        // Copy: Cmd/Ctrl+C - Requirements: 12.2, 12.4
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isTyping) {
+          e.preventDefault();
+          handleCopy();
+        }
+        // Duplicate: Cmd/Ctrl+D - Requirements: 12.3, 12.4
+        if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !isTyping) {
+          e.preventDefault();
+          handleDuplicate();
+        }
       };
 
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [deleteSelected, undo, redo, resetView]);
+    }, [deleteSelected, undo, redo, resetView, handleCopy, handleDuplicate]);
 
     // Export PNG
     const exportPNG = useCallback(async (multiplier: number): Promise<Blob> => {
@@ -978,6 +1240,30 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         {textToolbarInfo && (
           <TextToolbar x={textToolbarInfo.x} y={textToolbarInfo.y} properties={textToolbarInfo.properties} onPropertyChange={handleTextPropertyChange} />
+        )}
+
+        {imageToolbarInfo && (
+          <ImageToolbar
+            x={imageToolbarInfo.x}
+            y={imageToolbarInfo.y}
+            imageWidth={imageToolbarInfo.imageWidth}
+            imageHeight={imageToolbarInfo.imageHeight}
+            positionBelow={imageToolbarInfo.positionBelow}
+            isLocked={imageToolbarInfo.isLocked}
+            loadingStates={imageToolbarLoading}
+            onDownload={handleImageDownload}
+            onCopy={handleImageCopy}
+            onDelete={handleImageDelete}
+            onRemoveBackground={handleImageRemoveBackground}
+            onUpscale={handleImageUpscale}
+            onErase={handleImageErase}
+            onExpand={handleImageExpand}
+            onBringToFront={handleBringToFront}
+            onSendToBack={handleSendToBack}
+            onBringForward={handleBringForward}
+            onSendBackward={handleSendBackward}
+            onToggleLock={handleImageToggleLock}
+          />
         )}
 
         {contextMenu && (

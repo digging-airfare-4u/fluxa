@@ -53,6 +53,25 @@
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
   },
+  "image_toolbar": {
+    "upscale": "Upscale",
+    "remove_background": "Remove Background",
+    "erase": "Erase",
+    "expand": "Expand",
+    "download": "Download",
+    "more": "More",
+    "copy": "Copy",
+    "delete": "Delete",
+    "bring_to_front": "Bring to Front",
+    "send_to_back": "Send to Back",
+    "bring_forward": "Bring Forward",
+    "send_backward": "Send Backward",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "processing": "Processing...",
+    "insufficient_points": "Insufficient Points",
+    "error_processing": "Processing failed, please retry"
+  },
   "text_toolbar": {
     "align_center": "Center align",
     "align_left": "Left align",

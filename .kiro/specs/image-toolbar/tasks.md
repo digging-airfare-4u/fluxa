@@ -6,20 +6,20 @@
 
 ## Tasks
 
-- [ ] 1. 创建 ImageToolbar 组件基础结构
-  - [ ] 1.1 创建类型定义文件 `ImageToolbar.types.ts`
+- [x] 1. 创建 ImageToolbar 组件基础结构
+  - [x] 1.1 创建类型定义文件 `ImageToolbar.types.ts`
     - 定义 `ImageToolbarProps` 接口
     - 定义 `ImageToolbarLoadingStates` 接口
     - 定义 `ToolAction` 接口
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 1.2 创建工具配置文件 `ImageToolbar.config.ts`
+  - [x] 1.2 创建工具配置文件 `ImageToolbar.config.ts`
     - 定义 `IMAGE_TOOLBAR_TOOLS` 数组
     - 定义 `MORE_MENU_ITEMS` 数组
     - 配置图标和标签映射
     - _Requirements: 2.1, 2.3, 2.4_
 
-  - [ ] 1.3 创建 ImageToolbar 组件主文件
+  - [x] 1.3 创建 ImageToolbar 组件主文件
     - 实现基础 UI 布局（水平按钮行）
     - 实现视觉分隔符
     - 实现主题适配（light/dark）
@@ -32,20 +32,20 @@
     - 测试加载状态显示
     - _Requirements: 2.1-2.6_
 
-- [ ] 2. 集成 ImageToolbar 到 CanvasStage
-  - [ ] 2.1 添加图片选择检测逻辑
+- [x] 2. 集成 ImageToolbar 到 CanvasStage
+  - [x] 2.1 添加图片选择检测逻辑
     - 在 `updateSelectionInfo` 中检测对象类型
     - 当选中图片时设置 `imageToolbarInfo` 状态
     - 当选中非图片或取消选择时清除状态
     - _Requirements: 1.1, 1.2, 1.3_
 
-  - [ ] 2.2 实现工具栏定位逻辑
+  - [x] 2.2 实现工具栏定位逻辑
     - 计算屏幕坐标（考虑 viewport transform）
     - 实现水平居中定位
     - 实现边缘检测（靠近顶部时显示在下方）
     - _Requirements: 1.4, 1.5, 1.6_
 
-  - [ ] 2.3 实现多选检测
+  - [x] 2.3 实现多选检测
     - 检测 `ActiveSelection` 类型
     - 多选时隐藏 ImageToolbar
     - _Requirements: 1.7_
@@ -60,19 +60,19 @@
     - 生成随机位置和 viewport transform，验证定位计算
     - **Validates: Requirements 1.4, 1.5, 1.6**
 
-- [ ] 3. Checkpoint - 基础 UI 验证
+- [x] 3. Checkpoint - 基础 UI 验证
   - 确保 ImageToolbar 在选中图片时正确显示
   - 确保定位逻辑正确
   - 确保所有测试通过，如有问题请询问用户
 
-- [ ] 4. 实现基础功能（下载、复制、删除）
-  - [ ] 4.1 实现图片下载功能
+- [x] 4. 实现基础功能（下载、复制、删除）
+  - [x] 4.1 实现图片下载功能
     - 获取选中图片的原始数据
     - 创建 Blob 并触发下载
     - 生成文件名（包含时间戳）
     - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ] 4.2 实现下载错误处理
+  - [x] 4.2 实现下载错误处理
     - 捕获导出异常
     - 显示错误 toast 通知
     - _Requirements: 3.4_
@@ -82,12 +82,12 @@
     - 验证导出图片尺寸与原始一致
     - **Validates: Requirements 3.1, 3.2**
 
-  - [ ] 4.4 实现图片复制功能
+  - [x] 4.4 实现图片复制功能
     - 复用现有 `handleCopy` 逻辑
     - 添加成功反馈 toast
     - _Requirements: 4.1, 4.2_
 
-  - [ ] 4.5 实现图片删除功能
+  - [x] 4.5 实现图片删除功能
     - 复用现有 `deleteSelected` 逻辑
     - 确保工具栏消失
     - _Requirements: 5.1, 5.2_
@@ -102,26 +102,26 @@
     - 验证删除后对象移除、工具栏消失、可撤销
     - **Validates: Requirements 5.1, 5.2, 5.3**
 
-- [ ] 5. 实现更多操作菜单
-  - [ ] 5.1 创建 MoreMenu 下拉组件
+- [x] 5. 实现更多操作菜单
+  - [x] 5.1 创建 MoreMenu 下拉组件
     - 使用 shadcn/ui DropdownMenu
     - 实现菜单项列表
     - 实现分隔符
     - _Requirements: 10.1, 10.2_
 
-  - [ ] 5.2 实现菜单交互逻辑
+  - [x] 5.2 实现菜单交互逻辑
     - 点击外部关闭菜单
     - 选择菜单项后执行操作并关闭
     - _Requirements: 10.3, 10.4_
 
-  - [ ] 5.3 实现图层排序功能
+  - [x] 5.3 实现图层排序功能
     - 置于顶层 (bringToFront)
     - 置于底层 (sendToBack)
     - 上移一层 (bringForward)
     - 下移一层 (sendBackward)
     - _Requirements: 10.2_
 
-  - [ ] 5.4 实现锁定/解锁功能
+  - [x] 5.4 实现锁定/解锁功能
     - 切换图片的 `selectable` 和 `evented` 属性
     - 更新菜单项图标和文本
     - _Requirements: 10.2_
@@ -131,35 +131,35 @@
     - 验证菜单项选择触发正确操作
     - **Validates: Requirements 10.1, 10.4**
 
-- [ ] 6. Checkpoint - 基础功能验证
+- [x] 6. Checkpoint - 基础功能验证
   - 确保下载、复制、删除功能正常
   - 确保更多菜单功能正常
   - 确保所有测试通过，如有问题请询问用户
 
-- [ ] 7. 添加国际化支持
-  - [ ] 7.1 添加中文翻译 (zh-CN)
+- [x] 7. 添加国际化支持
+  - [x] 7.1 添加中文翻译 (zh-CN)
     - 更新 `src/locales/zh-CN/editor.json`
     - 添加 `image_toolbar` 命名空间下的所有键
     - _Requirements: 11.1, 11.3_
 
-  - [ ] 7.2 添加英文翻译 (en-US)
+  - [x] 7.2 添加英文翻译 (en-US)
     - 更新 `src/locales/en-US/editor.json`
     - 添加 `image_toolbar` 命名空间下的所有键
     - _Requirements: 11.1, 11.3_
 
-  - [ ] 7.3 更新组件使用 i18n
+  - [x] 7.3 更新组件使用 i18n
     - 使用 `useT('editor')` hook
     - 替换所有硬编码文本
     - 添加 aria-label 翻译
     - _Requirements: 11.1, 11.2_
 
-- [ ] 8. 实现键盘快捷键
-  - [ ] 8.1 添加复制快捷键 (Cmd/Ctrl+C)
+- [x] 8. 实现键盘快捷键
+  - [x] 8.1 添加复制快捷键 (Cmd/Ctrl+C)
     - 在现有 keyboard shortcuts effect 中添加
     - 确保与现有快捷键不冲突
     - _Requirements: 12.2, 12.4_
 
-  - [ ] 8.2 添加复制快捷键 (Cmd/Ctrl+D)
+  - [x] 8.2 添加复制快捷键 (Cmd/Ctrl+D)
     - 实现图片复制功能
     - 复制后偏移位置
     - _Requirements: 12.3, 12.4_

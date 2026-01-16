@@ -6,3 +6,14 @@ export { SelectionInfo, QuickEditHint } from './SelectionInfo';
 export type { SelectionInfoProps } from './SelectionInfo';
 export { TextToolbar } from './TextToolbar';
 export type { TextProperties } from './TextToolbar';
+export { ImageToolbar } from './ImageToolbar';
+export {
+  ImageToolbarErrorCode,
+} from './ImageToolbar.types';
+export type {
+  ImageToolbarProps,
+  ImageToolbarLoadingStates,
+  ImageToolbarError,
+  ToolAction,
+  MoreMenuItem,
+} from './ImageToolbar.types';
