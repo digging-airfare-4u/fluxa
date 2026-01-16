@@ -10,10 +10,32 @@ import { useEffect, useState } from 'react';
 import { motion, stagger, useAnimate, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 import Floating, { FloatingElement } from '@/components/ui/parallax-floating';
 import { GooeyText } from '@/components/ui/gooey-text-morphing';
 import { AuthDialog } from '@/components/auth';
 import { supabase } from '@/lib/supabase/client';
+
+// Shimmer SVG for blur placeholder - creates a gradient animation effect
+const shimmer = (w: number, h: number) => `
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g">
+      <stop stop-color="#f0f0f0" offset="0%"/>
+      <stop stop-color="#e0e0e0" offset="50%"/>
+      <stop stop-color="#f0f0f0" offset="100%"/>
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#g)"/>
+</svg>`;
+
+const toBase64 = (str: string) =>
+  typeof window === 'undefined'
+    ? Buffer.from(str).toString('base64')
+    : window.btoa(str);
+
+// Blur placeholder - a tiny colored SVG that matches the overall tone
+const blurDataURL = `data:image/svg+xml;base64,${toBase64(shimmer(10, 10))}`;
 
 // Gallery images from public/sample folder
 const galleryImages = [
@@ -56,7 +78,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (!showIntro) {
-      animate('img', { opacity: [0, 1] }, { duration: 0.5, delay: stagger(0.1) });
+      animate('.floating-image', { opacity: [0, 1] }, { duration: 0.5, delay: stagger(0.1) });
     }
   }, [animate, showIntro]);
 
@@ -109,57 +131,87 @@ export default function LandingPage() {
         <Floating sensitivity={-2} className="overflow-hidden pointer-events-none">
           {/* Top row */}
           <FloatingElement depth={0.5} className="top-[2%] left-[2%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[0].url} alt={galleryImages[0].alt} className="w-40 h-40 md:w-52 md:h-52 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-40 h-40 md:w-52 md:h-52 relative">
+              <Image src={galleryImages[0].url} alt={galleryImages[0].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 160px, 208px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={1} className="top-[5%] left-[18%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[1].url} alt={galleryImages[1].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[1].url} alt={galleryImages[1].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={1.5} className="top-[0%] left-[38%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[2].url} alt={galleryImages[2].alt} className="w-36 h-28 md:w-48 md:h-36 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-28 md:w-48 md:h-36 relative">
+              <Image src={galleryImages[2].url} alt={galleryImages[2].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={0.8} className="top-[3%] right-[18%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[3].url} alt={galleryImages[3].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[3].url} alt={galleryImages[3].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={2} className="top-[2%] right-[2%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[4].url} alt={galleryImages[4].alt} className="w-40 h-40 md:w-52 md:h-52 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-40 h-40 md:w-52 md:h-52 relative">
+              <Image src={galleryImages[4].url} alt={galleryImages[4].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 160px, 208px" />
+            </motion.div>
           </FloatingElement>
 
           {/* Middle row - left side */}
           <FloatingElement depth={1.2} className="top-[35%] left-[-2%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[5].url} alt={galleryImages[5].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[5].url} alt={galleryImages[5].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={0.6} className="top-[42%] left-[12%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[6].url} alt={galleryImages[6].alt} className="w-36 h-36 md:w-44 md:h-44 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-36 md:w-44 md:h-44 relative">
+              <Image src={galleryImages[6].url} alt={galleryImages[6].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 176px" />
+            </motion.div>
           </FloatingElement>
 
           {/* Middle row - right side */}
           <FloatingElement depth={0.9} className="top-[38%] right-[10%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[7].url} alt={galleryImages[7].alt} className="w-36 h-36 md:w-44 md:h-44 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-36 md:w-44 md:h-44 relative">
+              <Image src={galleryImages[7].url} alt={galleryImages[7].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 176px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={1.8} className="top-[32%] right-[-2%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[8].url} alt={galleryImages[8].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[8].url} alt={galleryImages[8].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
 
           {/* Bottom row */}
           <FloatingElement depth={1.3} className="bottom-[5%] left-[0%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[9].url} alt={galleryImages[9].alt} className="w-40 h-40 md:w-52 md:h-52 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-40 h-40 md:w-52 md:h-52 relative">
+              <Image src={galleryImages[9].url} alt={galleryImages[9].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 160px, 208px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={0.7} className="bottom-[8%] left-[16%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[10].url} alt={galleryImages[10].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[10].url} alt={galleryImages[10].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={2} className="bottom-[2%] left-[36%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[11].url} alt={galleryImages[11].alt} className="w-36 h-28 md:w-48 md:h-36 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-28 md:w-48 md:h-36 relative">
+              <Image src={galleryImages[11].url} alt={galleryImages[11].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={1.1} className="bottom-[6%] right-[16%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[12].url} alt={galleryImages[12].alt} className="w-44 h-56 md:w-56 md:h-72 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-44 h-56 md:w-56 md:h-72 relative">
+              <Image src={galleryImages[12].url} alt={galleryImages[12].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 176px, 224px" />
+            </motion.div>
           </FloatingElement>
           <FloatingElement depth={0.5} className="bottom-[3%] right-[0%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[13].url} alt={galleryImages[13].alt} className="w-40 h-40 md:w-52 md:h-52 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-40 h-40 md:w-52 md:h-52 relative">
+              <Image src={galleryImages[13].url} alt={galleryImages[13].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 160px, 208px" />
+            </motion.div>
           </FloatingElement>
 
           {/* Extra fill image */}
           <FloatingElement depth={1.6} className="top-[22%] left-[8%]">
-            <motion.img initial={{ opacity: 0 }} src={galleryImages[14].url} alt={galleryImages[14].alt} className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-2xl shadow-xl" />
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-32 h-32 md:w-40 md:h-40 relative">
+              <Image src={galleryImages[14].url} alt={galleryImages[14].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 128px, 160px" />
+            </motion.div>
           </FloatingElement>
         </Floating>
 
