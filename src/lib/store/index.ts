@@ -21,3 +21,17 @@ export {
   useSelectedLayer,
   useLayer,
 } from './useLayerStore';
+
+export {
+  useChatStore,
+  useSelectedModel,
+  useModels,
+  useGenerationPhase,
+  useIsGenerating,
+  useChatError,
+  useInsufficientPointsError,
+  type GenerationPhase,
+  type ChatState,
+  type ChatActions,
+  type ChatStore,
+} from './useChatStore';

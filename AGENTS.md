@@ -41,7 +41,7 @@ supabase/          # Supabase Edge Functions and migrations
 
 ### Imports
 - Use absolute imports with `@/*` alias for src directory
-- Group imports: React/third-party → local imports → types
+- Group imports: React/third-party -> local imports -> types
 
 ### TypeScript
 - Strict mode enabled - all types must be properly defined

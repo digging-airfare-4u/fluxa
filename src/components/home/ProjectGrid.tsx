@@ -4,7 +4,7 @@
  * Project Grid Component - Lovart style
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useTranslations, useFormatter } from 'next-intl';
@@ -46,12 +46,32 @@ interface ProjectCardProps {
   project: Project;
   onClick: () => void;
   onDelete?: () => void;
+  onImageLoad?: () => void;
 }
 
-function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
+function ProjectCard({ project, onClick, onDelete, onImageLoad }: ProjectCardProps) {
   const t = useTranslations('home');
   const format = useFormatter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  // 如果没有缩略图，立即通知父组件
+  useEffect(() => {
+    if (!project.thumbnail) {
+      onImageLoad?.();
+    }
+  }, [project.thumbnail, onImageLoad]);
+
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true);
+    onImageLoad?.();
+  }, [onImageLoad]);
+
+  const handleImageError = useCallback(() => {
+    // 图片加载失败也视为"加载完成"
+    setImageLoaded(true);
+    onImageLoad?.();
+  }, [onImageLoad]);
 
   const handleDelete = () => {
     onDelete?.();
@@ -86,7 +106,12 @@ function ProjectCard({ project, onClick, onDelete }: ProjectCardProps) {
             <img
               src={project.thumbnail}
               alt={project.name}
-              className="w-full h-full object-cover"
+              className={cn(
+                "w-full h-full object-cover transition-opacity duration-200",
+                imageLoaded ? "opacity-100" : "opacity-0"
+              )}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
             />
           ) : null}
 
@@ -186,14 +211,45 @@ export function ProjectGrid({
   isLoading = false,
 }: ProjectGridProps) {
   const router = useRouter();
+  const [imagesLoaded, setImagesLoaded] = useState(0);
+  const [allImagesReady, setAllImagesReady] = useState(false);
+
+  // 计算需要加载的图片总数
+  const totalImages = projects.length;
+
+  // 重置图片加载状态当项目列表变化时
+  useEffect(() => {
+    if (!isLoading && projects.length > 0) {
+      setImagesLoaded(0);
+      setAllImagesReady(false);
+    } else if (!isLoading && projects.length === 0) {
+      // 没有项目时直接标记为就绪
+      setAllImagesReady(true);
+    }
+  }, [isLoading, projects.length]);
+
+  // 检查是否所有图片都加载完成
+  useEffect(() => {
+    if (!isLoading && totalImages > 0 && imagesLoaded >= totalImages) {
+      setAllImagesReady(true);
+    }
+  }, [isLoading, imagesLoaded, totalImages]);
+
+  const handleImageLoad = useCallback(() => {
+    setImagesLoaded(prev => prev + 1);
+  }, []);
 
   const handleProjectClick = (projectId: string) => {
     window.open(`/app/p/${projectId}`, '_blank');
   };
 
-  if (isLoading) {
+  // 显示骨架屏：数据加载中 或 图片还没全部加载完
+  const showSkeleton = isLoading || (!allImagesReady && projects.length > 0);
+
+  if (showSkeleton) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {/* 骨架屏 */}
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="rounded-2xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-sm">
             <Skeleton className="aspect-[4/3]" />
@@ -203,6 +259,19 @@ export function ProjectGrid({
             </div>
           </div>
         ))}
+        {/* 隐藏的项目卡片用于预加载图片 */}
+        {!isLoading && projects.length > 0 && (
+          <div className="hidden">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onClick={() => {}}
+                onImageLoad={handleImageLoad}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
