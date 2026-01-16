@@ -7,6 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useRouter } from 'next/navigation';
+import * as fabric from 'fabric';
 import { 
   Menu, ChevronUp,
   Home, FolderOpen, Plus, Trash2, ImageIcon,
@@ -224,6 +225,80 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     router.push('/app');
   }, [router]);
 
+  // Navigate to projects page
+  const handleProjects = useCallback(() => {
+    router.push('/app/projects');
+  }, [router]);
+
+  // Create new project
+  const handleNewProject = useCallback(() => {
+    router.push('/app');
+  }, [router]);
+
+  // Delete current project (with confirmation)
+  const handleDeleteProject = useCallback(async () => {
+    if (!confirm(t('menu.delete_confirm'))) return;
+    
+    try {
+      // Import deleteProject dynamically to avoid circular deps
+      const { deleteProject } = await import('@/lib/supabase/queries/projects');
+      await deleteProject(projectId);
+      router.push('/app');
+    } catch (error) {
+      console.error('[Editor] Failed to delete project:', error);
+    }
+  }, [projectId, router, t]);
+
+  // Undo action
+  const handleUndo = useCallback(() => {
+    canvasRef.current?.undo();
+  }, []);
+
+  // Redo action
+  const handleRedo = useCallback(() => {
+    canvasRef.current?.redo();
+  }, []);
+
+  // Duplicate selected object
+  const handleDuplicate = useCallback(() => {
+    const canvas = canvasRef.current?.getCanvas();
+    if (!canvas) return;
+    
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject) return;
+    
+    activeObject.clone().then((cloned: fabric.FabricObject) => {
+      cloned.set({
+        left: (cloned.left || 0) + 20,
+        top: (cloned.top || 0) + 20,
+      });
+      // Generate new ID
+      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      (cloned as fabric.FabricObject & { id?: string }).id = newId;
+      
+      canvas.add(cloned);
+      canvas.setActiveObject(cloned);
+      canvas.requestRenderAll();
+    });
+  }, []);
+
+  // Reset view to show all objects
+  const handleShowAll = useCallback(() => {
+    canvasRef.current?.resetView();
+  }, []);
+
+  // Zoom in
+  const handleZoomIn = useCallback(() => {
+    const currentZoom = canvasRef.current?.getZoom() || 1;
+    canvasRef.current?.setZoom(Math.min(currentZoom + 0.25, 5));
+  }, []);
+
+  // Zoom out
+  const handleZoomOut = useCallback(() => {
+    const currentZoom = canvasRef.current?.getZoom() || 1;
+    canvasRef.current?.setZoom(Math.max(currentZoom - 0.25, 0.1));
+  }, []);
+
   const handleNameSubmit = useCallback(() => {
     if (editedName.trim()) {
       onProjectNameChange?.(editedName.trim());
@@ -298,16 +373,16 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
               <Home className="size-3.5 mr-2" />
               {t('menu.home')}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleProjects} className="text-xs py-1.5">
               <FolderOpen className="size-3.5 mr-2" />
               {t('menu.projects')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleNewProject} className="text-xs py-1.5">
               <Plus className="size-3.5 mr-2" />
               {t('menu.new_project')}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs py-1.5 text-red-500 focus:text-red-500">
+            <DropdownMenuItem onClick={handleDeleteProject} className="text-xs py-1.5 text-red-500 focus:text-red-500">
               <Trash2 className="size-3.5 mr-2" />
               {t('menu.delete_project')}
             </DropdownMenuItem>
@@ -317,33 +392,33 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
               {t('menu.import_image')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleUndo} className="text-xs py-1.5">
               <Undo className="size-3.5 mr-2" />
               {t('menu.undo')}
               <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem disabled className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleRedo} className="text-xs py-1.5">
               <Redo className="size-3.5 mr-2" />
               {t('menu.redo')}
               <DropdownMenuShortcut>⌘⇧Z</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem disabled className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleDuplicate} disabled={!selectedLayerId} className="text-xs py-1.5">
               <Copy className="size-3.5 mr-2" />
               {t('menu.copy_object')}
               <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleShowAll} className="text-xs py-1.5">
               <Eye className="size-3.5 mr-2" />
               {t('menu.show_all_images')}
               <DropdownMenuShortcut>⇧1</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleZoomIn} className="text-xs py-1.5">
               <ZoomIn className="size-3.5 mr-2" />
               {t('menu.zoom_in')}
               <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs py-1.5">
+            <DropdownMenuItem onClick={handleZoomOut} className="text-xs py-1.5">
               <ZoomOut className="size-3.5 mr-2" />
               {t('menu.zoom_out')}
               <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>

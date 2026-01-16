@@ -42,6 +42,7 @@
   },
   "menu": {
     "copy_object": "Copy Object",
+    "delete_confirm": "Are you sure you want to delete this project? This action cannot be undone.",
     "delete_project": "Delete Project",
     "home": "Home",
     "import_image": "Import Image",

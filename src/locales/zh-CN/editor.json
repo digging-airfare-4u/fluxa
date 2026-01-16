@@ -42,6 +42,7 @@
   },
   "menu": {
     "copy_object": "复制对象",
+    "delete_confirm": "确定要删除此项目吗？此操作无法撤销。",
     "delete_project": "删除当前项目",
     "home": "主页",
     "import_image": "导入图片",
