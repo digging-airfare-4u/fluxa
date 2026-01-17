@@ -552,6 +552,7 @@ export class OpsExecutor {
             top: payload.y,
             scaleX: scaleX,
             scaleY: scaleY,
+            opacity: payload.fadeIn ? 0 : 1,
           });
 
           (img as ExtendedFabricObject).id = payload.id;
@@ -560,6 +561,14 @@ export class OpsExecutor {
           this.canvas.add(img);
           this.layerRegistry.set(payload.id, img);
           this.canvas.requestRenderAll();
+
+          if (payload.fadeIn) {
+            img.animate({ opacity: 1 }, {
+              duration: 400,
+              onChange: () => this.canvas.requestRenderAll(),
+            });
+          }
+
           resolve();
         })
         .catch((error) => {

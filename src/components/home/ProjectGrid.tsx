@@ -251,6 +251,15 @@ export function ProjectGrid({
   // 显示骨架屏：数据加载中 或 图片还没全部加载完
   const showSkeleton = isLoading || (!allImagesReady && projects.length > 0);
 
+  console.log('[ProjectGrid] Render state:', {
+    isLoading,
+    projects: projects.length,
+    imagesLoaded,
+    totalImages,
+    allImagesReady,
+    showSkeleton,
+  });
+
   if (showSkeleton) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
