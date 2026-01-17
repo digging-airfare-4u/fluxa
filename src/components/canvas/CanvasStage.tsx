@@ -138,6 +138,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     });
     const selectedTextRef = useRef<fabric.IText | null>(null);
     const selectedImageRef = useRef<fabric.FabricImage | null>(null);
+    const selectionUpdateRafRef = useRef<number | null>(null);
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -202,62 +203,69 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     const updateSelectionInfo = useCallback((obj: fabric.FabricObject) => {
       if (!containerRef.current || !fabricRef.current) return;
 
-      const canvas = fabricRef.current;
-      const boundingRect = obj.getBoundingRect();
-      const vpt = canvas.viewportTransform;
-      
-      if (!vpt) return;
+      if (selectionUpdateRafRef.current) {
+        cancelAnimationFrame(selectionUpdateRafRef.current);
+      }
 
-      const screenX = boundingRect.left * vpt[0] + vpt[4];
-      const screenY = boundingRect.top * vpt[3] + vpt[5];
+      selectionUpdateRafRef.current = requestAnimationFrame(() => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
 
-      setSelectionInfo({
-        type: obj.type || 'object',
-        width: boundingRect.width,
-        height: boundingRect.height,
-        x: screenX + boundingRect.width * vpt[0] / 2,
-        y: screenY,
-      });
+        const boundingRect = obj.getBoundingRect();
+        const vpt = canvas.viewportTransform;
 
-      // Check if selected object is a text type
-      if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
-        const textObj = obj as fabric.IText;
-        selectedTextRef.current = textObj;
-        setTextToolbarInfo({
-          x: screenX + boundingRect.width * vpt[0] / 2,
+        if (!vpt) return;
+
+        const screenX = boundingRect.left * vpt[0] + vpt[4];
+        const screenY = boundingRect.top * vpt[3] + vpt[5];
+
+        setSelectionInfo({
+          type: obj.type || 'object',
+          width: boundingRect.width,
+          height: boundingRect.height,
+          x: screenX + (boundingRect.width * vpt[0]) / 2,
           y: screenY,
-          properties: {
-            fontFamily: textObj.fontFamily || 'Inter',
-            fontSize: textObj.fontSize || 24,
-            fontWeight: textObj.fontWeight as string || 'normal',
-            fontStyle: textObj.fontStyle || 'normal',
-            fill: (textObj.fill as string) || '#000000',
-            textAlign: textObj.textAlign || 'left',
-            underline: textObj.underline || false,
-            linethrough: textObj.linethrough || false,
-          },
         });
-        // Clear image toolbar when text is selected
-        selectedImageRef.current = null;
-        setImageToolbarInfo(null);
-      } else if (obj.type === 'activeselection') {
-        // Multi-select (ActiveSelection): hide both toolbars
-        selectedTextRef.current = null;
-        setTextToolbarInfo(null);
-        selectedImageRef.current = null;
-        setImageToolbarInfo(null);
-      } else if (obj.type === 'image') {
-        // Single image selection
-        const imageObj = obj as fabric.FabricImage;
-        selectedImageRef.current = imageObj;
-        
-        // Calculate screen coordinates for toolbar positioning
-        const scaledWidth = boundingRect.width * vpt[0];
-        const scaledHeight = boundingRect.height * vpt[3];
-        
-        // Check if image is near top edge of viewport (need to position toolbar below)
-        const toolbarHeight = 44; // Approximate toolbar height
-        const edgeMargin = 8;
+
+        // Check if selected object is a text type
+        if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
+          const textObj = obj as fabric.IText;
+          selectedTextRef.current = textObj;
+          setTextToolbarInfo({
+            x: screenX + (boundingRect.width * vpt[0]) / 2,
+            y: screenY,
+            properties: {
+              fontFamily: textObj.fontFamily || 'Inter',
+              fontSize: textObj.fontSize || 24,
+              fontWeight: textObj.fontWeight as string || 'normal',
+              fontStyle: textObj.fontStyle || 'normal',
+              fill: (textObj.fill as string) || '#000000',
+              textAlign: textObj.textAlign || 'left',
+              underline: textObj.underline || false,
+              linethrough: textObj.linethrough || false,
+            },
+          });
+          // Clear image toolbar when text is selected
+          selectedImageRef.current = null;
+          setImageToolbarInfo(null);
+        } else if (obj.type === 'activeselection') {
+          // Multi-select (ActiveSelection): hide both toolbars
+          selectedTextRef.current = null;
+          setTextToolbarInfo(null);
+          selectedImageRef.current = null;
+          setImageToolbarInfo(null);
+        } else if (obj.type === 'image') {
+          // Single image selection
+          const imageObj = obj as fabric.FabricImage;
+          selectedImageRef.current = imageObj;
+
+          // Calculate screen coordinates for toolbar positioning
+          const scaledWidth = boundingRect.width * vpt[0];
+          const scaledHeight = boundingRect.height * vpt[3];
+
+          // Check if image is near top edge of viewport (need to position toolbar below)
+          const toolbarHeight = 44; // Approximate toolbar height
+          const edgeMargin = 8;
         const positionBelow = screenY < toolbarHeight + edgeMargin;
         
         // Check if image is locked
@@ -800,6 +808,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       return () => {
         window.removeEventListener('resize', handleResize);
+        if (selectionUpdateRafRef.current) {
+          cancelAnimationFrame(selectionUpdateRafRef.current);
+        }
         synchronizerRef.current?.dispose();
         synchronizerRef.current = null;
         persistenceManagerRef.current = null;

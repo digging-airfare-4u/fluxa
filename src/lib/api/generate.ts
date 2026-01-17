@@ -1,9 +1,11 @@
 /**
  * AI Generation API Client
  * Unified API layer for image and ops generation
+ * Uses Supabase Edge Functions directly via supabase.functions.invoke
  * Requirements: 12.1-12.7 - AI design generation
  */
 
+import { supabase } from '@/lib/supabase/client';
 import type { Op } from '@/lib/canvas/ops.types';
 
 // ============================================================================
@@ -111,94 +113,208 @@ export class GenerationApiError extends Error {
 // ============================================================================
 
 /**
- * Generate image via AI
+ * Generate image via AI using Supabase Edge Function
  * 
  * @param params - Image generation parameters
- * @param accessToken - User's access token for authentication
+ * @param _accessToken - Deprecated: token is now handled automatically by Supabase SDK
  * @param signal - Optional AbortSignal for cancellation
  * @returns Promise with job ID and points info
  * @throws GenerationApiError on failure
  */
 export async function generateImage(
   params: GenerateImageParams,
-  accessToken?: string,
+  _accessToken?: string,
   signal?: AbortSignal
 ): Promise<GenerateImageResult> {
-  const response = await fetch('/api/generate-image', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({
-      projectId: params.projectId,
-      documentId: params.documentId,
-      conversationId: params.conversationId,
-      prompt: params.prompt,
-      model: params.model,
-      width: params.width ?? 1024,
-      height: params.height ?? 1024,
-      imageUrl: params.imageUrl,
-      placeholderX: params.placeholderX,
-      placeholderY: params.placeholderY,
-      aspectRatio: params.aspectRatio,
-      resolution: params.resolution,
-    }),
-    signal,
-  });
+  // Ensure we have a fresh session before calling the Edge Function
+  // This handles cases where the token might be expired
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    // Try to refresh the session
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      console.error('[generateImage] Failed to refresh session:', refreshError);
+      throw new GenerationApiError(
+        'Authentication required',
+        'AUTH_REQUIRED',
+        401
+      );
+    }
+  }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
+  // Get the current access token to pass explicitly
+  const { data: { session: currentSession } } = await supabase.auth.getSession();
+  const accessToken = currentSession?.access_token;
+
+  if (!accessToken) {
     throw new GenerationApiError(
-      errorData?.error?.message || 'Image generation failed',
-      errorData?.error?.code || 'IMAGE_GENERATION_FAILED',
-      response.status,
-      errorData?.error
+      'No access token available',
+      'AUTH_REQUIRED',
+      401
     );
   }
 
-  return response.json();
+  const requestBody = {
+    projectId: params.projectId,
+    documentId: params.documentId,
+    conversationId: params.conversationId,
+    prompt: params.prompt,
+    model: params.model,
+    width: params.width ?? 1024,
+    height: params.height ?? 1024,
+    imageUrl: params.imageUrl,
+    placeholderX: params.placeholderX,
+    placeholderY: params.placeholderY,
+    aspectRatio: params.aspectRatio,
+    resolution: params.resolution,
+  };
+
+  console.log('[generateImage] ========== CLIENT REQUEST START ==========');
+  console.log('[generateImage] Request Body:', JSON.stringify(requestBody, null, 2));
+  console.log('[generateImage] ========== CLIENT REQUEST END ==========');
+
+  // Use supabase.functions.invoke with explicit Authorization header
+  const { data, error } = await supabase.functions.invoke<GenerateImageResult>('generate-image', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: requestBody,
+  });
+
+  console.log('[generateImage] ========== CLIENT RESPONSE START ==========');
+  if (error) {
+    console.error('[generateImage] Error:', error);
+    console.error('[generateImage] Error Context:', JSON.stringify(error.context, null, 2));
+  } else {
+    console.log('[generateImage] Success Data:', JSON.stringify(data, null, 2));
+  }
+  console.log('[generateImage] ========== CLIENT RESPONSE END ==========');
+
+  // Handle abort signal
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  if (error) {
+    // Parse error response
+    const errorData = error.context as { error?: ApiError } | undefined;
+    const apiError = errorData?.error;
+    
+    throw new GenerationApiError(
+      apiError?.message || error.message || 'Image generation failed',
+      apiError?.code || 'IMAGE_GENERATION_FAILED',
+      500,
+      apiError
+    );
+  }
+
+  if (!data) {
+    throw new GenerationApiError(
+      'No data returned from generate-image',
+      'NO_DATA',
+      500
+    );
+  }
+
+  return data;
 }
 
 /**
- * Generate canvas ops via AI
+ * Generate canvas ops via AI using Supabase Edge Function
  * 
  * @param params - Ops generation parameters
- * @param accessToken - User's access token for authentication
+ * @param _accessToken - Deprecated: token is now handled automatically by Supabase SDK
  * @param signal - Optional AbortSignal for cancellation
  * @returns Promise with plan and ops array
  * @throws GenerationApiError on failure
  */
 export async function generateOps(
   params: GenerateOpsParams,
-  accessToken?: string,
+  _accessToken?: string,
   signal?: AbortSignal
 ): Promise<GenerateOpsResult> {
-  const response = await fetch('/api/generate-ops', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({
-      projectId: params.projectId,
-      documentId: params.documentId,
-      conversationId: params.conversationId,
-      prompt: params.prompt,
-      model: params.model,
-    }),
-    signal,
-  });
+  // Ensure we have a fresh session before calling the Edge Function
+  // This handles cases where the token might be expired
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    // Try to refresh the session
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      console.error('[generateOps] Failed to refresh session:', refreshError);
+      throw new GenerationApiError(
+        'Authentication required',
+        'AUTH_REQUIRED',
+        401
+      );
+    }
+  }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
+  // Get the current access token to pass explicitly
+  const { data: { session: currentSession } } = await supabase.auth.getSession();
+  const accessToken = currentSession?.access_token;
+
+  if (!accessToken) {
     throw new GenerationApiError(
-      errorData?.error?.message || 'Generation failed',
-      errorData?.error?.code || 'GENERATION_FAILED',
-      response.status,
-      errorData?.error
+      'No access token available',
+      'AUTH_REQUIRED',
+      401
     );
   }
 
-  return response.json();
+  const requestBody = {
+    projectId: params.projectId,
+    documentId: params.documentId,
+    conversationId: params.conversationId,
+    prompt: params.prompt,
+    model: params.model,
+  };
+
+  console.log('[generateOps] ========== CLIENT REQUEST START ==========');
+  console.log('[generateOps] Request Body:', JSON.stringify(requestBody, null, 2));
+  console.log('[generateOps] ========== CLIENT REQUEST END ==========');
+
+  // Use supabase.functions.invoke with explicit Authorization header
+  const { data, error } = await supabase.functions.invoke<GenerateOpsResult>('generate-ops', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: requestBody,
+  });
+
+  console.log('[generateOps] ========== CLIENT RESPONSE START ==========');
+  if (error) {
+    console.error('[generateOps] Error:', error);
+    console.error('[generateOps] Error Context:', JSON.stringify(error.context, null, 2));
+  } else {
+    console.log('[generateOps] Success Data:', JSON.stringify(data, null, 2));
+  }
+  console.log('[generateOps] ========== CLIENT RESPONSE END ==========');
+
+  // Handle abort signal
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  if (error) {
+    // Parse error response
+    const errorData = error.context as { error?: ApiError } | undefined;
+    const apiError = errorData?.error;
+    
+    throw new GenerationApiError(
+      apiError?.message || error.message || 'Generation failed',
+      apiError?.code || 'GENERATION_FAILED',
+      500,
+      apiError
+    );
+  }
+
+  if (!data) {
+    throw new GenerationApiError(
+      'No data returned from generate-ops',
+      'NO_DATA',
+      500
+    );
+  }
+
+  return data;
 }
