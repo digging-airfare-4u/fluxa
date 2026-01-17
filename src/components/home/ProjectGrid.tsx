@@ -214,8 +214,8 @@ export function ProjectGrid({
   const [imagesLoaded, setImagesLoaded] = useState(0);
   const [allImagesReady, setAllImagesReady] = useState(false);
 
-  // 计算需要加载的图片总数
-  const totalImages = projects.length;
+  // 只等待首屏 4 张图片加载完成
+  const totalImages = Math.min(projects.length, 4);
 
   // 重置图片加载状态当项目列表变化时
   useEffect(() => {
@@ -231,13 +231,18 @@ export function ProjectGrid({
   // 检查是否所有图片都加载完成
   useEffect(() => {
     if (!isLoading && totalImages > 0 && imagesLoaded >= totalImages) {
+      console.log('[ProjectGrid] All images ready:', { imagesLoaded, totalImages });
       setAllImagesReady(true);
     }
   }, [isLoading, imagesLoaded, totalImages]);
 
   const handleImageLoad = useCallback(() => {
-    setImagesLoaded(prev => prev + 1);
-  }, []);
+    setImagesLoaded(prev => {
+      const next = Math.min(prev + 1, totalImages);
+      console.log('[ProjectGrid] Image loaded:', { prev, next, totalImages });
+      return next;
+    });
+  }, [totalImages]);
 
   const handleProjectClick = (projectId: string) => {
     window.open(`/app/p/${projectId}`, '_blank');
@@ -262,7 +267,7 @@ export function ProjectGrid({
         {/* 隐藏的项目卡片用于预加载图片 */}
         {!isLoading && projects.length > 0 && (
           <div className="hidden">
-            {projects.map((project) => (
+            {projects.slice(0, totalImages).map((project) => (
               <ProjectCard
                 key={project.id}
                 project={project}
