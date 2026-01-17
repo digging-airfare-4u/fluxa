@@ -4,14 +4,11 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { useTranslations } from 'next-intl';
-import { supabase } from '@/lib/supabase/client';
 import { generateImage, generateOps, GenerationApiError } from '@/lib/api';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
 import { createMessage, type Message } from '@/lib/supabase/queries/messages';
 import { useChatStore, type GenerationPhase } from '@/lib/store/useChatStore';
-import { useErrorMessages } from '@/lib/i18n';
-import type { Op } from '@/lib/canvas/ops.types';
+import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
 
 export interface UseGenerationOptions {
@@ -56,9 +53,6 @@ export function useGeneration({
   onRemovePlaceholder,
   onGetPlaceholderPosition,
 }: UseGenerationOptions): UseGenerationReturn {
-  const t = useTranslations('chat');
-  const { getApiError } = useErrorMessages();
-  
   const {
     generationPhase,
     selectedModel,
@@ -138,11 +132,7 @@ export function useGeneration({
     }, 150);
 
     try {
-      // Refresh session
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-      if (sessionError || !session) {
-        throw new Error(getApiError('SESSION_EXPIRED'));
-      }
+      // supabase.functions.invoke handles auth automatically, no need to refresh session here
 
       const result = await generateImage(
         {
@@ -157,75 +147,102 @@ export function useGeneration({
           placeholderY,
           imageUrl: referencedImage?.url,
         },
-        session.access_token,
+        undefined, // accessToken not needed
         abortControllerRef.current?.signal
       );
 
       clearPhaseATimeout();
 
       if (result.jobId) {
-        const { unsubscribe } = subscribeToJob(result.jobId, {
-          onDone: async (job: Job) => {
-            const finalPosition = onGetPlaceholderPosition?.(placeholderId);
-            onRemovePlaceholder?.(placeholderId);
+        // Track if we've already handled the job completion to avoid double-processing
+        let handled = false;
 
-            const fullJob = await fetchJob(result.jobId);
-            const output = (fullJob?.output || job.output) as { 
-              op?: Op; 
-              layerId?: string; 
-              publicUrl?: string; 
-              signedUrl?: string;
-            } | undefined;
-            const imageUrl = output?.publicUrl || output?.signedUrl;
-            const layerId = output?.layerId;
+        const handleJobDone = async (job: Job) => {
+          if (handled) return;
+          handled = true;
 
-            // Update position if placeholder was moved
-            if (finalPosition && layerId && 
+          const finalPosition = onGetPlaceholderPosition?.(placeholderId);
+          onRemovePlaceholder?.(placeholderId);
+
+          const fullJob = await fetchJob(result.jobId);
+          const output = (fullJob?.output || job.output) as { 
+            op?: Op; 
+            layerId?: string; 
+            publicUrl?: string; 
+            signedUrl?: string;
+          } | undefined;
+          const imageUrl = output?.publicUrl || output?.signedUrl;
+
+          // Execute the addImage op to render the image on canvas
+          if (output?.op) {
+            // If placeholder was moved, update the position in the op
+            // The Edge Function returns an addImage op, so we safely cast it
+            if (finalPosition && 
                 (finalPosition.x !== placeholderX || finalPosition.y !== placeholderY)) {
-              setTimeout(() => {
-                const updateOp: Op = {
-                  type: 'updateLayer',
-                  payload: {
-                    id: layerId,
-                    properties: {
-                      left: finalPosition.x,
-                      top: finalPosition.y,
-                    },
-                  },
-                };
-                onOpsGenerated?.([updateOp]);
-              }, 500);
-            }
-
-            try {
-              const assistantMessage = await createMessage({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: '',
-                metadata: {
-                  jobId: result.jobId,
-                  imageUrl,
-                  op: output?.op,
-                  modelName: currentModelName,
+              const imageOp = output.op as AddImageOp;
+              const opWithUpdatedPosition: AddImageOp = {
+                ...imageOp,
+                payload: {
+                  ...imageOp.payload,
+                  x: finalPosition.x,
+                  y: finalPosition.y,
                 },
-              });
-
-              onPendingReplaced(pendingMessageId, assistantMessage);
-              completeGeneration();
-              onGeneratingChange?.(false);
-            } catch (err) {
-              console.error('[useGeneration] Failed to create message:', err);
+              };
+              onOpsGenerated?.([opWithUpdatedPosition]);
+            } else {
+              onOpsGenerated?.([output.op]);
             }
+          }
 
-            unsubscribe();
-          },
-          onFailed: (job: Job) => {
-            onRemovePlaceholder?.(placeholderId);
-            failGeneration(job.error || 'Image generation failed');
+          try {
+            const assistantMessage = await createMessage({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: '',
+              metadata: {
+                jobId: result.jobId,
+                imageUrl,
+                op: output?.op,
+                modelName: currentModelName,
+              },
+            });
+
+            onPendingReplaced(pendingMessageId, assistantMessage);
+            completeGeneration();
             onGeneratingChange?.(false);
-            unsubscribe();
-          },
+          } catch (err) {
+            console.error('[useGeneration] Failed to create message:', err);
+          }
+
+          unsubscribe();
+        };
+
+        const handleJobFailed = (job: Job) => {
+          if (handled) return;
+          handled = true;
+
+          onRemovePlaceholder?.(placeholderId);
+          failGeneration(job.error || 'Image generation failed');
+          onGeneratingChange?.(false);
+          unsubscribe();
+        };
+
+        const { unsubscribe } = subscribeToJob(result.jobId, {
+          onDone: handleJobDone,
+          onFailed: handleJobFailed,
         });
+
+        // CRITICAL: Check if job is already done (race condition fix)
+        // The Edge Function may complete synchronously before we subscribe
+        const existingJob = await fetchJob(result.jobId);
+        if (existingJob) {
+          console.log('[useGeneration] Existing job status:', existingJob.status);
+          if (existingJob.status === 'done') {
+            await handleJobDone(existingJob);
+          } else if (existingJob.status === 'failed') {
+            handleJobFailed(existingJob);
+          }
+        }
       }
     } catch (err) {
       clearPhaseATimeout();
@@ -244,7 +261,7 @@ export function useGeneration({
     onAddPlaceholder, onRemovePlaceholder, onGetPlaceholderPosition,
     onOpsGenerated, onGeneratingChange,
     setGenerationPhase, completeGeneration, failGeneration,
-    clearPhaseATimeout, handleApiError, getApiError,
+    clearPhaseATimeout, handleApiError,
   ]);
 
   const startOpsGeneration = useCallback(async (ctx: GenerationContext) => {
@@ -260,11 +277,7 @@ export function useGeneration({
     }, 150);
 
     try {
-      // Refresh session
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-      if (sessionError || !session) {
-        throw new Error(getApiError('SESSION_EXPIRED'));
-      }
+      // supabase.functions.invoke handles auth automatically, no need to refresh session here
 
       const result = await generateOps(
         {
@@ -274,7 +287,7 @@ export function useGeneration({
           prompt: content,
           model,
         },
-        session.access_token,
+        undefined, // accessToken not needed
         abortControllerRef.current?.signal
       );
 
@@ -308,7 +321,7 @@ export function useGeneration({
   }, [
     projectId, documentId, conversationId, models,
     onGeneratingChange, setGenerationPhase, completeGeneration,
-    clearPhaseATimeout, handleApiError, getApiError,
+    clearPhaseATimeout, handleApiError,
   ]);
 
   return {

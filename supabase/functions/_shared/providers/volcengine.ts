@@ -147,10 +147,19 @@ export class VolcengineProvider implements ImageProvider {
     // Image-to-image: add reference image as array
     if (request.referenceImageBase64) {
       // Volcengine expects base64 data URL or URL
-      requestBody.image = [`data:${request.referenceImageMimeType || 'image/png'};base64,${request.referenceImageBase64}`];
+      const imageDataUrl = `data:${request.referenceImageMimeType || 'image/png'};base64,${request.referenceImageBase64}`;
+      requestBody.image = [imageDataUrl];
+      console.log(`[Volcengine] Reference image data URL length: ${imageDataUrl.length} chars`);
     }
     
-    console.log(`[Volcengine] Generating image with model: ${this.modelName}`);
+    console.log(`[Volcengine] ========== REQUEST START ==========`);
+    console.log(`[Volcengine] Model: ${this.modelName}`);
+    console.log(`[Volcengine] API URL: ${apiUrl}`);
+    console.log(`[Volcengine] Prompt: ${request.prompt}`);
+    console.log(`[Volcengine] Size: ${size}`);
+    console.log(`[Volcengine] Has Reference Image: ${!!request.referenceImageBase64}`);
+    console.log(`[Volcengine] Request Body:`, JSON.stringify(requestBody, null, 2));
+    console.log(`[Volcengine] ========== REQUEST END ==========`);
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -161,9 +170,14 @@ export class VolcengineProvider implements ImageProvider {
       body: JSON.stringify(requestBody),
     });
     
+    console.log(`[Volcengine] ========== RESPONSE START ==========`);
+    console.log(`[Volcengine] Status: ${response.status} ${response.statusText}`);
+    console.log(`[Volcengine] Headers:`, Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Volcengine] API error: ${response.status} - ${errorText}`);
+      console.error(`[Volcengine] Error Response Body:`, errorText);
+      console.log(`[Volcengine] ========== RESPONSE END (ERROR) ==========`);
       throw new ProviderError(
         `Volcengine API error: ${response.status}`,
         'API_ERROR',
@@ -172,6 +186,9 @@ export class VolcengineProvider implements ImageProvider {
     }
     
     const data = await response.json();
+    console.log(`[Volcengine] Success Response Body:`, JSON.stringify(data, null, 2));
+    console.log(`[Volcengine] ========== RESPONSE END ==========`);
+    
     return this.parseResponse(data);
   }
   
@@ -197,19 +214,36 @@ export class VolcengineProvider implements ImageProvider {
    * Handles both URL and base64 response formats
    */
   private async parseResponse(data: Record<string, unknown>): Promise<ImageResult> {
-    const imageData = (data.data as Array<{ url?: string; b64_json?: string }>)?.[0];
+    console.log(`[Volcengine] ========== PARSING RESPONSE ==========`);
+    console.log(`[Volcengine] Response data keys:`, Object.keys(data));
+    
+    const dataArray = data.data as Array<{ url?: string; b64_json?: string }> | undefined;
+    console.log(`[Volcengine] Data array length: ${dataArray?.length || 0}`);
+    
+    const imageData = dataArray?.[0];
     
     if (!imageData) {
+      console.error(`[Volcengine] Parse Error: No image data in response`);
       throw new ProviderError('No image data in response', 'PARSE_ERROR');
     }
     
+    console.log(`[Volcengine] Image data keys:`, Object.keys(imageData));
+    console.log(`[Volcengine] Has b64_json: ${!!imageData.b64_json}`);
+    console.log(`[Volcengine] Has url: ${!!imageData.url}`);
+    
     // Handle base64 response
     if (imageData.b64_json) {
+      console.log(`[Volcengine] Processing base64 response`);
+      console.log(`[Volcengine] Base64 data length: ${imageData.b64_json.length} chars`);
+      
       const arrayBuffer = base64ToArrayBuffer(imageData.b64_json);
+      console.log(`[Volcengine] ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+      
       const mimeType = 'image/png';
       const dimensions = getImageDimensions(arrayBuffer, mimeType);
+      console.log(`[Volcengine] Dimensions: ${dimensions?.width}x${dimensions?.height}`);
       
-      return {
+      const result = {
         imageData: arrayBuffer,
         mimeType,
         width: dimensions?.width,
@@ -218,14 +252,24 @@ export class VolcengineProvider implements ImageProvider {
           responseType: 'base64',
         },
       };
+      
+      console.log(`[Volcengine] ========== PARSING SUCCESS (BASE64) ==========`);
+      return result;
     }
     
     // Handle URL response
     if (imageData.url) {
-      const { data: arrayBuffer, contentType } = await downloadImage(imageData.url);
-      const dimensions = getImageDimensions(arrayBuffer, contentType);
+      console.log(`[Volcengine] Processing URL response`);
+      console.log(`[Volcengine] Image URL: ${imageData.url}`);
       
-      return {
+      const { data: arrayBuffer, contentType } = await downloadImage(imageData.url);
+      console.log(`[Volcengine] Downloaded size: ${arrayBuffer.byteLength} bytes`);
+      console.log(`[Volcengine] Content-Type: ${contentType}`);
+      
+      const dimensions = getImageDimensions(arrayBuffer, contentType);
+      console.log(`[Volcengine] Dimensions: ${dimensions?.width}x${dimensions?.height}`);
+      
+      const result = {
         imageData: arrayBuffer,
         mimeType: contentType,
         width: dimensions?.width,
@@ -235,8 +279,12 @@ export class VolcengineProvider implements ImageProvider {
           originalUrl: imageData.url,
         },
       };
+      
+      console.log(`[Volcengine] ========== PARSING SUCCESS (URL) ==========`);
+      return result;
     }
     
+    console.error(`[Volcengine] Parse Error: Invalid response format`);
     throw new ProviderError('Invalid response format: no url or b64_json', 'PARSE_ERROR');
   }
 }

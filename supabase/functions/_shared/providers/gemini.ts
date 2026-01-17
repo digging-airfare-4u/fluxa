@@ -119,7 +119,15 @@ export class GeminiProvider implements ImageProvider {
     const resolution = request.resolution || '1K';
     const aspectRatio = request.aspectRatio || '1:1';
     
-    console.log(`[Gemini] Generating image with model: ${this.modelName}, resolution: ${resolution}, aspectRatio: ${aspectRatio}`);
+    console.log(`[Gemini] ========== REQUEST START ==========`);
+    console.log(`[Gemini] Model: ${this.modelName}`);
+    console.log(`[Gemini] Resolution: ${resolution}`);
+    console.log(`[Gemini] Aspect Ratio: ${aspectRatio}`);
+    console.log(`[Gemini] Prompt: ${request.prompt}`);
+    console.log(`[Gemini] Has Reference Image: ${!!request.referenceImageBase64}`);
+    console.log(`[Gemini] API Host: ${apiHost}`);
+    console.log(`[Gemini] Request Body:`, JSON.stringify(requestBody, null, 2));
+    console.log(`[Gemini] ========== REQUEST END ==========`);
     
     const response = await fetch(
       `${apiHost}/v1beta/models/${this.modelName}:generateContent?key=${apiKey}`,
@@ -130,9 +138,14 @@ export class GeminiProvider implements ImageProvider {
       }
     );
     
+    console.log(`[Gemini] ========== RESPONSE START ==========`);
+    console.log(`[Gemini] Status: ${response.status} ${response.statusText}`);
+    console.log(`[Gemini] Headers:`, Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Gemini] API error: ${response.status} - ${errorText}`);
+      console.error(`[Gemini] Error Response Body:`, errorText);
+      console.log(`[Gemini] ========== RESPONSE END (ERROR) ==========`);
       throw new ProviderError(
         `Gemini API error: ${response.status}`,
         'API_ERROR',
@@ -141,6 +154,9 @@ export class GeminiProvider implements ImageProvider {
     }
     
     const responseData = await response.json();
+    console.log(`[Gemini] Success Response Body:`, JSON.stringify(responseData, null, 2));
+    console.log(`[Gemini] ========== RESPONSE END ==========`);
+    
     return this.parseResponse(responseData, request);
   }
   
@@ -214,7 +230,8 @@ export class GeminiProvider implements ImageProvider {
     
     // Build generation config
     const generationConfig: Record<string, unknown> = {
-      responseModalities: ['image', 'text'],
+      responseModalities: ['IMAGE'],
+      responseMimeType: 'image/png',
     };
     
     // Add image config with aspect ratio
@@ -237,29 +254,50 @@ export class GeminiProvider implements ImageProvider {
     responseData: Record<string, unknown>,
     request: ProviderRequest
   ): ImageResult {
+    console.log(`[Gemini] ========== PARSING RESPONSE ==========`);
+    
     const candidates = responseData.candidates as Array<Record<string, unknown>> | undefined;
+    console.log(`[Gemini] Candidates count: ${candidates?.length || 0}`);
+    
     if (!candidates || candidates.length === 0) {
+      console.error(`[Gemini] Parse Error: No candidates in response`);
       throw new ProviderError('No candidates in Gemini response', 'PARSE_ERROR');
     }
     
     const content = candidates[0].content as Record<string, unknown> | undefined;
+    console.log(`[Gemini] Content exists: ${!!content}`);
+    
     if (!content) {
+      console.error(`[Gemini] Parse Error: No content in candidate`);
       throw new ProviderError('No content in Gemini response candidate', 'PARSE_ERROR');
     }
     
     const parts = content.parts as Array<Record<string, unknown>> | undefined;
+    console.log(`[Gemini] Parts count: ${parts?.length || 0}`);
+    
     if (!parts || parts.length === 0) {
+      console.error(`[Gemini] Parse Error: No parts in content`);
       throw new ProviderError('No parts in Gemini response content', 'PARSE_ERROR');
     }
     
     // Find the image part
-    for (const part of parts) {
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      console.log(`[Gemini] Part ${i} keys:`, Object.keys(part));
+      
       const inlineData = part.inlineData as { mimeType: string; data: string } | undefined;
       if (inlineData?.data) {
-        const imageData = base64ToArrayBuffer(inlineData.data);
-        const dimensions = this.getImageDimensions(imageData, inlineData.mimeType);
+        console.log(`[Gemini] Found image in part ${i}`);
+        console.log(`[Gemini] MIME Type: ${inlineData.mimeType}`);
+        console.log(`[Gemini] Base64 data length: ${inlineData.data.length} chars`);
         
-        return {
+        const imageData = base64ToArrayBuffer(inlineData.data);
+        console.log(`[Gemini] ArrayBuffer size: ${imageData.byteLength} bytes`);
+        
+        const dimensions = this.getImageDimensions(imageData, inlineData.mimeType);
+        console.log(`[Gemini] Dimensions: ${dimensions?.width}x${dimensions?.height}`);
+        
+        const result = {
           imageData,
           mimeType: inlineData.mimeType || 'image/png',
           width: dimensions?.width,
@@ -270,9 +308,13 @@ export class GeminiProvider implements ImageProvider {
             aspectRatio: request.aspectRatio,
           },
         };
+        
+        console.log(`[Gemini] ========== PARSING SUCCESS ==========`);
+        return result;
       }
     }
     
+    console.error(`[Gemini] Parse Error: No image data found in any part`);
     throw new ProviderError('No image data found in Gemini response', 'PARSE_ERROR');
   }
   
