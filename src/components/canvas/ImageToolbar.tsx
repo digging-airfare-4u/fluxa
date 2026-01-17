@@ -6,7 +6,7 @@
  * Requirements: 2.1, 2.2, 2.5, 2.6 - Layout, separators, theme, shadow/border
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, forwardRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,27 +33,30 @@ import {
   TOOLBAR_OFFSET,
 } from './ImageToolbar.config';
 
-export function ImageToolbar({
-  x,
-  y,
-  imageWidth,
-  positionBelow = false,
-  onDownload,
-  onCopy,
-  onDelete,
-  onRemoveBackground,
-  onUpscale,
-  onErase,
-  onExpand,
-  onBringToFront,
-  onSendToBack,
-  onBringForward,
-  onSendBackward,
-  onToggleLock,
-  isLocked,
-  loadingStates,
-  className,
-}: ImageToolbarProps) {
+export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(function ImageToolbar(
+  {
+    x,
+    y,
+    imageWidth,
+    positionBelow = false,
+    onDownload,
+    onCopy,
+    onDelete,
+    onRemoveBackground,
+    onUpscale,
+    onErase,
+    onExpand,
+    onBringToFront,
+    onSendToBack,
+    onBringForward,
+    onSendBackward,
+    onToggleLock,
+    isLocked,
+    loadingStates,
+    className,
+  },
+  ref
+) {
   const t = useT('editor');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
@@ -230,17 +233,19 @@ export function ImageToolbar({
 
   return (
     <div
+      ref={ref}
       className={cn(
-        'absolute z-50 pointer-events-auto',
-        'animate-in fade-in-0 zoom-in-95 duration-150',
+        'absolute z-50 flex items-center gap-1 px-2 py-1.5 rounded-lg shadow-lg pointer-events-auto',
+        'animate-in fade-in-0 duration-150',
         className
       )}
       style={toolbarStyle}
     >
+
       <div
         className={cn(
           'flex items-center gap-0.5 px-1.5 py-1 rounded-lg',
-          'shadow-lg border',
+          'shadow-lg',
           'bg-background/95 backdrop-blur-sm',
           'dark:bg-background/90'
         )}
@@ -256,6 +261,8 @@ export function ImageToolbar({
       </div>
     </div>
   );
-}
+});
 
 export default ImageToolbar;
+
+ImageToolbar.displayName = 'ImageToolbar';

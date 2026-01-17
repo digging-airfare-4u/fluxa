@@ -142,6 +142,11 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     getPlaceholderPosition,
   }), [executeOps, addPlaceholder, removePlaceholder, getPlaceholderPosition]);
 
+  const handleAddPlaceholder = useCallback((id: string, x: number, y: number, width: number, height: number) => {
+    addPlaceholder(id, x, y, width, height);
+    canvasRef.current?.focusPlaceholder(id);
+  }, [addPlaceholder]);
+
   const handleToolChange = useCallback((tool: ToolType) => {
     setActiveTool(tool);
   }, []);
@@ -160,6 +165,15 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
 
   const handleOpsGenerated = useCallback(async (ops: Op[]) => {
     await executeOps(ops);
+
+    // After executing, center on the first addImage op if present
+    const firstAddImage = ops.find((op) => op.type === 'addImage') as Op | undefined;
+    if (firstAddImage) {
+      const payload = (firstAddImage as Op & { payload?: { id?: string } }).payload;
+      if (payload?.id) {
+        canvasRef.current?.selectAndCenterLayer(payload.id);
+      }
+    }
   }, [executeOps]);
 
   const handleExport = useCallback(async () => {
@@ -496,7 +510,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         onOpsGenerated={handleOpsGenerated}
         onCollapse={setIsChatCollapsed}
         onGeneratingChange={handleGeneratingChange}
-        onAddPlaceholder={addPlaceholder}
+        onAddPlaceholder={handleAddPlaceholder}
         onRemovePlaceholder={removePlaceholder}
         onGetPlaceholderPosition={getPlaceholderPosition}
         onLocateImage={handleLocateImage}

@@ -6,7 +6,7 @@
  * Requirements: 13.1 - Translate all aria-label attributes
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, forwardRef } from 'react';
 import {
   Bold,
   Italic,
@@ -73,13 +73,16 @@ const PRESET_COLORS = [
   '#FFC107', '#FF9800', '#FF5722', '#795548', '#9E9E9E',
 ];
 
-export function TextToolbar({
-  x,
-  y,
-  properties,
-  onPropertyChange,
-  className,
-}: TextToolbarProps) {
+export const TextToolbar = forwardRef<HTMLDivElement, TextToolbarProps>(function TextToolbar(
+  { 
+    x,
+    y,
+    properties,
+    onPropertyChange,
+    className,
+  },
+  ref
+) {
   const t = useT('editor');
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
@@ -103,9 +106,10 @@ export function TextToolbar({
 
   return (
     <div
+      ref={ref}
       className={cn(
         'absolute z-50 pointer-events-auto',
-        'animate-in fade-in-0 zoom-in-95 duration-150',
+        'animate-in fade-in-0 duration-150',
         className
       )}
       style={{
@@ -114,13 +118,13 @@ export function TextToolbar({
         transform: 'translateX(-50%)',
       }}
     >
-      <div
-        className="flex items-center gap-1 px-2 py-1.5 rounded-lg shadow-lg border"
-        style={{
-          background: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-        }}
-      >
+        <div
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg shadow-lg"
+          style={{
+            background: 'var(--color-surface)',
+          }}
+        >
+
         {/* Font Family */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -298,7 +302,9 @@ export function TextToolbar({
         </Popover>
       </div>
     </div>
-  );
-}
+    );
+});
+
+TextToolbar.displayName = 'TextToolbar';
 
 export default TextToolbar;

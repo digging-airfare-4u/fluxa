@@ -7,6 +7,7 @@ import { useCallback, useRef } from 'react';
 import { generateImage, generateOps, GenerationApiError } from '@/lib/api';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
 import { createMessage, type Message } from '@/lib/supabase/queries/messages';
+import { saveOp } from '@/lib/supabase/queries/ops';
 import { useChatStore, type GenerationPhase } from '@/lib/store/useChatStore';
 import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
@@ -162,7 +163,6 @@ export function useGeneration({
           handled = true;
 
           const finalPosition = onGetPlaceholderPosition?.(placeholderId);
-          onRemovePlaceholder?.(placeholderId);
 
           const fullJob = await fetchJob(result.jobId);
           const output = (fullJob?.output || job.output) as { 
@@ -177,21 +177,42 @@ export function useGeneration({
           if (output?.op) {
             // If placeholder was moved, update the position in the op
             // The Edge Function returns an addImage op, so we safely cast it
-            if (finalPosition && 
-                (finalPosition.x !== placeholderX || finalPosition.y !== placeholderY)) {
-              const imageOp = output.op as AddImageOp;
-              const opWithUpdatedPosition: AddImageOp = {
-                ...imageOp,
-                payload: {
-                  ...imageOp.payload,
-                  x: finalPosition.x,
-                  y: finalPosition.y,
-                },
-              };
-              onOpsGenerated?.([opWithUpdatedPosition]);
-            } else {
-              onOpsGenerated?.([output.op]);
+            const imageOp = output.op as AddImageOp;
+            const opToExecute: AddImageOp = finalPosition &&
+              (finalPosition.x !== placeholderX || finalPosition.y !== placeholderY)
+              ? {
+                  ...imageOp,
+                  payload: {
+                    ...imageOp.payload,
+                    x: finalPosition.x,
+                    y: finalPosition.y,
+                    fadeIn: true,
+                  },
+                }
+              : {
+                  ...imageOp,
+                  payload: {
+                    ...imageOp.payload,
+                    fadeIn: true,
+                  },
+                };
+
+            await onOpsGenerated?.([opToExecute]);
+
+            // Persist addImage op so it survives refresh
+            try {
+              await saveOp({ documentId, op: opToExecute });
+            } catch (error) {
+              console.error('[useGeneration] Failed to persist addImage op:', error);
             }
+
+            setTimeout(() => {
+              onRemovePlaceholder?.(placeholderId);
+            }, 400);
+          }
+
+          if (!output?.op) {
+            onRemovePlaceholder?.(placeholderId);
           }
 
           try {

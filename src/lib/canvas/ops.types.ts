@@ -93,6 +93,7 @@ export interface AddImageOp extends BaseOp {
     height?: number;
     scaleX?: number;
     scaleY?: number;
+    fadeIn?: boolean;
   };
 }
 

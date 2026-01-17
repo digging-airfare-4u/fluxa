@@ -63,6 +63,7 @@ export interface CanvasStageRef {
   selectLayer(layerId: string): void;
   selectAndCenterLayer(layerId: string): void;
   selectAndCenterLayerByImageUrl(imageUrl: string): boolean;
+  focusPlaceholder(id: string): void;
   deleteSelected(): void;
   undo(): void;
   redo(): void;
@@ -138,7 +139,16 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     });
     const selectedTextRef = useRef<fabric.IText | null>(null);
     const selectedImageRef = useRef<fabric.FabricImage | null>(null);
+    const selectionInfoRef = useRef<HTMLDivElement | null>(null);
+    const quickEditHintRef = useRef<HTMLDivElement | null>(null);
+    const textToolbarRef = useRef<HTMLDivElement | null>(null);
+    const imageToolbarRef = useRef<HTMLDivElement | null>(null);
     const selectionUpdateRafRef = useRef<number | null>(null);
+    const selectionUpdateCountRef = useRef(0);
+    const movingEventCountRef = useRef(0);
+    const movingLogTimeRef = useRef(0);
+    const lastMoveUpdateRef = useRef(0);
+    const moveUpdateThrottleMs = 100;
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -200,7 +210,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     }, [onLayersChange, extractLayers]);
 
     // Update selection info
-    const updateSelectionInfo = useCallback((obj: fabric.FabricObject) => {
+    const updateSelectionInfo = useCallback((
+      obj: fabric.FabricObject,
+      options?: { positionOnly?: boolean }
+    ) => {
       if (!containerRef.current || !fabricRef.current) return;
 
       if (selectionUpdateRafRef.current) {
@@ -208,6 +221,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       }
 
       selectionUpdateRafRef.current = requestAnimationFrame(() => {
+        selectionUpdateCountRef.current += 1;
         const canvas = fabricRef.current;
         if (!canvas) return;
 
@@ -218,12 +232,45 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         const screenX = boundingRect.left * vpt[0] + vpt[4];
         const screenY = boundingRect.top * vpt[3] + vpt[5];
+        const centerX = screenX + (boundingRect.width * vpt[0]) / 2;
+
+        if (selectionInfoRef.current) {
+          selectionInfoRef.current.style.left = `${centerX}px`;
+          selectionInfoRef.current.style.top = `${screenY - 36}px`;
+        }
+
+        if (quickEditHintRef.current) {
+          const hintTop = screenY + boundingRect.height * vpt[3] + 12;
+          quickEditHintRef.current.style.left = `${centerX}px`;
+          quickEditHintRef.current.style.top = `${hintTop}px`;
+        }
+
+        if (textToolbarRef.current) {
+          textToolbarRef.current.style.left = `${centerX}px`;
+          textToolbarRef.current.style.top = `${screenY - 52}px`;
+        }
+
+        if (imageToolbarRef.current) {
+          const toolbarHeight = 44;
+          const edgeMargin = 8;
+          const positionBelow = screenY < toolbarHeight + edgeMargin;
+          const topY = positionBelow ? screenY + 12 : screenY - 12;
+          imageToolbarRef.current.style.left = `${centerX}px`;
+          imageToolbarRef.current.style.top = `${topY}px`;
+          imageToolbarRef.current.style.transform = positionBelow
+            ? 'translateX(-50%)'
+            : 'translateX(-50%) translateY(-100%)';
+        }
+
+        if (options?.positionOnly) {
+          return;
+        }
 
         setSelectionInfo({
           type: obj.type || 'object',
           width: boundingRect.width,
           height: boundingRect.height,
-          x: screenX + (boundingRect.width * vpt[0]) / 2,
+          x: centerX,
           y: screenY,
         });
 
@@ -231,20 +278,28 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
           const textObj = obj as fabric.IText;
           selectedTextRef.current = textObj;
-          setTextToolbarInfo({
-            x: screenX + (boundingRect.width * vpt[0]) / 2,
-            y: screenY,
-            properties: {
-              fontFamily: textObj.fontFamily || 'Inter',
-              fontSize: textObj.fontSize || 24,
-              fontWeight: textObj.fontWeight as string || 'normal',
-              fontStyle: textObj.fontStyle || 'normal',
-              fill: (textObj.fill as string) || '#000000',
-              textAlign: textObj.textAlign || 'left',
-              underline: textObj.underline || false,
-              linethrough: textObj.linethrough || false,
-            },
-          });
+          if (!textToolbarRef.current) {
+            setTextToolbarInfo({
+              x: centerX,
+              y: screenY,
+              properties: {
+                fontFamily: textObj.fontFamily || 'Inter',
+                fontSize: textObj.fontSize || 24,
+                fontWeight: textObj.fontWeight as string || 'normal',
+                fontStyle: textObj.fontStyle || 'normal',
+                fill: (textObj.fill as string) || '#000000',
+                textAlign: textObj.textAlign || 'left',
+                underline: textObj.underline || false,
+                linethrough: textObj.linethrough || false,
+              },
+            });
+          } else {
+            setTextToolbarInfo(prev => prev ? {
+              ...prev,
+              x: centerX,
+              y: screenY,
+            } : prev);
+          }
           // Clear image toolbar when text is selected
           selectedImageRef.current = null;
           setImageToolbarInfo(null);
@@ -271,14 +326,26 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           // Check if image is locked
           const isLocked = !imageObj.selectable || !imageObj.evented;
 
-          setImageToolbarInfo({
-            x: screenX,
-            y: screenY,
-            imageWidth: scaledWidth,
-            imageHeight: scaledHeight,
-            positionBelow,
-            isLocked,
-          });
+          if (!imageToolbarRef.current) {
+            setImageToolbarInfo({
+              x: centerX,
+              y: screenY,
+              imageWidth: scaledWidth,
+              imageHeight: scaledHeight,
+              positionBelow,
+              isLocked,
+            });
+          } else {
+            setImageToolbarInfo(prev => prev ? {
+              ...prev,
+              x: centerX,
+              y: screenY,
+              imageWidth: scaledWidth,
+              imageHeight: scaledHeight,
+              positionBelow,
+              isLocked,
+            } : prev);
+          }
 
           // Clear text toolbar when image is selected
           selectedTextRef.current = null;
@@ -786,13 +853,31 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       });
 
       canvas.on('object:moving', () => {
+        movingEventCountRef.current += 1;
+        const now = performance.now();
+        if (!movingLogTimeRef.current) movingLogTimeRef.current = now;
+
+        if (now - movingLogTimeRef.current >= 1000) {
+          console.log('[CanvasStage] Moving perf:', {
+            movingEventsPerSecond: movingEventCountRef.current,
+            selectionUpdatesPerSecond: selectionUpdateCountRef.current,
+          });
+          movingEventCountRef.current = 0;
+          selectionUpdateCountRef.current = 0;
+          movingLogTimeRef.current = now;
+        }
+
+        if (now - lastMoveUpdateRef.current < moveUpdateThrottleMs) return;
+        lastMoveUpdateRef.current = now;
+
         const active = canvas.getActiveObject();
-        if (active) updateSelectionInfo(active);
+        if (active) updateSelectionInfo(active, { positionOnly: true });
       });
+
 
       canvas.on('object:scaling', () => {
         const active = canvas.getActiveObject();
-        if (active) updateSelectionInfo(active);
+        if (active) updateSelectionInfo(active, { positionOnly: true });
       });
 
       canvas.on('object:added', () => { saveHistory(); notifyLayersChange(); });
@@ -812,6 +897,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (selectionUpdateRafRef.current) {
           cancelAnimationFrame(selectionUpdateRafRef.current);
         }
+        selectionUpdateCountRef.current = 0;
+        movingEventCountRef.current = 0;
+        movingLogTimeRef.current = 0;
+        lastMoveUpdateRef.current = 0;
         synchronizerRef.current?.dispose();
         synchronizerRef.current = null;
         persistenceManagerRef.current = null;
@@ -1165,12 +1254,23 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       const target = objects.find((obj) => (obj as fabric.FabricObject & { id?: string }).id === layerId);
       if (target) {
         canvas.setActiveObject(target);
+
+        const objBounds = target.getBoundingRect();
+        const padding = 80;
+        const availableWidth = Math.max(container.clientWidth - padding * 2, 1);
+        const availableHeight = Math.max(container.clientHeight - padding * 2, 1);
+        const scaleX = availableWidth / objBounds.width;
+        const scaleY = availableHeight / objBounds.height;
+        const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 4);
+
+        canvas.setZoom(nextZoom);
+        setZoomState(nextZoom);
+
         const objCenter = target.getCenterPoint();
-        const currentZoom = canvas.getZoom();
         const vpt = canvas.viewportTransform;
         if (vpt) {
-          vpt[4] = container.clientWidth / 2 - objCenter.x * currentZoom;
-          vpt[5] = container.clientHeight / 2 - objCenter.y * currentZoom;
+          vpt[4] = container.clientWidth / 2 - objCenter.x * nextZoom;
+          vpt[5] = container.clientHeight / 2 - objCenter.y * nextZoom;
           canvas.setViewportTransform(vpt);
         }
         canvas.requestRenderAll();
@@ -1195,18 +1295,59 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       if (target) {
         canvas.setActiveObject(target);
+
+        const objBounds = target.getBoundingRect();
+        const padding = 80;
+        const availableWidth = Math.max(container.clientWidth - padding * 2, 1);
+        const availableHeight = Math.max(container.clientHeight - padding * 2, 1);
+        const scaleX = availableWidth / objBounds.width;
+        const scaleY = availableHeight / objBounds.height;
+        const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 4);
+
+        canvas.setZoom(nextZoom);
+        setZoomState(nextZoom);
+
         const objCenter = target.getCenterPoint();
-        const currentZoom = canvas.getZoom();
         const vpt = canvas.viewportTransform;
         if (vpt) {
-          vpt[4] = container.clientWidth / 2 - objCenter.x * currentZoom;
-          vpt[5] = container.clientHeight / 2 - objCenter.y * currentZoom;
+          vpt[4] = container.clientWidth / 2 - objCenter.x * nextZoom;
+          vpt[5] = container.clientHeight / 2 - objCenter.y * nextZoom;
           canvas.setViewportTransform(vpt);
         }
         canvas.requestRenderAll();
         return true;
       }
       return false;
+    }, []);
+
+    const focusPlaceholder = useCallback((id: string) => {
+      if (!fabricRef.current || !containerRef.current) return;
+      const canvas = fabricRef.current;
+      const container = containerRef.current;
+      const target = canvas.getObjects().find((obj) => (obj as { placeholderId?: string }).placeholderId === id);
+      if (!target) return;
+
+      canvas.setActiveObject(target);
+        const objBounds = target.getBoundingRect();
+
+      const padding = 80;
+      const availableWidth = Math.max(container.clientWidth - padding * 2, 1);
+      const availableHeight = Math.max(container.clientHeight - padding * 2, 1);
+      const scaleX = availableWidth / objBounds.width;
+      const scaleY = availableHeight / objBounds.height;
+      const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 4);
+
+      canvas.setZoom(nextZoom);
+      setZoomState(nextZoom);
+
+      const objCenter = target.getCenterPoint();
+      const vpt = canvas.viewportTransform;
+      if (vpt) {
+        vpt[4] = container.clientWidth / 2 - objCenter.x * nextZoom;
+        vpt[5] = container.clientHeight / 2 - objCenter.y * nextZoom;
+        canvas.setViewportTransform(vpt);
+      }
+      canvas.requestRenderAll();
     }, []);
 
     // Get canvas state
@@ -1224,6 +1365,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       selectLayer,
       selectAndCenterLayer,
       selectAndCenterLayerByImageUrl,
+      focusPlaceholder,
       deleteSelected,
       undo,
       redo,
@@ -1231,7 +1373,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       setZoom: handleZoom,
       getZoom: () => zoom,
       resetView,
-    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView]);
+    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView]);
 
     return (
       <div
@@ -1245,17 +1387,24 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         {selectionInfo && (
           <>
-            <SelectionInfo {...selectionInfo} />
-            <QuickEditHint x={selectionInfo.x} y={selectionInfo.y} height={selectionInfo.height * zoom} />
+            <SelectionInfo ref={selectionInfoRef} {...selectionInfo} />
+            <QuickEditHint ref={quickEditHintRef} x={selectionInfo.x} y={selectionInfo.y} height={selectionInfo.height * zoom} />
           </>
         )}
 
         {textToolbarInfo && (
-          <TextToolbar x={textToolbarInfo.x} y={textToolbarInfo.y} properties={textToolbarInfo.properties} onPropertyChange={handleTextPropertyChange} />
+          <TextToolbar
+            ref={textToolbarRef}
+            x={textToolbarInfo.x}
+            y={textToolbarInfo.y}
+            properties={textToolbarInfo.properties}
+            onPropertyChange={handleTextPropertyChange}
+          />
         )}
 
         {imageToolbarInfo && (
           <ImageToolbar
+            ref={imageToolbarRef}
             x={imageToolbarInfo.x}
             y={imageToolbarInfo.y}
             imageWidth={imageToolbarInfo.imageWidth}
