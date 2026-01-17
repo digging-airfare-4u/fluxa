@@ -266,30 +266,31 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           // Check if image is near top edge of viewport (need to position toolbar below)
           const toolbarHeight = 44; // Approximate toolbar height
           const edgeMargin = 8;
-        const positionBelow = screenY < toolbarHeight + edgeMargin;
-        
-        // Check if image is locked
-        const isLocked = !imageObj.selectable || !imageObj.evented;
-        
-        setImageToolbarInfo({
-          x: screenX,
-          y: screenY,
-          imageWidth: scaledWidth,
-          imageHeight: scaledHeight,
-          positionBelow,
-          isLocked,
-        });
-        
-        // Clear text toolbar when image is selected
-        selectedTextRef.current = null;
-        setTextToolbarInfo(null);
-      } else {
-        // Non-text, non-image object: clear both toolbars
-        selectedTextRef.current = null;
-        setTextToolbarInfo(null);
-        selectedImageRef.current = null;
-        setImageToolbarInfo(null);
-      }
+          const positionBelow = screenY < toolbarHeight + edgeMargin;
+
+          // Check if image is locked
+          const isLocked = !imageObj.selectable || !imageObj.evented;
+
+          setImageToolbarInfo({
+            x: screenX,
+            y: screenY,
+            imageWidth: scaledWidth,
+            imageHeight: scaledHeight,
+            positionBelow,
+            isLocked,
+          });
+
+          // Clear text toolbar when image is selected
+          selectedTextRef.current = null;
+          setTextToolbarInfo(null);
+        } else {
+          // Non-text, non-image object: clear both toolbars
+          selectedTextRef.current = null;
+          setTextToolbarInfo(null);
+          selectedImageRef.current = null;
+          setImageToolbarInfo(null);
+        }
+      });
     }, []);
 
     // Handle text property change
