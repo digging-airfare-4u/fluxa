@@ -211,59 +211,14 @@ export function ProjectGrid({
   isLoading = false,
 }: ProjectGridProps) {
   const router = useRouter();
-  const [imagesLoaded, setImagesLoaded] = useState(0);
-  const [allImagesReady, setAllImagesReady] = useState(false);
-
-  // 只等待首屏 4 张图片加载完成
-  const totalImages = Math.min(projects.length, 4);
-
-  // 重置图片加载状态当项目列表变化时
-  useEffect(() => {
-    if (!isLoading && projects.length > 0) {
-      setImagesLoaded(0);
-      setAllImagesReady(false);
-    } else if (!isLoading && projects.length === 0) {
-      // 没有项目时直接标记为就绪
-      setAllImagesReady(true);
-    }
-  }, [isLoading, projects.length]);
-
-  // 检查是否所有图片都加载完成
-  useEffect(() => {
-    if (!isLoading && totalImages > 0 && imagesLoaded >= totalImages) {
-      console.log('[ProjectGrid] All images ready:', { imagesLoaded, totalImages });
-      setAllImagesReady(true);
-    }
-  }, [isLoading, imagesLoaded, totalImages]);
-
-  const handleImageLoad = useCallback(() => {
-    setImagesLoaded(prev => {
-      const next = Math.min(prev + 1, totalImages);
-      console.log('[ProjectGrid] Image loaded:', { prev, next, totalImages });
-      return next;
-    });
-  }, [totalImages]);
 
   const handleProjectClick = (projectId: string) => {
     window.open(`/app/p/${projectId}`, '_blank');
   };
 
-  // 显示骨架屏：数据加载中 或 图片还没全部加载完
-  const showSkeleton = isLoading || (!allImagesReady && projects.length > 0);
-
-  console.log('[ProjectGrid] Render state:', {
-    isLoading,
-    projects: projects.length,
-    imagesLoaded,
-    totalImages,
-    allImagesReady,
-    showSkeleton,
-  });
-
-  if (showSkeleton) {
+  if (isLoading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        {/* 骨架屏 */}
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="rounded-2xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-sm">
             <Skeleton className="aspect-[4/3]" />
@@ -273,19 +228,6 @@ export function ProjectGrid({
             </div>
           </div>
         ))}
-        {/* 隐藏的项目卡片用于预加载图片 */}
-        {!isLoading && projects.length > 0 && (
-          <div className="hidden">
-            {projects.slice(0, totalImages).map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onClick={() => {}}
-                onImageLoad={handleImageLoad}
-              />
-            ))}
-          </div>
-        )}
       </div>
     );
   }

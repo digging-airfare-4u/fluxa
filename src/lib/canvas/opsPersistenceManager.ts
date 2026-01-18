@@ -369,7 +369,7 @@ export class OpsPersistenceManager {
    * @param properties - The properties to update
    */
   async updateLayer(layerId: string, properties: UpdateLayerParams): Promise<void> {
-    // Find the object in canvas
+    // Find the object in canvas to verify it exists
     const objects = this.canvas.getObjects();
     const target = objects.find(
       (obj) => (obj as ExtendedFabricObject).id === layerId
@@ -381,10 +381,9 @@ export class OpsPersistenceManager {
       return;
     }
 
-    // Update properties on canvas object
-    target.set(properties as Partial<fabric.FabricObject>);
-    target.setCoords();
-    this.canvas.requestRenderAll();
+    // Note: We don't call target.set() here because the canvas object
+    // has already been updated by Fabric.js when the user finished dragging.
+    // We only need to persist the current state to the database.
 
     // Persist to database
     const updateLayerOp: UpdateLayerOp = {

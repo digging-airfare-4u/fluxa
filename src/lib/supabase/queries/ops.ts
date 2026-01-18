@@ -4,18 +4,26 @@
  */
 
 import { supabase } from '../client';
+import { localOpTracker } from '../../realtime/localOpTracker';
 import type { Op, OpType } from '../../canvas/ops.types';
 
 export interface SaveOpParams {
   documentId: string;
   op: Op;
   conversationId?: string;
+  /** If true, skip tracking for self-echo prevention (for ops from AI generation) */
+  skipLocalTracking?: boolean;
 }
 
 /**
  * Save a single op to the database
  */
-export async function saveOp({ documentId, op, conversationId }: SaveOpParams): Promise<void> {
+export async function saveOp({ documentId, op, conversationId, skipLocalTracking }: SaveOpParams): Promise<void> {
+  // Mark as locally saved to prevent self-echo from realtime
+  if (!skipLocalTracking) {
+    localOpTracker.markAsSaved(op);
+  }
+
   const { error } = await supabase
     .from('ops')
     .insert({
@@ -37,8 +45,14 @@ export async function saveOp({ documentId, op, conversationId }: SaveOpParams): 
 export async function saveOps(
   documentId: string,
   ops: Op[],
-  conversationId?: string
+  conversationId?: string,
+  skipLocalTracking?: boolean
 ): Promise<void> {
+  // Mark as locally saved to prevent self-echo from realtime
+  if (!skipLocalTracking) {
+    ops.forEach(op => localOpTracker.markAsSaved(op));
+  }
+
   const records = ops.map(op => ({
     document_id: documentId,
     conversation_id: conversationId || null,

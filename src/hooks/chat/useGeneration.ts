@@ -6,22 +6,44 @@
 import { useCallback, useRef } from 'react';
 import { generateImage, generateOps, GenerationApiError } from '@/lib/api';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
+import { pendingGenerationTracker } from '@/lib/realtime/pendingGenerationTracker';
 import { createMessage, type Message } from '@/lib/supabase/queries/messages';
 import { saveOp } from '@/lib/supabase/queries/ops';
 import { useChatStore, type GenerationPhase } from '@/lib/store/useChatStore';
 import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
 
+const RESOLUTION_PIXELS: Record<string, number> = {
+  '1K': 1024,
+  '2K': 2048,
+  '4K': 4096,
+};
+
+function calculateDimensions(aspectRatio: string, baseSize: number) {
+  const [w, h] = aspectRatio.split(':').map(Number);
+  if (!w || !h) {
+    return { width: baseSize, height: baseSize };
+  }
+  if (w >= h) {
+    return { width: baseSize, height: Math.round((baseSize * h) / w) };
+  }
+  return { width: Math.round((baseSize * w) / h), height: baseSize };
+}
+
 export interface UseGenerationOptions {
   projectId: string;
   documentId: string;
   conversationId: string;
   models: AIModel[];
+  selectedResolution?: string;
+  selectedAspectRatio?: string;
   onOpsGenerated?: (ops: Op[]) => void;
   onGeneratingChange?: (isGenerating: boolean, modelName?: string) => void;
   onAddPlaceholder?: (id: string, x: number, y: number, width: number, height: number) => void;
   onRemovePlaceholder?: (id: string) => void;
   onGetPlaceholderPosition?: (id: string) => { x: number; y: number } | null;
+  /** Get a free position for placing an object without overlapping existing objects */
+  onGetFreePosition?: (width: number, height: number) => { x: number; y: number };
 }
 
 export interface GenerationContext {
@@ -48,11 +70,14 @@ export function useGeneration({
   documentId,
   conversationId,
   models,
+  selectedResolution = '1K',
+  selectedAspectRatio = '1:1',
   onOpsGenerated,
   onGeneratingChange,
   onAddPlaceholder,
   onRemovePlaceholder,
   onGetPlaceholderPosition,
+  onGetFreePosition,
 }: UseGenerationOptions): UseGenerationReturn {
   const {
     generationPhase,
@@ -121,11 +146,27 @@ export function useGeneration({
     
     // Phase A: Start with placeholder
     const placeholderId = `placeholder-${Date.now()}`;
-    const placeholderX = 100 + Math.floor(Math.random() * 200);
-    const placeholderY = 100 + Math.floor(Math.random() * 200);
-    const placeholderSize = 400;
+    const targetResolution = RESOLUTION_PIXELS[selectedResolution] ?? 1024;
+    const placeholderDimensions = calculateDimensions(selectedAspectRatio, targetResolution);
 
-    onAddPlaceholder?.(placeholderId, placeholderX, placeholderY, placeholderSize, placeholderSize);
+    // Use smart placement if available, otherwise fall back to random position
+    const freePosition = onGetFreePosition?.(
+      placeholderDimensions.width,
+      placeholderDimensions.height
+    );
+    const placeholderX = freePosition?.x ?? (100 + Math.floor(Math.random() * 200));
+    const placeholderY = freePosition?.y ?? (100 + Math.floor(Math.random() * 200));
+
+    onAddPlaceholder?.(
+      placeholderId,
+      placeholderX,
+      placeholderY,
+      placeholderDimensions.width,
+      placeholderDimensions.height
+    );
+
+    // Register this generation's original position so Realtime ops can skip it
+    pendingGenerationTracker.registerGeneration(placeholderX, placeholderY);
 
     // Phase B timer
     phaseATimeoutRef.current = setTimeout(() => {
@@ -135,6 +176,8 @@ export function useGeneration({
     try {
       // supabase.functions.invoke handles auth automatically, no need to refresh session here
 
+      const { width, height } = calculateDimensions(selectedAspectRatio, targetResolution);
+
       const result = await generateImage(
         {
           projectId,
@@ -142,11 +185,13 @@ export function useGeneration({
           conversationId,
           prompt: content,
           model,
-          width: 1024,
-          height: 1024,
+          width,
+          height,
           placeholderX,
           placeholderY,
           imageUrl: referencedImage?.url,
+          aspectRatio: selectedAspectRatio,
+          resolution: selectedResolution,
         },
         undefined, // accessToken not needed
         abortControllerRef.current?.signal
@@ -162,9 +207,14 @@ export function useGeneration({
           if (handled) return;
           handled = true;
 
+          console.log('[useGeneration] handleJobDone triggered, job:', job.id);
+
           const finalPosition = onGetPlaceholderPosition?.(placeholderId);
+          console.log('[useGeneration] finalPosition:', finalPosition);
 
           const fullJob = await fetchJob(result.jobId);
+          console.log('[useGeneration] fullJob:', fullJob?.id, 'output:', fullJob?.output);
+          
           const output = (fullJob?.output || job.output) as { 
             op?: Op; 
             layerId?: string; 
@@ -172,14 +222,24 @@ export function useGeneration({
             signedUrl?: string;
           } | undefined;
           const imageUrl = output?.publicUrl || output?.signedUrl;
+          console.log('[useGeneration] output?.op:', output?.op);
 
           // Execute the addImage op to render the image on canvas
           if (output?.op) {
-            // If placeholder was moved, update the position in the op
             // The Edge Function returns an addImage op, so we safely cast it
             const imageOp = output.op as AddImageOp;
-            const opToExecute: AddImageOp = finalPosition &&
-              (finalPosition.x !== placeholderX || finalPosition.y !== placeholderY)
+            
+            // Register layer ID so Realtime knows to skip this op
+            pendingGenerationTracker.registerLayerId(imageOp.payload.id);
+            
+            // Check if user moved the placeholder during generation
+            const positionChanged = finalPosition && (
+              finalPosition.x !== imageOp.payload.x ||
+              finalPosition.y !== imageOp.payload.y
+            );
+            
+            // Build the op to execute (with fadeIn and potentially updated position)
+            const opToExecute: AddImageOp = finalPosition
               ? {
                   ...imageOp,
                   payload: {
@@ -197,21 +257,41 @@ export function useGeneration({
                   },
                 };
 
+            console.log('[useGeneration] Executing addImage op:', opToExecute.payload.id);
             await onOpsGenerated?.([opToExecute]);
+            console.log('[useGeneration] Op executed successfully');
+            
+            // Unregister after execution - Realtime can now process this layer normally
+            pendingGenerationTracker.unregisterLayerId(imageOp.payload.id);
+            pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
 
-            // Persist addImage op so it survives refresh
-            try {
-              await saveOp({ documentId, op: opToExecute });
-            } catch (error) {
-              console.error('[useGeneration] Failed to persist addImage op:', error);
+            // If user moved the placeholder, save an updateLayer op to persist the new position
+            // The Edge Function already saved the addImage op with original position,
+            // so we only need to save position update if it changed
+            if (positionChanged && finalPosition) {
+              try {
+                const updateOp: Op = {
+                  type: 'updateLayer',
+                  payload: {
+                    id: imageOp.payload.id,
+                    properties: {
+                      left: finalPosition.x,
+                      top: finalPosition.y,
+                    },
+                  },
+                };
+                await saveOp({ documentId, op: updateOp });
+              } catch (error) {
+                console.error('[useGeneration] Failed to persist position update:', error);
+              }
             }
 
             setTimeout(() => {
               onRemovePlaceholder?.(placeholderId);
             }, 400);
-          }
-
-          if (!output?.op) {
+          } else {
+            // No op in output, just cleanup
+            pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
             onRemovePlaceholder?.(placeholderId);
           }
 
@@ -242,6 +322,9 @@ export function useGeneration({
           if (handled) return;
           handled = true;
 
+          // Clean up pending generation tracking
+          pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
+          
           onRemovePlaceholder?.(placeholderId);
           failGeneration(job.error || 'Image generation failed');
           onGeneratingChange?.(false);
@@ -257,7 +340,6 @@ export function useGeneration({
         // The Edge Function may complete synchronously before we subscribe
         const existingJob = await fetchJob(result.jobId);
         if (existingJob) {
-          console.log('[useGeneration] Existing job status:', existingJob.status);
           if (existingJob.status === 'done') {
             await handleJobDone(existingJob);
           } else if (existingJob.status === 'failed') {
@@ -279,7 +361,8 @@ export function useGeneration({
     }
   }, [
     projectId, documentId, conversationId, models,
-    onAddPlaceholder, onRemovePlaceholder, onGetPlaceholderPosition,
+    selectedResolution, selectedAspectRatio,
+    onAddPlaceholder, onRemovePlaceholder, onGetPlaceholderPosition, onGetFreePosition,
     onOpsGenerated, onGeneratingChange,
     setGenerationPhase, completeGeneration, failGeneration,
     clearPhaseATimeout, handleApiError,

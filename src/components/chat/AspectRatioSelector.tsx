@@ -109,7 +109,7 @@ export function AspectRatioSelector({
           宽高比: {currentOption.label}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuContent align="start" className="w-44 max-h-[320px] overflow-y-auto">
         {/* Square */}
         <DropdownMenuLabel className="text-xs text-muted-foreground">正方形</DropdownMenuLabel>
         {squareOptions.map((option) => (

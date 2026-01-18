@@ -147,6 +147,14 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     canvasRef.current?.focusPlaceholder(id);
   }, [addPlaceholder]);
 
+  /**
+   * Get a free position for placing an object without overlapping existing objects
+   * Delegates to CanvasStage's getFreePosition for collision detection
+   */
+  const handleGetFreePosition = useCallback((width: number, height: number): { x: number; y: number } => {
+    return canvasRef.current?.getFreePosition(width, height) ?? { x: 100, y: 100 };
+  }, []);
+
   const handleToolChange = useCallback((tool: ToolType) => {
     setActiveTool(tool);
   }, []);
@@ -167,10 +175,12 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     await executeOps(ops);
 
     // After executing, center on the first addImage op if present
+    // Skip centering if the image has fadeIn (it was generated from a placeholder that was already focused)
     const firstAddImage = ops.find((op) => op.type === 'addImage') as Op | undefined;
     if (firstAddImage) {
-      const payload = (firstAddImage as Op & { payload?: { id?: string } }).payload;
-      if (payload?.id) {
+      const payload = (firstAddImage as Op & { payload?: { id?: string; fadeIn?: boolean } }).payload;
+      // Only center if not a fadeIn image (those came from placeholders that were already positioned)
+      if (payload?.id && !payload?.fadeIn) {
         canvasRef.current?.selectAndCenterLayer(payload.id);
       }
     }
@@ -513,6 +523,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         onAddPlaceholder={handleAddPlaceholder}
         onRemovePlaceholder={removePlaceholder}
         onGetPlaceholderPosition={getPlaceholderPosition}
+        onGetFreePosition={handleGetFreePosition}
         onLocateImage={handleLocateImage}
         onLocateImageByUrl={handleLocateImageByUrl}
         initialCollapsed={isChatCollapsed}

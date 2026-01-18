@@ -18,3 +18,7 @@ export type { AssetRecord, AssetMetadata } from './asset.ts';
 // Job Service
 export { JobService } from './job.ts';
 export type { Job, JobStatus } from './job.ts';
+
+// Ops Service
+export { OpsService } from './ops.ts';
+export type { Op } from './ops.ts';

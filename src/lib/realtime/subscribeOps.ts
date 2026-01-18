@@ -8,6 +8,8 @@
 
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
+import { localOpTracker } from './localOpTracker';
+import { pendingGenerationTracker } from './pendingGenerationTracker';
 import { Op, OpType, OpsRecord } from '../canvas/ops.types';
 
 /**
@@ -200,10 +202,30 @@ function handleOpsInsert(
   // Mark as executed
   deduplicator.markExecuted(record.seq);
 
+  // Convert to Op
+  const op = recordToOp(record);
+
+  // Check if this op was locally saved by this client (self-echo prevention)
+  if (localOpTracker.wasLocallySaved(op)) {
+    console.log(`[Ops] Skipping self-echo op seq=${record.seq}, type=${record.op_type}`);
+    return;
+  }
+
+  // For addImage ops, check if there's an active generation for this position/layer
+  // If so, skip execution and let handleJobDone handle it with correct position
+  if (record.op_type === 'addImage') {
+    const opPayload = record.payload as { id?: string; x?: number; y?: number };
+    if (opPayload.id && opPayload.x !== undefined && opPayload.y !== undefined) {
+      if (pendingGenerationTracker.shouldSkipOp(opPayload.x, opPayload.y, opPayload.id)) {
+        console.log(`[Ops] Skipping addImage op for active generation seq=${record.seq}`);
+        return;
+      }
+    }
+  }
+
   console.log(`[Ops] New op received: seq=${record.seq}, type=${record.op_type}`);
 
-  // Convert to Op and notify
-  const op = recordToOp(record);
+  // Notify callbacks
   callbacks.onNewOps?.([op], [record]);
 }
 

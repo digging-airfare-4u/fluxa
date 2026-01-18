@@ -11,6 +11,7 @@ import { errorToResponse, AuthError, ValidationError, InsufficientPointsError } 
 import { JobService } from '../_shared/services/job.ts';
 import { AssetService } from '../_shared/services/asset.ts';
 import { PointsService } from '../_shared/services/points.ts';
+import { OpsService } from '../_shared/services/ops.ts';
 import { GeminiProvider, calculateDimensions } from '../_shared/providers/gemini.ts';
 import { VolcengineProvider } from '../_shared/providers/volcengine.ts';
 import { isGeminiModel, isVolcengineModel } from '../_shared/providers/types.ts';
@@ -165,6 +166,7 @@ Deno.serve(async (req: Request) => {
     const pointsService = new PointsService(supabaseService);
     const jobService = new JobService(supabaseService);
     const assetService = new AssetService(supabaseService, supabaseUrl);
+    const opsService = new OpsService(supabaseService);
 
     // Calculate points cost
     const resolution = request.resolution || '1K';
@@ -294,23 +296,36 @@ Deno.serve(async (req: Request) => {
       const dimensions = calculateDimensions(resolution as ResolutionPreset, aspectRatio as AspectRatio);
       const layerId = `layer-${crypto.randomUUID().slice(0, 8)}`;
 
-      // Build job output
+      // Build the addImage op
+      const addImageOp = {
+        type: 'addImage',
+        payload: {
+          id: layerId,
+          src: asset.publicUrl,
+          x: request.placeholderX || 100,
+          y: request.placeholderY || 100,
+          width: imageResult.width || dimensions.width,
+          height: imageResult.height || dimensions.height,
+        },
+      };
+
+      // Save op to ops table so it persists across page refresh
+      // This ensures the image appears even if user refreshes during generation
+      try {
+        await opsService.saveOp(request.documentId, addImageOp, request.conversationId);
+        console.log(`[generate-image] Op saved to ops table: ${layerId}`);
+      } catch (opsSaveError) {
+        // Log error but don't fail the job - the image was generated successfully
+        console.error(`[generate-image] Failed to save op to ops table:`, opsSaveError);
+      }
+
+      // Build job output (still include op for real-time display via job subscription)
       const jobOutput = {
         assetId: asset.id,
         storagePath: asset.storagePath,
         publicUrl: asset.publicUrl,
         layerId,
-        op: {
-          type: 'addImage',
-          payload: {
-            id: layerId,
-            src: asset.publicUrl,
-            x: request.placeholderX || 100,
-            y: request.placeholderY || 100,
-            width: imageResult.width || dimensions.width,
-            height: imageResult.height || dimensions.height,
-          },
-        },
+        op: addImageOp,
         model: selectedModel,
         resolution,
         aspectRatio,

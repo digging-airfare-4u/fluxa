@@ -112,7 +112,7 @@ export function ResolutionSelector({
           分辨率: {currentOption.label}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="start" className="w-40">
+      <DropdownMenuContent align="start" className="w-40 max-h-[240px] overflow-y-auto">
         {RESOLUTION_OPTIONS.map((option) => {
           const { allowed, reason } = isResolutionAllowed(option.value, membershipLevel, modelName);
           

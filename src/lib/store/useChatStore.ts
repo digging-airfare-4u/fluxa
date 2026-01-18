@@ -20,6 +20,8 @@ export type GenerationPhase = 'idle' | 'phase-a' | 'phase-b' | 'success' | 'fail
 export interface ChatState {
   // Model selection
   selectedModel: string;
+  selectedResolution: '1K' | '2K' | '4K';
+  selectedAspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '2:3' | '3:2' | '4:5' | '5:4' | '21:9';
   models: AIModel[];
   
   // Generation state
@@ -41,6 +43,8 @@ export interface ChatState {
 export interface ChatActions {
   // Model actions
   setSelectedModel: (model: string) => void;
+  setSelectedResolution: (resolution: '1K' | '2K' | '4K') => void;
+  setSelectedAspectRatio: (ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '2:3' | '3:2' | '4:5' | '5:4' | '21:9') => void;
   setModels: (models: AIModel[]) => void;
   
   // Generation actions
@@ -66,6 +70,8 @@ export type ChatStore = ChatState & ChatActions;
 
 const initialState: ChatState = {
   selectedModel: 'doubao-seedream-4-5-251128',
+  selectedResolution: '1K',
+  selectedAspectRatio: '1:1',
   models: [],
   generationPhase: 'idle',
   error: null,
@@ -77,9 +83,11 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   // Model actions
   setSelectedModel: (model) => set({ selectedModel: model }),
+  setSelectedResolution: (resolution) => set({ selectedResolution: resolution }),
+  setSelectedAspectRatio: (ratio) => set({ selectedAspectRatio: ratio }),
   setModels: (models) => {
     const defaultModel = models.find(m => m.is_default) || models[0];
-    set({ 
+    set({
       models,
       selectedModel: defaultModel?.name || initialState.selectedModel,
     });
@@ -114,6 +122,8 @@ export const useChatStore = create<ChatStore>((set) => ({
 
 // Selector hooks for common use cases
 export const useSelectedModel = () => useChatStore((state) => state.selectedModel);
+export const useSelectedResolution = () => useChatStore((state) => state.selectedResolution);
+export const useSelectedAspectRatio = () => useChatStore((state) => state.selectedAspectRatio);
 export const useModels = () => useChatStore((state) => state.models);
 export const useGenerationPhase = () => useChatStore((state) => state.generationPhase);
 export const useIsGenerating = () => useChatStore((state) => {

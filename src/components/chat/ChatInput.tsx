@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LoadingDots } from '@/components/ui/LoadingDots';
 import { ModelSelector } from './ModelSelector';
+import { AspectRatioSelector, type AspectRatio } from './AspectRatioSelector';
+import { ResolutionSelector, type Resolution } from './ResolutionSelector';
 import { cn } from '@/lib/utils';
 import { fetchProjectAssets, type Asset } from '@/lib/supabase/queries/assets';
 
@@ -36,6 +38,11 @@ interface ChatInputProps {
   placeholder?: string;
   selectedModel?: string;
   onModelChange?: (model: string) => void;
+  selectedResolution?: Resolution;
+  onResolutionChange?: (resolution: Resolution) => void;
+  selectedAspectRatio?: AspectRatio;
+  onAspectRatioChange?: (ratio: AspectRatio) => void;
+  membershipLevel?: 'free' | 'pro' | 'team';
   projectId?: string;
 }
 
@@ -50,6 +57,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   placeholder,
   selectedModel = 'gpt-4o-mini',
   onModelChange,
+  selectedResolution = '1K',
+  onResolutionChange,
+  selectedAspectRatio = '1:1',
+  onAspectRatioChange,
+  membershipLevel = 'free',
   projectId,
 }, ref) {
   const t = useTranslations('chat');
@@ -292,6 +304,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
               onModelChange={onModelChange || (() => {})}
               disabled={isInputDisabled}
             />
+            {onResolutionChange && onAspectRatioChange && (
+              <div className="flex items-center gap-0.5">
+                <ResolutionSelector
+                  selectedResolution={selectedResolution}
+                  onResolutionChange={onResolutionChange}
+                  membershipLevel={membershipLevel}
+                  modelName={selectedModel}
+                  disabled={isInputDisabled}
+                />
+                <AspectRatioSelector
+                  selectedRatio={selectedAspectRatio}
+                  onRatioChange={onAspectRatioChange}
+                  disabled={isInputDisabled}
+                />
+              </div>
+            )}
 
             {/* <Tooltip>
               <TooltipTrigger asChild>

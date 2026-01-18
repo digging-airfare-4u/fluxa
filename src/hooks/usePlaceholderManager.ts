@@ -53,19 +53,27 @@ export function usePlaceholderManager({
     if (!canvas) return;
 
     // Create a placeholder rectangle - selectable and draggable
+    // Using darker metallic colors for canvas placeholder
     const placeholder = new fabric.Rect({
       left: x,
       top: y,
       width,
       height,
-      fill: '#E8E8E8',
+      fill: '#9CA3AF', // Darker metallic gray
       rx: 8,
       ry: 8,
       selectable: true,
       evented: true,
       hasControls: true,
       hasBorders: true,
-      strokeWidth: 0,
+      stroke: '#6B7280', // Darker border for metallic effect
+      strokeWidth: 1,
+      shadow: new fabric.Shadow({
+        color: 'rgba(0, 0, 0, 0.15)',
+        blur: 12,
+        offsetX: 0,
+        offsetY: 4,
+      }),
     }) as PlaceholderObject;
 
     // Store custom id for tracking
@@ -76,18 +84,19 @@ export function usePlaceholderManager({
     canvas.requestRenderAll();
 
     // Add shimmer animation effect using opacity
+    // Darker metallic shimmer effect
     let animating = true;
     const animateShimmer = () => {
       if (!animating || !placeholdersRef.current.has(id)) return;
       
       placeholder.animate({ opacity: 0.5 }, {
-        duration: 800,
+        duration: 1000,
         easing: fabric.util.ease.easeInOutSine,
         onChange: () => canvas.requestRenderAll(),
         onComplete: () => {
           if (!animating || !placeholdersRef.current.has(id)) return;
-          placeholder.animate({ opacity: 1 }, {
-            duration: 800,
+          placeholder.animate({ opacity: 0.85 }, {
+            duration: 1000,
             easing: fabric.util.ease.easeInOutSine,
             onChange: () => canvas.requestRenderAll(),
             onComplete: animateShimmer,

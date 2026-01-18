@@ -18,14 +18,16 @@ import { GeneratingPlaceholder, GeneratingPlaceholderBox } from '@/components/ui
 import { InlineError } from '@/components/ui/InlineError';
 import { useChat } from '@/hooks/chat';
 import { useGeneration } from '@/hooks/chat';
-import { 
-  useChatStore, 
+import {
+  useChatStore,
   useIsGenerating,
 } from '@/lib/store/useChatStore';
-import { fetchModels, type AIModel } from '@/lib/supabase/queries/models';
+import { useMembershipLevel } from '@/lib/store/usePointsStore';
+import { fetchModels } from '@/lib/supabase/queries/models';
 import type { Op } from '@/lib/canvas/ops.types';
 import { InsufficientPointsDialog } from '@/components/points/InsufficientPointsDialog';
 import type { MessageMetadata } from '@/lib/supabase/queries/messages';
+
 
 export interface ChatPanelRef {
   focusInput: () => void;
@@ -41,6 +43,8 @@ interface ChatPanelProps {
   onAddPlaceholder?: (id: string, x: number, y: number, width: number, height: number) => void;
   onRemovePlaceholder?: (id: string) => void;
   onGetPlaceholderPosition?: (id: string) => { x: number; y: number } | null;
+  /** Get a free position for placing an object without overlapping existing objects */
+  onGetFreePosition?: (width: number, height: number) => { x: number; y: number };
   onLocateImage?: (layerId: string) => void;
   onLocateImageByUrl?: (imageUrl: string) => void;
   initialCollapsed?: boolean;
@@ -57,6 +61,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   onAddPlaceholder,
   onRemovePlaceholder,
   onGetPlaceholderPosition,
+  onGetFreePosition,
   onLocateImage,
   onLocateImageByUrl,
   initialCollapsed = false,
@@ -85,11 +90,15 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   // Use store for shared state
   const {
     selectedModel,
+    selectedResolution,
+    selectedAspectRatio,
     models,
     generationPhase,
     error: generationError,
     insufficientPointsError,
     setSelectedModel,
+    setSelectedResolution,
+    setSelectedAspectRatio,
     setModels,
     setError,
     clearError,
@@ -99,6 +108,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   } = useChatStore();
 
   const isGenerating = useIsGenerating();
+  const membershipLevel = useMembershipLevel();
 
   // Use generation hook
   const {
@@ -110,11 +120,14 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     documentId,
     conversationId,
     models,
+    selectedResolution,
+    selectedAspectRatio,
     onOpsGenerated,
     onGeneratingChange,
     onAddPlaceholder,
     onRemovePlaceholder,
     onGetPlaceholderPosition,
+    onGetFreePosition,
   });
 
   // Expose focusInput method via ref
@@ -392,6 +405,11 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         isBusy={isGenerating}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
+        selectedResolution={selectedResolution}
+        onResolutionChange={setSelectedResolution}
+        selectedAspectRatio={selectedAspectRatio}
+        onAspectRatioChange={setSelectedAspectRatio}
+        membershipLevel={membershipLevel}
         projectId={projectId}
       />
 

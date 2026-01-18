@@ -26,6 +26,7 @@ import { Minus, Plus, Maximize2, MousePointer2 } from 'lucide-react';
 import { CanvasSynchronizer, createCanvasSynchronizer } from '@/lib/canvas/canvasSynchronizer';
 import { useLayerStore } from '@/lib/store/useLayerStore';
 import { OpsPersistenceManager, createOpsPersistenceManager } from '@/lib/canvas/opsPersistenceManager';
+import { findFreePosition, getViewportBounds, type BoundingBox } from '@/lib/canvas/placementUtils';
 import { useT } from '@/lib/i18n/hooks';
 import type { ToolType, LayerInfo, CanvasState, LayerModifiedEvent } from './types';
 
@@ -71,6 +72,8 @@ export interface CanvasStageRef {
   setZoom(zoom: number): void;
   getZoom(): number;
   resetView(): void;
+  /** Find a free position for placing an object without overlapping existing objects */
+  getFreePosition(width: number, height: number): { x: number; y: number };
 }
 
 interface SelectionInfoState {
@@ -1320,6 +1323,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       return false;
     }, []);
 
+    /**
+     * Focus on a placeholder with smooth animated pan and zoom
+     * Requirements: Smooth transition when placeholder is created
+     */
     const focusPlaceholder = useCallback((id: string) => {
       if (!fabricRef.current || !containerRef.current) return;
       const canvas = fabricRef.current;
@@ -1328,32 +1335,103 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       if (!target) return;
 
       canvas.setActiveObject(target);
-        const objBounds = target.getBoundingRect();
+      const objBounds = target.getBoundingRect();
 
-      const padding = 80;
+      const padding = 160;
       const availableWidth = Math.max(container.clientWidth - padding * 2, 1);
       const availableHeight = Math.max(container.clientHeight - padding * 2, 1);
       const scaleX = availableWidth / objBounds.width;
       const scaleY = availableHeight / objBounds.height;
-      const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 4);
-
-      canvas.setZoom(nextZoom);
-      setZoomState(nextZoom);
+      const targetZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 2.2);
 
       const objCenter = target.getCenterPoint();
-      const vpt = canvas.viewportTransform;
-      if (vpt) {
-        vpt[4] = container.clientWidth / 2 - objCenter.x * nextZoom;
-        vpt[5] = container.clientHeight / 2 - objCenter.y * nextZoom;
-        canvas.setViewportTransform(vpt);
-      }
-      canvas.requestRenderAll();
+      const targetVptX = container.clientWidth / 2 - objCenter.x * targetZoom;
+      const targetVptY = container.clientHeight / 2 - objCenter.y * targetZoom;
+
+      // Get current viewport state
+      const currentZoom = canvas.getZoom();
+      const currentVpt = canvas.viewportTransform;
+      if (!currentVpt) return;
+
+      const startVptX = currentVpt[4];
+      const startVptY = currentVpt[5];
+      const startZoom = currentZoom;
+
+      // Animate viewport transition
+      const duration = 400;
+      const startTime = performance.now();
+
+      const animateViewport = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic for smooth deceleration
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        const newZoom = startZoom + (targetZoom - startZoom) * eased;
+        const newVptX = startVptX + (targetVptX - startVptX) * eased;
+        const newVptY = startVptY + (targetVptY - startVptY) * eased;
+
+        canvas.setZoom(newZoom);
+        const vpt = canvas.viewportTransform;
+        if (vpt) {
+          vpt[4] = newVptX;
+          vpt[5] = newVptY;
+          canvas.setViewportTransform(vpt);
+        }
+        canvas.requestRenderAll();
+
+        if (progress < 1) {
+          requestAnimationFrame(animateViewport);
+        } else {
+          setZoomState(targetZoom);
+        }
+      };
+
+      requestAnimationFrame(animateViewport);
     }, []);
 
     // Get canvas state
     const getCanvasState = useCallback((): CanvasState | null => {
       if (!fabricRef.current) return null;
       return { objects: fabricRef.current.getObjects(), backgroundColor: fabricRef.current.backgroundColor };
+    }, []);
+
+    /**
+     * Find a free position for placing an object without overlapping existing objects
+     * Requirements: Smart placeholder placement
+     */
+    const getFreePosition = useCallback((width: number, height: number): { x: number; y: number } => {
+      const canvas = fabricRef.current;
+      if (!canvas) {
+        // Fallback to default position
+        return { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 };
+      }
+
+      // Get bounding boxes of all existing objects on canvas
+      const existingObjects: BoundingBox[] = canvas.getObjects().map((obj) => {
+        const bounds = obj.getBoundingRect();
+        return {
+          left: bounds.left,
+          top: bounds.top,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      });
+
+      // Get viewport bounds in canvas coordinates
+      const viewportBounds = getViewportBounds(canvas);
+
+      // Find free position
+      const position = findFreePosition({
+        width,
+        height,
+        existingObjects,
+        viewportBounds,
+        gap: 40,
+      });
+
+      return position;
     }, []);
 
     // Expose methods via ref
@@ -1373,7 +1451,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       setZoom: handleZoom,
       getZoom: () => zoom,
       resetView,
-    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView]);
+      getFreePosition,
+    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView, getFreePosition]);
 
     return (
       <div
