@@ -72,6 +72,8 @@ export interface CanvasStageRef {
   setZoom(zoom: number): void;
   getZoom(): number;
   resetView(): void;
+  /** Fit all content in view with smooth animation */
+  fitAllContent(): void;
   /** Find a free position for placing an object without overlapping existing objects */
   getFreePosition(width: number, height: number): { x: number; y: number };
 }
@@ -651,6 +653,124 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.setViewportTransform(vpt);
       }
     }, []);
+
+    /**
+     * Fit all content in view with smooth animation
+     * Calculates bounding box of all objects and zooms/pans to show everything
+     */
+    const fitAllContent = useCallback(() => {
+      if (!fabricRef.current || !containerRef.current) return;
+      const canvas = fabricRef.current;
+      const container = containerRef.current;
+
+      const objects = canvas.getObjects();
+      if (objects.length === 0) {
+        // No objects, reset to default view
+        resetView();
+        return;
+      }
+
+      const currentVpt = canvas.viewportTransform;
+      if (!currentVpt) return;
+
+      // Get bounds directly from object properties (canvas coordinates)
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      
+      for (const obj of objects) {
+        // Use object's actual position and dimensions
+        const left = obj.left ?? 0;
+        const top = obj.top ?? 0;
+        const width = (obj.width ?? 0) * (obj.scaleX ?? 1);
+        const height = (obj.height ?? 0) * (obj.scaleY ?? 1);
+        
+        const right = left + width;
+        const bottom = top + height;
+        
+        minX = Math.min(minX, left);
+        minY = Math.min(minY, top);
+        maxX = Math.max(maxX, right);
+        maxY = Math.max(maxY, bottom);
+      }
+
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
+      const contentCenterX = (minX + maxX) / 2;
+      const contentCenterY = (minY + maxY) / 2;
+
+      console.log('[fitAllContent] Objects:', objects.map(obj => ({
+        id: (obj as { id?: string }).id,
+        left: obj.left,
+        top: obj.top,
+        width: obj.width,
+        height: obj.height,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        actualWidth: (obj.width ?? 0) * (obj.scaleX ?? 1),
+        actualHeight: (obj.height ?? 0) * (obj.scaleY ?? 1),
+      })));
+      console.log('[fitAllContent] Content bounds:', { minX, minY, maxX, maxY, contentWidth, contentHeight, contentCenterX, contentCenterY });
+      console.log('[fitAllContent] Container size:', { width: container.clientWidth, height: container.clientHeight });
+      console.log('[fitAllContent] Current viewport:', { zoom: canvas.getZoom(), vptX: currentVpt[4], vptY: currentVpt[5] });
+
+      // Calculate target zoom to fit content with padding
+      const padding = 80;
+      const availableWidth = Math.max(container.clientWidth - padding * 2, 1);
+      const availableHeight = Math.max(container.clientHeight - padding * 2, 1);
+      const scaleX = availableWidth / contentWidth;
+      const scaleY = availableHeight / contentHeight;
+      const fitZoom = Math.min(scaleX, scaleY);
+      
+      // Apply a scale factor (0.4) so content takes ~40% of available space, not 100%
+      // This gives a comfortable viewing distance with breathing room around content
+      const FIT_SCALE_FACTOR = 0.4;
+      const targetZoom = Math.min(Math.max(fitZoom * FIT_SCALE_FACTOR, MIN_ZOOM), 1);
+
+      console.log('[fitAllContent] Target zoom:', targetZoom, 'fitZoom:', fitZoom, 'after factor:', fitZoom * FIT_SCALE_FACTOR);
+
+      // Calculate target viewport position to center content
+      const targetVptX = container.clientWidth / 2 - contentCenterX * targetZoom;
+      const targetVptY = container.clientHeight / 2 - contentCenterY * targetZoom;
+
+      console.log('[fitAllContent] Target viewport:', { targetVptX, targetVptY });
+
+      // Get current viewport state for animation
+      const startZoom = canvas.getZoom();
+      const startVptX = currentVpt[4];
+      const startVptY = currentVpt[5];
+
+      // Animate viewport transition
+      const duration = 400;
+      const startTime = performance.now();
+
+      const animateViewport = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic for smooth deceleration
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        const newZoom = startZoom + (targetZoom - startZoom) * eased;
+        const newVptX = startVptX + (targetVptX - startVptX) * eased;
+        const newVptY = startVptY + (targetVptY - startVptY) * eased;
+
+        canvas.setZoom(newZoom);
+        const vpt = canvas.viewportTransform;
+        if (vpt) {
+          vpt[4] = newVptX;
+          vpt[5] = newVptY;
+          canvas.setViewportTransform(vpt);
+        }
+        canvas.requestRenderAll();
+
+        if (progress < 1) {
+          requestAnimationFrame(animateViewport);
+        } else {
+          setZoomState(targetZoom);
+        }
+      };
+
+      requestAnimationFrame(animateViewport);
+    }, [resetView]);
 
     // Handle zoom
     const handleZoom = useCallback((newZoom: number) => {
@@ -1451,8 +1571,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       setZoom: handleZoom,
       getZoom: () => zoom,
       resetView,
+      fitAllContent,
       getFreePosition,
-    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView, getFreePosition]);
+    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView, fitAllContent, getFreePosition]);
 
     return (
       <div
@@ -1519,7 +1640,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           <button onClick={() => handleZoom(1)} className="min-w-[44px] text-xs font-medium text-gray-300" title={t('canvas.reset_zoom')}>{Math.round(zoom * 100)}%</button>
           <button onClick={() => handleZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} title={t('canvas.zoom_in')}><Plus size={14} /></button>
           <div className="w-px h-4 bg-white/10 mx-0.5" />
-          <button onClick={resetView} title={t('canvas.fit_view')}><Maximize2 size={14} /></button>
+          <button onClick={fitAllContent} title={t('canvas.fit_view')}><Maximize2 size={14} /></button>
         </div>
 
         {spacePressed && (

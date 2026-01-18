@@ -126,9 +126,11 @@ export default function EditorPage() {
         if (records.length > 0 && !cancelled) {
           console.log('[Editor] Loading initial ops:', records.length, 'lastSeq:', lastSeq);
           const ops = recordsToOps(records);
-          setTimeout(() => {
+          setTimeout(async () => {
             if (!cancelled && editorRef.current) {
-              editorRef.current.executeOps(ops);
+              await editorRef.current.executeOps(ops);
+              // Fit all content in view after initial load
+              editorRef.current.fitAllContent();
             }
             initialOpsLoaded = true;
           }, 100);

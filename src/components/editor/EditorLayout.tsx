@@ -39,6 +39,8 @@ export interface EditorLayoutRef {
   addPlaceholder: (id: string, x: number, y: number, width: number, height: number) => void;
   removePlaceholder: (id: string) => void;
   getPlaceholderPosition: (id: string) => { x: number; y: number } | null;
+  /** Fit all content in view with smooth animation */
+  fitAllContent: () => void;
 }
 
 interface EditorLayoutProps {
@@ -140,6 +142,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     addPlaceholder,
     removePlaceholder,
     getPlaceholderPosition,
+    fitAllContent: () => canvasRef.current?.fitAllContent(),
   }), [executeOps, addPlaceholder, removePlaceholder, getPlaceholderPosition]);
 
   const handleAddPlaceholder = useCallback((id: string, x: number, y: number, width: number, height: number) => {
