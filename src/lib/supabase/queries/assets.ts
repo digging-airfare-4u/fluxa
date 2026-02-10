@@ -19,6 +19,10 @@ export interface Asset {
   created_at: string;
   url: string;
   metadata?: {
+    source?: {
+      type?: string;
+      origin?: string;
+    };
     generation?: {
       prompt?: string;
     };
