@@ -5,7 +5,10 @@
 
 import { supabase } from '../client';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+// Tencent Cloud COS configuration
+const COS_BUCKET = process.env.NEXT_PUBLIC_COS_BUCKET || 'fluxa-1390058464';
+const COS_REGION = process.env.NEXT_PUBLIC_COS_REGION || 'ap-tokyo';
+const COS_PUBLIC_URL = `https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com`;
 
 export interface Asset {
   id: string;
@@ -23,6 +26,13 @@ export interface Asset {
 }
 
 /**
+ * Get public URL for an asset storage path
+ */
+export function getAssetUrl(storagePath: string): string {
+  return `${COS_PUBLIC_URL}/${storagePath}`;
+}
+
+/**
  * Fetch all assets for a project
  */
 export async function fetchProjectAssets(projectId: string): Promise<Asset[]> {
@@ -37,6 +47,6 @@ export async function fetchProjectAssets(projectId: string): Promise<Asset[]> {
 
   return data.map(asset => ({
     ...asset,
-    url: `${SUPABASE_URL}/storage/v1/object/public/assets/${asset.storage_path}`,
+    url: getAssetUrl(asset.storage_path),
   }));
 }

@@ -105,7 +105,7 @@ CREATE TABLE jobs (
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('generate-image')),
+  type TEXT NOT NULL CHECK (type IN ('generate-image', 'image-tool')),
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'processing', 'done', 'failed')),
   input JSONB NOT NULL,
   output JSONB,

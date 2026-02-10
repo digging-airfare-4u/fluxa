@@ -22,7 +22,7 @@ export interface Job {
   project_id: string;
   document_id: string;
   user_id: string;
-  type: 'generate-image';
+  type: 'generate-image' | 'image-tool';
   status: JobStatus;
   input: Record<string, unknown>;
   output?: Record<string, unknown>;

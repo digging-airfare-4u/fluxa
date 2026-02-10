@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/lib/theme/ThemeContext";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { getLocale } from "@/lib/i18n/actions";
 import { getMessages } from "next-intl/server";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,14 @@ export default async function RootLayout({
             timeZone="Asia/Shanghai"
           >
             {children}
+            <Toaster 
+              position="top-center" 
+              richColors 
+              closeButton
+              toastOptions={{
+                className: 'text-sm',
+              }}
+            />
           </I18nProvider>
         </ThemeProvider>
       </body>

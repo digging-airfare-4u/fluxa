@@ -108,7 +108,7 @@ export class AuthError extends AppError {
 
 /**
  * Provider/API error for external service failures
- * Requirements: 7.2
+ * Requirements: 7.2, 8.1, 8.2, 8.3, 8.4
  */
 export class ProviderError extends AppError {
   readonly code = ERROR_CODES.PROVIDER_ERROR;
@@ -117,7 +117,10 @@ export class ProviderError extends AppError {
   constructor(
     message: string,
     public readonly providerCode?: string,
-    details?: unknown
+    details?: unknown,
+    public readonly providerName?: string,
+    public readonly modelName?: string,
+    public readonly httpStatus?: number
   ) {
     super(message, details);
   }
@@ -127,6 +130,9 @@ export class ProviderError extends AppError {
       code: this.code,
       message: this.message,
       ...(this.providerCode && { provider_code: this.providerCode }),
+      ...(this.providerName && { provider_name: this.providerName }),
+      ...(this.modelName && { model_name: this.modelName }),
+      ...(this.httpStatus !== undefined && { http_status: this.httpStatus }),
       ...(this.details !== undefined && { details: this.details }),
     };
   }

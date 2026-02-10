@@ -6,15 +6,18 @@
 
 import { useRef, useCallback } from 'react';
 import * as fabric from 'fabric';
-import type { CanvasStageRef } from '@/components/canvas';
 
 export interface PlaceholderPosition {
   x: number;
   y: number;
 }
 
+export interface CanvasProvider {
+  getCanvas(): fabric.Canvas | null;
+}
+
 export interface UsePlaceholderManagerOptions {
-  canvasRef: React.RefObject<CanvasStageRef | null>;
+  canvasRef: React.RefObject<CanvasProvider | null>;
 }
 
 export interface UsePlaceholderManagerReturn {

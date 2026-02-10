@@ -17,6 +17,7 @@ import React, {
   useCallback,
 } from 'react';
 import * as fabric from 'fabric';
+import { toast } from 'sonner';
 import { ContextMenu } from './ContextMenu';
 import { SelectionInfo, QuickEditHint } from './SelectionInfo';
 import { TextToolbar, type TextProperties } from './TextToolbar';
@@ -27,7 +28,12 @@ import { CanvasSynchronizer, createCanvasSynchronizer } from '@/lib/canvas/canva
 import { useLayerStore } from '@/lib/store/useLayerStore';
 import { OpsPersistenceManager, createOpsPersistenceManager } from '@/lib/canvas/opsPersistenceManager';
 import { findFreePosition, getViewportBounds, type BoundingBox } from '@/lib/canvas/placementUtils';
+import { usePlaceholderManager } from '@/hooks/usePlaceholderManager';
 import { useT } from '@/lib/i18n/hooks';
+import { runImageTool, GenerationApiError } from '@/lib/api/generate';
+import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
+import { pendingGenerationTracker } from '@/lib/realtime/pendingGenerationTracker';
+import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { ToolType, LayerInfo, CanvasState, LayerModifiedEvent } from './types';
 
 // Re-export types for backward compatibility
@@ -46,6 +52,7 @@ const SELECT_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" he
 const SELECT_CURSOR_URL = `url('data:image/svg+xml;base64,${typeof btoa !== 'undefined' ? btoa(SELECT_CURSOR_SVG) : ''}') 4 4, default`;
 
 export interface CanvasStageProps {
+  projectId: string;
   documentId: string;
   width?: number;
   height?: number;
@@ -65,6 +72,9 @@ export interface CanvasStageRef {
   selectAndCenterLayer(layerId: string): void;
   selectAndCenterLayerByImageUrl(imageUrl: string): boolean;
   focusPlaceholder(id: string): void;
+  addPlaceholder(id: string, x: number, y: number, width: number, height: number): void;
+  removePlaceholder(id: string): void;
+  getPlaceholderPosition(id: string): { x: number; y: number } | null;
   deleteSelected(): void;
   undo(): void;
   redo(): void;
@@ -109,6 +119,7 @@ interface ContextMenuState {
 const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
   (
     {
+      projectId,
       documentId,
       activeTool = 'select',
       onSelectionChange,
@@ -121,6 +132,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     const t = useT('editor');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<fabric.Canvas | null>(null);
+    const placeholderCanvasRef = useRef<{ getCanvas: () => fabric.Canvas | null } | null>({
+      getCanvas: () => fabricRef.current,
+    });
     const containerRef = useRef<HTMLDivElement>(null);
     const [zoom, setZoomState] = useState(0.5);
     const [isPanning, setIsPanning] = useState(false);
@@ -158,6 +172,11 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     // Context menu state
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
     const clipboardRef = useRef<fabric.FabricObject | null>(null);
+
+    const { addPlaceholder, removePlaceholder, getPlaceholderPosition } = usePlaceholderManager({
+      canvasRef: placeholderCanvasRef,
+    });
+
 
     // History for undo/redo
     const historyRef = useRef<string[]>([]);
@@ -266,6 +285,28 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             ? 'translateX(-50%)'
             : 'translateX(-50%) translateY(-100%)';
         }
+
+        if (options?.positionOnly && obj.type === 'image') {
+          const imageObj = obj as fabric.FabricImage;
+          const scaledWidth = boundingRect.width * vpt[0];
+          const scaledHeight = boundingRect.height * vpt[3];
+          const toolbarHeight = 44;
+          const edgeMargin = 8;
+          const positionBelow = screenY < toolbarHeight + edgeMargin;
+          const isLocked = !imageObj.selectable || !imageObj.evented;
+
+          selectedImageRef.current = imageObj;
+          setImageToolbarInfo(prev => prev ? {
+            ...prev,
+            x: centerX,
+            y: screenY,
+            imageWidth: scaledWidth,
+            imageHeight: scaledHeight,
+            positionBelow,
+            isLocked,
+          } : prev);
+        }
+
 
         if (options?.positionOnly) {
           return;
@@ -567,10 +608,12 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       });
     }, []);
 
+
     /**
      * Delete the selected image from canvas
      * Requirements: 5.1, 5.2 - Remove image, toolbar disappears, recorded in undo history
      */
+
     const handleImageDelete = useCallback(() => {
       const imageObj = selectedImageRef.current;
       if (!imageObj || !fabricRef.current) {
@@ -601,25 +644,267 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       console.log('[CanvasStage] Image deleted successfully', layerId ? `(layer: ${layerId})` : '');
     }, []);
 
+
+
+
+
+    const executeAddImageOp = useCallback(async (op: Op, overrides?: { x?: number; y?: number; placeholderId?: string }) => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+
+      const payload = (op as AddImageOp).payload;
+
+      const img = await fabric.FabricImage.fromURL(payload.src, { crossOrigin: 'anonymous' });
+      let scaleX = 1;
+      let scaleY = 1;
+
+      if (payload.scaleX !== undefined || payload.scaleY !== undefined) {
+        scaleX = payload.scaleX ?? 1;
+        scaleY = payload.scaleY ?? 1;
+      } else if (payload.width !== undefined && payload.height !== undefined && img.width && img.height) {
+        const scaleToFitWidth = payload.width / img.width;
+        const scaleToFitHeight = payload.height / img.height;
+        const uniformScale = Math.min(scaleToFitWidth, scaleToFitHeight);
+        scaleX = uniformScale;
+        scaleY = uniformScale;
+      } else if (payload.width !== undefined && img.width) {
+        const uniformScale = payload.width / img.width;
+        scaleX = uniformScale;
+        scaleY = uniformScale;
+      } else if (payload.height !== undefined && img.height) {
+        const uniformScale = payload.height / img.height;
+        scaleX = uniformScale;
+        scaleY = uniformScale;
+      }
+
+      img.set({
+        left: overrides?.x ?? payload.x,
+        top: overrides?.y ?? payload.y,
+        scaleX,
+        scaleY,
+        opacity: payload.fadeIn ? 0 : 1,
+      });
+
+      (img as fabric.FabricObject & { id?: string }).id = payload.id;
+
+      canvas.add(img);
+      canvas.setActiveObject(img);
+      canvas.requestRenderAll();
+      updateSelectionInfo(img);
+
+      if (overrides?.placeholderId) {
+        removePlaceholder(overrides.placeholderId);
+      }
+
+      if (payload.fadeIn) {
+        img.animate({ opacity: 1 }, {
+          duration: 400,
+          onChange: () => canvas.requestRenderAll(),
+        });
+      }
+    }, [updateSelectionInfo, removePlaceholder]);
+
+    const runToolAndPlaceImage = useCallback(async (tool: 'removeBackground' | 'upscale' | 'erase' | 'expand') => {
+      const imageObj = selectedImageRef.current;
+      if (!imageObj || !fabricRef.current) {
+        console.warn('[CanvasStage] No image selected for AI tool');
+        return;
+      }
+
+      const src = imageObj.getSrc?.() || (imageObj as unknown as { _element?: HTMLImageElement })._element?.src;
+      if (!src) {
+        console.error('[CanvasStage] No image source found for AI tool');
+        return;
+      }
+
+      const bounds = imageObj.getBoundingRect();
+      const targetX = bounds.left + bounds.width + 16;
+      const targetY = bounds.top;
+      const originLayerId = (imageObj as fabric.FabricImage & { id?: string }).id;
+
+      const placeholderId = `placeholder-${Date.now()}`;
+      addPlaceholder(placeholderId, targetX, targetY, bounds.width, bounds.height);
+      pendingGenerationTracker.registerGeneration(targetX, targetY);
+
+      let result;
+      try {
+        result = await runImageTool({
+          projectId,
+          documentId,
+          tool,
+          imageUrl: src,
+          targetX,
+          targetY,
+          source: {
+            type: 'canvas_tool',
+            originLayerId: originLayerId || undefined,
+          },
+        });
+      } catch (error) {
+        console.error('[CanvasStage] Image tool API call failed:', error);
+        removePlaceholder(placeholderId);
+        pendingGenerationTracker.unregisterGeneration(targetX, targetY);
+        throw error;
+      }
+
+      if (!result.jobId) {
+        console.warn('[CanvasStage] No jobId returned from image tool');
+        removePlaceholder(placeholderId);
+        pendingGenerationTracker.unregisterGeneration(targetX, targetY);
+        return;
+      }
+
+      let handled = false;
+      let unsubscribeFn: (() => Promise<void>) | null = null;
+
+      const handleJobDone = async (job: Job) => {
+        if (handled) return;
+        handled = true;
+
+        const output = job.output as { op?: Op } | undefined;
+        if (!output?.op) {
+          if (unsubscribeFn) await unsubscribeFn();
+          removePlaceholder(placeholderId);
+          pendingGenerationTracker.unregisterGeneration(targetX, targetY);
+          return;
+        }
+
+        const op = {
+          ...(output.op as AddImageOp),
+          payload: {
+            ...(output.op as AddImageOp).payload,
+            fadeIn: true,
+          },
+        } as AddImageOp;
+        const layerId = op.payload.id;
+
+        if (layerId) {
+          pendingGenerationTracker.registerLayerId(layerId);
+        }
+
+        const finalPosition = getPlaceholderPosition(placeholderId);
+        const finalX = finalPosition?.x ?? targetX;
+        const finalY = finalPosition?.y ?? targetY;
+
+        try {
+          await executeAddImageOp(op, { x: finalX, y: finalY, placeholderId });
+        } finally {
+          if (layerId) {
+            pendingGenerationTracker.unregisterLayerId(layerId);
+          }
+          pendingGenerationTracker.unregisterGeneration(targetX, targetY);
+          if (unsubscribeFn) {
+            await unsubscribeFn();
+          }
+        }
+      };
+
+      const handleJobFailed = async (job: Job) => {
+        console.error('[CanvasStage] Image tool job failed:', job.error);
+        removePlaceholder(placeholderId);
+        pendingGenerationTracker.unregisterGeneration(targetX, targetY);
+        if (unsubscribeFn) {
+          await unsubscribeFn();
+        }
+      };
+
+      const { unsubscribe } = subscribeToJob(result.jobId, {
+        onDone: handleJobDone,
+        onFailed: handleJobFailed,
+      });
+      unsubscribeFn = unsubscribe;
+
+      const existingJob = await fetchJob(result.jobId);
+      if (existingJob?.status === 'done') {
+        await handleJobDone(existingJob);
+      } else if (existingJob?.status === 'failed') {
+        await handleJobFailed(existingJob);
+      }
+    }, [documentId, projectId, executeAddImageOp, addPlaceholder, removePlaceholder, getPlaceholderPosition]);
+
     const handleImageRemoveBackground = useCallback(async () => {
-      // TODO: Implement AI background removal in task 12
-      console.log('[CanvasStage] Remove background - not yet implemented');
-    }, []);
+      setImageToolbarLoading(prev => ({ ...prev, removeBackground: true }));
+      try {
+        await runToolAndPlaceImage('removeBackground');
+      } catch (error) {
+        if (error instanceof GenerationApiError && error.isInsufficientPoints()) {
+          const details = error.getInsufficientPointsDetails();
+          toast.error(t('image_toolbar.insufficient_points'), {
+            description: t('image_toolbar.points_required', { 
+              current: details?.current_balance ?? 0, 
+              required: details?.required_points ?? 0 
+            }),
+          });
+        } else {
+          toast.error(t('image_toolbar.error_processing'));
+        }
+      } finally {
+        setImageToolbarLoading(prev => ({ ...prev, removeBackground: false }));
+      }
+    }, [runToolAndPlaceImage, t]);
 
     const handleImageUpscale = useCallback(async () => {
-      // TODO: Implement AI upscale in task 13
-      console.log('[CanvasStage] Upscale - not yet implemented');
-    }, []);
+      setImageToolbarLoading(prev => ({ ...prev, upscale: true }));
+      try {
+        await runToolAndPlaceImage('upscale');
+      } catch (error) {
+        if (error instanceof GenerationApiError && error.isInsufficientPoints()) {
+          const details = error.getInsufficientPointsDetails();
+          toast.error(t('image_toolbar.insufficient_points'), {
+            description: t('image_toolbar.points_required', { 
+              current: details?.current_balance ?? 0, 
+              required: details?.required_points ?? 0 
+            }),
+          });
+        } else {
+          toast.error(t('image_toolbar.error_processing'));
+        }
+      } finally {
+        setImageToolbarLoading(prev => ({ ...prev, upscale: false }));
+      }
+    }, [runToolAndPlaceImage, t]);
 
-    const handleImageErase = useCallback(() => {
-      // TODO: Implement AI erase in task 14
-      console.log('[CanvasStage] Erase - not yet implemented');
-    }, []);
+    const handleImageErase = useCallback(async () => {
+      setImageToolbarLoading(prev => ({ ...prev, erase: true }));
+      try {
+        await runToolAndPlaceImage('erase');
+      } catch (error) {
+        if (error instanceof GenerationApiError && error.isInsufficientPoints()) {
+          const details = error.getInsufficientPointsDetails();
+          toast.error(t('image_toolbar.insufficient_points'), {
+            description: t('image_toolbar.points_required', { 
+              current: details?.current_balance ?? 0, 
+              required: details?.required_points ?? 0 
+            }),
+          });
+        } else {
+          toast.error(t('image_toolbar.error_processing'));
+        }
+      } finally {
+        setImageToolbarLoading(prev => ({ ...prev, erase: false }));
+      }
+    }, [runToolAndPlaceImage, t]);
 
-    const handleImageExpand = useCallback(() => {
-      // TODO: Implement AI expand in task 15
-      console.log('[CanvasStage] Expand - not yet implemented');
-    }, []);
+    const handleImageExpand = useCallback(async () => {
+      setImageToolbarLoading(prev => ({ ...prev, expand: true }));
+      try {
+        await runToolAndPlaceImage('expand');
+      } catch (error) {
+        if (error instanceof GenerationApiError && error.isInsufficientPoints()) {
+          const details = error.getInsufficientPointsDetails();
+          toast.error(t('image_toolbar.insufficient_points'), {
+            description: t('image_toolbar.points_required', { 
+              current: details?.current_balance ?? 0, 
+              required: details?.required_points ?? 0 
+            }),
+          });
+        } else {
+          toast.error(t('image_toolbar.error_processing'));
+        }
+      } finally {
+        setImageToolbarLoading(prev => ({ ...prev, expand: false }));
+      }
+    }, [runToolAndPlaceImage, t]);
 
     const handleImageToggleLock = useCallback(() => {
       const imageObj = selectedImageRef.current;
@@ -1003,6 +1288,11 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (active) updateSelectionInfo(active, { positionOnly: true });
       });
 
+      canvas.on('object:rotating', () => {
+        const active = canvas.getActiveObject();
+        if (active) updateSelectionInfo(active, { positionOnly: true });
+      });
+
       canvas.on('object:added', () => { saveHistory(); notifyLayersChange(); });
       canvas.on('object:removed', () => { saveHistory(); notifyLayersChange(); });
 
@@ -1065,6 +1355,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top);
           canvas.zoomToPoint(point, newZoom);
           setZoomState(newZoom);
+          const active = canvas.getActiveObject();
+          if (active) updateSelectionInfo(active, { positionOnly: true });
         } else {
           const vpt = canvas.viewportTransform;
           if (vpt) {
@@ -1076,13 +1368,15 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             }
             canvas.setViewportTransform(vpt);
             canvas.requestRenderAll();
+            const active = canvas.getActiveObject();
+            if (active) updateSelectionInfo(active, { positionOnly: true });
           }
         }
       };
 
       container.addEventListener('wheel', handleWheel, { passive: false });
       return () => container.removeEventListener('wheel', handleWheel);
-    }, []);
+    }, [updateSelectionInfo]);
 
     // Space key for panning
     useEffect(() => {
@@ -1141,6 +1435,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           vpt[5] += evt.clientY - lastPosRef.current.y;
           canvas.requestRenderAll();
           lastPosRef.current = { x: evt.clientX, y: evt.clientY };
+          const active = canvas.getActiveObject();
+          if (active) updateSelectionInfo(active, { positionOnly: true });
         }
       };
 
@@ -1160,7 +1456,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.off('mouse:move', handleMouseMove);
         canvas.off('mouse:up', handleMouseUp);
       };
-    }, [isPanning, spacePressed, activeTool]);
+    }, [isPanning, spacePressed, activeTool, updateSelectionInfo]);
 
     // Tool mode handling
     useEffect(() => {
@@ -1573,7 +1869,11 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       resetView,
       fitAllContent,
       getFreePosition,
-    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView, fitAllContent, getFreePosition]);
+    
+      addPlaceholder,
+      removePlaceholder,
+      getPlaceholderPosition,
+    }), [exportPNG, selectLayer, selectAndCenterLayer, selectAndCenterLayerByImageUrl, focusPlaceholder, deleteSelected, undo, redo, getCanvasState, handleZoom, zoom, resetView, fitAllContent, getFreePosition, addPlaceholder, removePlaceholder, getPlaceholderPosition]);
 
     return (
       <div

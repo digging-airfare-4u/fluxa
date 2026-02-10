@@ -131,7 +131,7 @@ export class VolcengineProvider implements ImageProvider {
       );
     }
     
-    const apiUrl = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
+    const apiUrl = 'https://cpa.xmark.cloud/api/v3/images/generations';
     
     // Volcengine requires minimum 1920x1920 (2K)
     const size = '2K';

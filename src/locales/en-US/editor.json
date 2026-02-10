@@ -57,7 +57,7 @@
   "image_toolbar": {
     "upscale": "Upscale",
     "remove_background": "Remove Background",
-    "erase": "Erase",
+    "erase": "Remove Background",
     "expand": "Expand",
     "download": "Download",
     "more": "More",
@@ -71,6 +71,7 @@
     "unlock": "Unlock",
     "processing": "Processing...",
     "insufficient_points": "Insufficient Points",
+    "points_required": "Current balance: {current} points, required: {required} points",
     "error_processing": "Processing failed, please retry"
   },
   "text_toolbar": {

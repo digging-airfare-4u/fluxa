@@ -12,9 +12,8 @@ import { JobService } from '../_shared/services/job.ts';
 import { AssetService } from '../_shared/services/asset.ts';
 import { PointsService } from '../_shared/services/points.ts';
 import { OpsService } from '../_shared/services/ops.ts';
-import { GeminiProvider, calculateDimensions } from '../_shared/providers/gemini.ts';
-import { VolcengineProvider } from '../_shared/providers/volcengine.ts';
-import { isGeminiModel, isVolcengineModel } from '../_shared/providers/types.ts';
+import { createRegistry } from '../_shared/providers/registry-setup.ts';
+import { calculateDimensions } from '../_shared/providers/gemini.ts';
 import type { ImageGenerateRequest, ImageGenerateResponse, ResolutionPreset, AspectRatio } from '../_shared/types/index.ts';
 
 // CORS headers for browser requests
@@ -236,39 +235,27 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Select and create provider
-      let imageResult;
+      // Resolve image provider from registry
       const aspectRatio = request.aspectRatio || '1:1';
+      const registry = createRegistry(supabaseService);
 
-      if (isGeminiModel(selectedModel)) {
-        console.log(`[generate-image] Using Gemini provider`);
-        const provider = new GeminiProvider(supabaseService, selectedModel);
-        imageResult = await provider.generate({
-          prompt: request.prompt,
-          aspectRatio,
-          resolution,
-          referenceImageBase64: referenceImage?.base64,
-          referenceImageMimeType: referenceImage?.mimeType,
-        });
-      } else if (isVolcengineModel(selectedModel)) {
-        console.log(`[generate-image] Using Volcengine provider`);
-        const provider = new VolcengineProvider(selectedModel);
-        imageResult = await provider.generate({
-          prompt: request.prompt,
-          referenceImageBase64: referenceImage?.base64,
-          referenceImageMimeType: referenceImage?.mimeType,
-        });
-      } else {
-        console.log(`[generate-image] Unknown model, defaulting to Gemini flash`);
-        const provider = new GeminiProvider(supabaseService, 'gemini-2.5-flash-image');
-        imageResult = await provider.generate({
-          prompt: request.prompt,
-          aspectRatio,
-          resolution,
-          referenceImageBase64: referenceImage?.base64,
-          referenceImageMimeType: referenceImage?.mimeType,
-        });
+      // Use the selected model, falling back to default if not registered
+      let resolvedModel = selectedModel;
+      if (!registry.isSupported(selectedModel)) {
+        console.log(`[generate-image] Model ${selectedModel} not registered, falling back to ${DEFAULT_MODEL}`);
+        resolvedModel = DEFAULT_MODEL;
       }
+
+      const provider = registry.getImageProvider(resolvedModel);
+      console.log(`[generate-image] Using provider: ${provider.name}`);
+
+      const imageResult = await provider.generate({
+        prompt: request.prompt,
+        aspectRatio,
+        resolution,
+        referenceImageBase64: referenceImage?.base64,
+        referenceImageMimeType: referenceImage?.mimeType,
+      });
 
       console.log(`[generate-image] ========== GENERATION SUCCESS ==========`);
       console.log(`[generate-image] Image size: ${imageResult.imageData.byteLength} bytes`);
@@ -309,17 +296,13 @@ Deno.serve(async (req: Request) => {
         },
       };
 
-      // Save op to ops table so it persists across page refresh
-      // This ensures the image appears even if user refreshes during generation
-      try {
-        await opsService.saveOp(request.documentId, addImageOp, request.conversationId);
-        console.log(`[generate-image] Op saved to ops table: ${layerId}`);
-      } catch (opsSaveError) {
-        // Log error but don't fail the job - the image was generated successfully
-        console.error(`[generate-image] Failed to save op to ops table:`, opsSaveError);
-      }
+      // NOTE: We intentionally do NOT save the op here.
+      // The op is included in job output and will be:
+      // 1. Executed by handleJobDone on the client that initiated the request
+      // 2. Saved to ops table by the client if position changed (user dragged placeholder)
+      // This prevents duplicate execution via Realtime subscription.
 
-      // Build job output (still include op for real-time display via job subscription)
+      // Build job output (include op for client-side execution via job subscription)
       const jobOutput = {
         assetId: asset.id,
         storagePath: asset.storagePath,

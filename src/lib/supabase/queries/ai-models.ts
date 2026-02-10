@@ -16,6 +16,7 @@ export interface AIModel {
   is_enabled: boolean;
   sort_order: number;
   points_cost: number;
+  supports_image_tool?: boolean;
   created_at: string;
 }
 

@@ -502,6 +502,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         <div className="canvas-container h-full relative">
           <CanvasStage
             ref={canvasRef}
+            projectId={projectId}
             documentId={documentId}
             width={canvasWidth}
             height={canvasHeight}

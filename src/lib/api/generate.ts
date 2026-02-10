@@ -42,6 +42,25 @@ export interface GenerateOpsParams {
 }
 
 /**
+ * Parameters for image tool processing
+ */
+export interface ImageToolParams {
+  projectId: string;
+  documentId: string;
+  tool: 'removeBackground' | 'upscale' | 'erase' | 'expand';
+  imageUrl: string;
+  targetX?: number;
+  targetY?: number;
+  model?: string;
+  params?: Record<string, unknown>;
+  source?: {
+    type: 'canvas_tool';
+    originLayerId?: string;
+  };
+}
+
+
+/**
  * Successful image generation response
  */
 export interface GenerateImageResult {
@@ -59,6 +78,17 @@ export interface GenerateOpsResult {
   pointsDeducted?: number;
   remainingPoints?: number;
 }
+
+/**
+ * Successful image tool response
+ */
+export interface ImageToolResult {
+  jobId: string;
+  pointsDeducted?: number;
+  remainingPoints?: number;
+  modelUsed?: string;
+}
+
 
 /**
  * API error response structure
@@ -228,6 +258,104 @@ export async function generateImage(
  * @returns Promise with plan and ops array
  * @throws GenerationApiError on failure
  */
+
+/**
+ * Run image tool via AI using Supabase Edge Function
+ *
+ * @param params - Image tool parameters
+ * @param _accessToken - Deprecated: token is now handled automatically by Supabase SDK
+ * @param signal - Optional AbortSignal for cancellation
+ * @returns Promise with job ID and points info
+ * @throws GenerationApiError on failure
+ */
+export async function runImageTool(
+  params: ImageToolParams,
+  _accessToken?: string,
+  signal?: AbortSignal
+): Promise<ImageToolResult> {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      console.error('[runImageTool] Failed to refresh session:', refreshError);
+      throw new GenerationApiError(
+        'Authentication required',
+        'AUTH_REQUIRED',
+        401
+      );
+    }
+  }
+
+  const { data: { session: currentSession } } = await supabase.auth.getSession();
+  const accessToken = currentSession?.access_token;
+
+  if (!accessToken) {
+    throw new GenerationApiError(
+      'No access token available',
+      'AUTH_REQUIRED',
+      401
+    );
+  }
+
+  const requestBody = {
+    projectId: params.projectId,
+    documentId: params.documentId,
+    tool: params.tool,
+    imageUrl: params.imageUrl,
+    targetX: params.targetX,
+    targetY: params.targetY,
+    model: params.model,
+    params: params.params,
+    source: params.source,
+  };
+
+  console.log('[runImageTool] ========== CLIENT REQUEST START ==========');
+  console.log('[runImageTool] Request Body:', JSON.stringify(requestBody, null, 2));
+  console.log('[runImageTool] ========== CLIENT REQUEST END ==========');
+
+  const { data, error } = await supabase.functions.invoke<ImageToolResult>('image-tools', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: requestBody,
+  });
+
+  console.log('[runImageTool] ========== CLIENT RESPONSE START ==========');
+  if (error) {
+    console.error('[runImageTool] Error:', error);
+    console.error('[runImageTool] Error Context:', JSON.stringify(error.context, null, 2));
+  } else {
+    console.log('[runImageTool] Success Data:', JSON.stringify(data, null, 2));
+  }
+  console.log('[runImageTool] ========== CLIENT RESPONSE END ==========');
+
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  if (error) {
+    const errorData = error.context as { error?: ApiError } | undefined;
+    const apiError = errorData?.error;
+
+    throw new GenerationApiError(
+      apiError?.message || error.message || 'Image tool processing failed',
+      apiError?.code || 'IMAGE_TOOL_FAILED',
+      500,
+      apiError
+    );
+  }
+
+  if (!data) {
+    throw new GenerationApiError(
+      'No data returned from image-tools',
+      'NO_DATA',
+      500
+    );
+  }
+
+  return data;
+}
+
 export async function generateOps(
   params: GenerateOpsParams,
   _accessToken?: string,

@@ -88,7 +88,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
       setAssetsLoading(true);
       setSelectedIndex(0);
       fetchProjectAssets(projectId)
-        .then(setAssets)
+        .then((data) => {
+          const filtered = data.filter((asset) => asset.metadata?.source?.type !== 'canvas_tool');
+          setAssets(filtered);
+        })
         .catch(console.error)
         .finally(() => setAssetsLoading(false));
     }

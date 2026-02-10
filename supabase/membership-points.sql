@@ -167,6 +167,7 @@ ON CONFLICT (level) DO UPDATE SET
 -- Requirements: 2.3
 -- ============================================================================
 ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS points_cost INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS supports_image_tool BOOLEAN DEFAULT FALSE;
 
 -- Update ai_models with points_cost values
 UPDATE ai_models SET points_cost = 10 WHERE name = 'gpt-4o-mini';

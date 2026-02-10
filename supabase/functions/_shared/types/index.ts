@@ -76,6 +76,58 @@ export interface ImageGenerateResponse {
 }
 
 /**
+ * Image tool request payload
+ */
+export interface ImageToolRequest {
+  projectId: string;
+  documentId: string;
+  tool: 'removeBackground' | 'upscale' | 'erase' | 'expand';
+  imageUrl: string;
+  targetX?: number;
+  targetY?: number;
+  model?: string;
+  params?: Record<string, unknown>;
+  source?: {
+    type: 'canvas_tool';
+    originLayerId?: string;
+  };
+}
+
+/**
+ * Image tool response payload
+ */
+export interface ImageToolResponse {
+  jobId: string;
+  pointsDeducted: number;
+  remainingPoints: number;
+  modelUsed: string;
+}
+
+/**
+ * Job output after successful image tool processing
+ */
+export interface ImageToolJobOutput {
+  assetId: string;
+  storagePath: string;
+  publicUrl: string;
+  layerId: string;
+  op: {
+    type: 'addImage';
+    payload: {
+      id: string;
+      src: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  };
+  model: string;
+  tool: ImageToolRequest['tool'];
+}
+
+
+/**
  * Job output after successful image generation
  */
 export interface JobOutput {

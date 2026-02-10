@@ -1,21 +1,36 @@
-# ChatCanvas Storage Documentation
+# Fluxa Storage Documentation
 
 ## Overview
 
-ChatCanvas uses Supabase Storage to manage user assets including uploaded images, AI-generated images, and exported designs.
+Fluxa uses **Tencent Cloud COS** (Cloud Object Storage) via S3-compatible API to manage user assets including uploaded images, AI-generated images, and exported designs. Asset metadata is stored in Supabase PostgreSQL.
 
-## Storage Bucket
+## Storage Configuration
 
-### Configuration
+### Tencent Cloud COS
 
-- **Bucket Name**: `assets`
-- **Visibility**: Private (requires authentication)
-- **Max File Size**: 10MB
-- **Allowed MIME Types**:
-  - `image/png`
-  - `image/jpeg`
-  - `image/webp`
-  - `image/gif`
+| Setting | Value |
+|---------|-------|
+| **Bucket** | `fluxa-1390058464` |
+| **Region** | `ap-tokyo` |
+| **Endpoint** | `https://cos.ap-tokyo.myqcloud.com` |
+| **Public URL** | `https://fluxa-1390058464.cos.ap-tokyo.myqcloud.com` |
+| **Protocol** | S3-compatible API |
+
+### Environment Variables
+
+**Edge Functions (Supabase Secrets):**
+```
+COS_SECRET_ID=your_tencent_cloud_secret_id
+COS_SECRET_KEY=your_tencent_cloud_secret_key
+COS_BUCKET=fluxa-1390058464
+COS_REGION=ap-tokyo
+```
+
+**Frontend (.env):**
+```
+NEXT_PUBLIC_COS_BUCKET=fluxa-1390058464
+NEXT_PUBLIC_COS_REGION=ap-tokyo
+```
 
 ## Path Format
 
@@ -42,40 +57,16 @@ All assets follow a strict path format:
 
 ## Access Control
 
-### Row Level Security (RLS)
+Access control is handled at two levels:
 
-Storage access is controlled by RLS policies that ensure:
+1. **COS Bucket Policy**: Bucket is configured for public read access
+2. **Supabase RLS**: Asset metadata in `assets` table is protected by Row Level Security
 
-1. **Upload**: Users can only upload to paths starting with their own `userId`
-2. **Download**: Users can only download from paths starting with their own `userId`
-3. **Update**: Users can only update files in their own folder
-4. **Delete**: Users can only delete files in their own folder
+### Path-based Isolation
 
-### Cross-User Isolation
-
-- Users cannot access files belonging to other users
-- Path validation ensures the first segment matches `auth.uid()`
-- Invalid paths are rejected at the policy level
-
-## Signed URLs
-
-For temporary access to assets (e.g., sharing, embedding), use signed URLs:
-
-```typescript
-const { data, error } = await supabase.storage
-  .from('assets')
-  .createSignedUrl(path, 3600); // 1 hour expiration
-
-if (data) {
-  console.log('Signed URL:', data.signedUrl);
-}
-```
-
-### Configuration
-
-- **Default Expiration**: 1 hour (3600 seconds)
-- **Renewal**: Generate a new signed URL before expiration
-- **Security**: Signed URLs bypass RLS but are time-limited
+- Path format ensures user isolation: `{userId}/{projectId}/{assetId}.{ext}`
+- Users can only see their own assets via Supabase RLS on the `assets` table
+- Direct COS URLs are public but unpredictable (UUID-based paths)
 
 ## Asset Types
 
@@ -89,90 +80,43 @@ Assets are categorized by their `type` field in the `assets` table:
 
 ## Usage Examples
 
-### Upload an Asset
+### Upload an Asset (Edge Function)
 
 ```typescript
-import { createClient } from '@supabase/supabase-js';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const cosClient = new S3Client({
+  region: 'ap-tokyo',
+  endpoint: 'https://cos.ap-tokyo.myqcloud.com',
+  credentials: {
+    accessKeyId: Deno.env.get('COS_SECRET_ID')!,
+    secretAccessKey: Deno.env.get('COS_SECRET_KEY')!,
+  },
+});
 
 async function uploadAsset(
-  file: File,
-  userId: string,
-  projectId: string,
-  assetId: string
+  imageData: ArrayBuffer,
+  storagePath: string,
+  contentType: string
 ) {
-  const ext = file.name.split('.').pop();
-  const path = `${userId}/${projectId}/${assetId}.${ext}`;
-
-  const { data, error } = await supabase.storage
-    .from('assets')
-    .upload(path, file, {
-      contentType: file.type,
-      upsert: false,
-    });
-
-  if (error) throw error;
-  return data;
+  const command = new PutObjectCommand({
+    Bucket: 'fluxa-1390058464',
+    Key: storagePath,
+    Body: new Uint8Array(imageData),
+    ContentType: contentType,
+  });
+  await cosClient.send(command);
 }
 ```
 
-### Download an Asset
+### Get Public URL (Frontend)
 
 ```typescript
-async function downloadAsset(path: string) {
-  const { data, error } = await supabase.storage
-    .from('assets')
-    .download(path);
+const COS_PUBLIC_URL = 'https://fluxa-1390058464.cos.ap-tokyo.myqcloud.com';
 
-  if (error) throw error;
-  return data; // Blob
+function getAssetUrl(storagePath: string): string {
+  return `${COS_PUBLIC_URL}/${storagePath}`;
 }
-```
-
-### Get Public URL (for authenticated users)
-
-```typescript
-async function getAssetUrl(path: string) {
-  const { data } = supabase.storage
-    .from('assets')
-    .getPublicUrl(path);
-
-  return data.publicUrl;
-}
-```
-
-### Delete an Asset
-
-```typescript
-async function deleteAsset(path: string) {
-  const { error } = await supabase.storage
-    .from('assets')
-    .remove([path]);
-
-  if (error) throw error;
-}
-```
-
-## Edge Function Access
-
-Edge Functions using the `service_role` key have full access to storage, bypassing RLS policies. This is used for:
-
-- AI image generation (writing generated images)
-- Export functionality (writing exported PNGs)
-- Asset cleanup jobs
-
-```typescript
-// In Edge Function
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-);
-
-// Full access to storage
-await supabase.storage.from('assets').upload(path, file);
 ```
 
 ## Best Practices

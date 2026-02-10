@@ -57,7 +57,7 @@
   "image_toolbar": {
     "upscale": "放大",
     "remove_background": "移除背景",
-    "erase": "擦除",
+    "erase": "擦除背景",
     "expand": "扩展",
     "download": "下载",
     "more": "更多",
@@ -71,6 +71,7 @@
     "unlock": "解锁",
     "processing": "处理中...",
     "insufficient_points": "积分不足",
+    "points_required": "当前余额 {current} 点，需要 {required} 点",
     "error_processing": "处理失败，请重试"
   },
   "text_toolbar": {

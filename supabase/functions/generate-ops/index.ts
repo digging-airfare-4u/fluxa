@@ -7,7 +7,9 @@
  * Generates canvas operations from user prompts using LLM.
  */
 
-import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.89.0';
+import { createRegistry } from '../_shared/providers/registry-setup.ts';
+import type { ChatMessage, ChatCompletionOptions } from '../_shared/providers/chat-types.ts';
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -47,46 +49,6 @@ interface RequestBody {
     type: string;
   }>;
 }
-
-// Model configuration mapping
-interface ModelConfig {
-  provider: 'openai' | 'anthropic' | 'volcengine';
-  apiUrl: string;
-  modelId: string;
-}
-
-const MODEL_CONFIGS: Record<string, ModelConfig> = {
-  'gpt-4o-mini': {
-    provider: 'openai',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    modelId: 'gpt-4o-mini',
-  },
-  'gpt-4o': {
-    provider: 'openai',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    modelId: 'gpt-4o',
-  },
-  'gpt-4-turbo': {
-    provider: 'openai',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    modelId: 'gpt-4-turbo',
-  },
-  'claude-3-haiku': {
-    provider: 'anthropic',
-    apiUrl: 'https://api.anthropic.com/v1/messages',
-    modelId: 'claude-3-haiku-20240307',
-  },
-  'claude-3-sonnet': {
-    provider: 'anthropic',
-    apiUrl: 'https://api.anthropic.com/v1/messages',
-    modelId: 'claude-3-sonnet-20240229',
-  },
-  'doubao-seed-1-6-vision-250815': {
-    provider: 'volcengine',
-    apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-    modelId: 'doubao-seed-1-6-vision-250815',
-  },
-};
 
 interface Op {
   type: string;
@@ -385,39 +347,14 @@ async function callAIProvider(
   modelName?: string,
   assetsContext?: RequestBody['assetsContext']
 ): Promise<GenerateOpsResponse> {
-  // Get API keys from environment
-  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-  const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  const volcengineApiKey = Deno.env.get('VOLCENGINE_API_KEY');
-  
   // Determine which model to use
   const defaultModel = Deno.env.get('DEFAULT_AI_MODEL') || 'doubao-seed-1-6-vision-250815';
   const selectedModel = modelName || defaultModel;
-  
-  // Get model config
-  const modelConfig = MODEL_CONFIGS[selectedModel];
-  if (!modelConfig) {
-    throw new Error(`Unknown model: ${selectedModel}`);
-  }
-  
-  // Get the appropriate API key for the provider
-  let apiKey: string | undefined;
-  switch (modelConfig.provider) {
-    case 'openai':
-      apiKey = openaiApiKey;
-      break;
-    case 'anthropic':
-      apiKey = anthropicApiKey;
-      break;
-    case 'volcengine':
-      apiKey = volcengineApiKey;
-      break;
-  }
-  
-  if (!apiKey) {
-    throw new Error(`API key not configured for provider: ${modelConfig.provider}`);
-  }
-  
+
+  // Resolve chat provider from registry
+  const registry = createRegistry(null as unknown as SupabaseClient);
+  const provider = registry.getChatProvider(selectedModel);
+
   // Build user message with assets context if provided
   let userMessage = prompt;
   if (assetsContext && assetsContext.length > 0) {
@@ -426,92 +363,28 @@ async function callAIProvider(
       userMessage += `- ${asset.type}: ${asset.url}\n`;
     }
   }
-  
-  // Build messages array
-  // 火山引擎视觉模型需要 content 为数组格式
-  const formatContent = (text: string, provider: string) => {
-    if (provider === 'volcengine') {
-      return [{ type: 'text', text }];
-    }
-    return text;
-  };
-  
-  // 简化消息，减少 token 使用
-  const messages = [
-    { role: 'system', content: formatContent(SYSTEM_PROMPT, modelConfig.provider) },
-    { role: 'user', content: formatContent(FEW_SHOT_EXAMPLE.user, modelConfig.provider) },
-    { role: 'assistant', content: formatContent(FEW_SHOT_EXAMPLE.assistant, modelConfig.provider) },
-    { role: 'user', content: formatContent(userMessage, modelConfig.provider) },
+
+  // Build messages array (provider adapters handle format translation)
+  const messages: ChatMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: FEW_SHOT_EXAMPLE.user },
+    { role: 'assistant', content: FEW_SHOT_EXAMPLE.assistant },
+    { role: 'user', content: userMessage },
   ];
-  
-  // Determine API endpoint based on provider
-  let apiUrl: string;
-  let headers: Record<string, string>;
-  let requestBody: Record<string, unknown>;
-  
-  if (modelConfig.provider === 'anthropic') {
-    apiUrl = modelConfig.apiUrl;
-    headers = {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    };
-    requestBody = {
-      model: modelConfig.modelId,
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: messages.filter(m => m.role !== 'system'),
-    };
-  } else if (modelConfig.provider === 'volcengine') {
-    // 火山引擎 (豆包) - OpenAI 兼容接口
-    apiUrl = Deno.env.get('VOLCENGINE_API_URL') || modelConfig.apiUrl;
-    headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    };
-    // 火山引擎：只发送必要参数
-    requestBody = {
-      model: modelConfig.modelId,
-      messages,
-    };
-  } else {
-    // OpenAI
-    apiUrl = modelConfig.apiUrl;
-    headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    };
-    requestBody = {
-      model: modelConfig.modelId,
-      messages,
-      temperature: 0.4,
-      max_tokens: 2000,
-      response_format: { type: 'json_object' },
-    };
+
+  // Chat completion options — OpenAI providers use json_object format
+  const options: ChatCompletionOptions = {
+    temperature: 0.4,
+    maxTokens: 2000,
+  };
+  if (provider.name === 'openai') {
+    options.responseFormat = { type: 'json_object' };
   }
-  
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(requestBody),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI API error: ${response.status} - ${errorText}`);
-  }
-  
-  const data = await response.json();
-  
-  // Extract content based on provider
-  let content: string;
-  if (modelConfig.provider === 'anthropic') {
-    content = data.content?.[0]?.text || '';
-  } else {
-    // OpenAI and Volcengine use the same response format
-    content = data.choices?.[0]?.message?.content || '';
-  }
-  
+
+  // Call the unified chat provider interface
+  const result = await provider.chatCompletion(messages, options);
+  const content = result.content;
+
   // Parse JSON response
   let parsed: unknown;
   try {
@@ -529,7 +402,7 @@ async function callAIProvider(
       ops: [],
     };
   }
-  
+
   // Validate response structure
   if (!validateLLMResponse(parsed)) {
     // Requirement 17.4: Return rejection response for invalid schema
@@ -538,7 +411,7 @@ async function callAIProvider(
       ops: [],
     };
   }
-  
+
   return parsed;
 }
 

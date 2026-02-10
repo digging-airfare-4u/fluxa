@@ -151,15 +151,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   // Auto-send initial prompt if provided
   const initialPromptSentRef = useRef(false);
-  useEffect(() => {
-    if (initialPrompt && !initialPromptSentRef.current && !isLoading && models.length > 0) {
-      initialPromptSentRef.current = true;
-      setTimeout(() => {
-        handleSendMessage(initialPrompt);
-        window.history.replaceState({}, '', window.location.pathname);
-      }, 500);
-    }
-  }, [initialPrompt, isLoading, models.length]);
 
   const handleToggleCollapse = useCallback(() => {
     if (isAnimating) return;
@@ -266,6 +257,19 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     createUserMessage, addMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
     startGeneration, startImageGeneration, startOpsGeneration, clearError, setError, onGeneratingChange,
   ]);
+
+  // Auto-send initial prompt if provided (must be after handleSendMessage definition)
+  useEffect(() => {
+    if (initialPrompt && !initialPromptSentRef.current && !isLoading && models.length > 0) {
+      initialPromptSentRef.current = true;
+      console.log('[ChatPanel] Auto-sending initial prompt:', initialPrompt);
+      setTimeout(() => {
+        console.log('[ChatPanel] setTimeout executing, ref value:', initialPromptSentRef.current);
+        handleSendMessage(initialPrompt);
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 500);
+    }
+  }, [initialPrompt, isLoading, models.length, handleSendMessage]);
 
   const handleImageClick = useCallback((imageUrl: string, layerId?: string) => {
     if (layerId && onLocateImage) {

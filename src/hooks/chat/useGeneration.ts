@@ -140,6 +140,8 @@ export function useGeneration({
   const startImageGeneration = useCallback(async (ctx: GenerationContext) => {
     const { content, model, referencedImage, pendingMessageId, onPendingReplaced, onCleanup } = ctx;
     
+    console.log('[useGeneration] startImageGeneration called', { content, model });
+    
     abortControllerRef.current = new AbortController();
     
     const currentModelName = models.find(m => m.name === model)?.display_name || model;
@@ -164,6 +166,8 @@ export function useGeneration({
       placeholderDimensions.width,
       placeholderDimensions.height
     );
+    
+    console.log('[useGeneration] Placeholder added', { placeholderId, placeholderX, placeholderY });
 
     // Register this generation's original position so Realtime ops can skip it
     pendingGenerationTracker.registerGeneration(placeholderX, placeholderY);
@@ -265,25 +269,24 @@ export function useGeneration({
             pendingGenerationTracker.unregisterLayerId(imageOp.payload.id);
             pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
 
-            // If user moved the placeholder, save an updateLayer op to persist the new position
-            // The Edge Function already saved the addImage op with original position,
-            // so we only need to save position update if it changed
-            if (positionChanged && finalPosition) {
-              try {
-                const updateOp: Op = {
-                  type: 'updateLayer',
-                  payload: {
-                    id: imageOp.payload.id,
-                    properties: {
-                      left: finalPosition.x,
-                      top: finalPosition.y,
-                    },
-                  },
-                };
-                await saveOp({ documentId, op: updateOp });
-              } catch (error) {
-                console.error('[useGeneration] Failed to persist position update:', error);
-              }
+            // Save the addImage op to persist across page refresh
+            // We save with the final position (after user may have dragged placeholder)
+            try {
+              const opToSave: Op = {
+                type: 'addImage',
+                payload: {
+                  id: imageOp.payload.id,
+                  src: imageOp.payload.src,
+                  x: finalPosition?.x ?? imageOp.payload.x,
+                  y: finalPosition?.y ?? imageOp.payload.y,
+                  width: imageOp.payload.width,
+                  height: imageOp.payload.height,
+                },
+              };
+              await saveOp({ documentId, op: opToSave });
+              console.log('[useGeneration] addImage op saved to database');
+            } catch (error) {
+              console.error('[useGeneration] Failed to save addImage op:', error);
             }
 
             setTimeout(() => {
