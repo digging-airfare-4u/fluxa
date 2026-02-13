@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../client';
+import { getAssetUrl } from './assets';
 
 export interface Project {
   id: string;
@@ -41,7 +42,54 @@ export interface ProjectWithThumbnail extends Project {
   thumbnail?: string;
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+interface AddImageOpRecord {
+  document_id: string;
+  payload: unknown;
+  created_at: string;
+}
+
+interface DocumentProjectRef {
+  id: string;
+  project_id: string;
+}
+
+interface AddImagePayload {
+  src?: string;
+}
+
+function extractImageSrc(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const src = (payload as AddImagePayload).src;
+  if (typeof src !== 'string' || src.trim().length === 0) return null;
+  return src.trim();
+}
+
+function normalizeThumbnailUrl(src: string): string {
+  if (/^(data:|blob:)/i.test(src)) {
+    return src;
+  }
+
+  if (/^https?:\/\//i.test(src)) {
+    try {
+      const parsed = new URL(src);
+
+      // COS signed URLs can expire. Bucket is public-read, so strip query params.
+      if (parsed.hostname.includes('.cos.') && parsed.hostname.endsWith('.myqcloud.com')) {
+        return `${parsed.origin}${parsed.pathname}`;
+      }
+
+      // Supabase signed object URLs can be converted to public object URLs for public buckets.
+      if (parsed.pathname.includes('/storage/v1/object/sign/assets/')) {
+        return `${parsed.origin}${parsed.pathname.replace('/object/sign/assets/', '/object/public/assets/')}`;
+      }
+
+      return src;
+    } catch {
+      return src;
+    }
+  }
+  return getAssetUrl(src);
+}
 
 /**
  * Fetch all projects for the current user with thumbnails
@@ -68,10 +116,7 @@ export async function fetchProjects(): Promise<ProjectWithThumbnail[]> {
   if (assets) {
     for (const asset of assets) {
       if (!thumbnailMap.has(asset.project_id)) {
-        thumbnailMap.set(
-          asset.project_id,
-          `${SUPABASE_URL}/storage/v1/object/public/assets/${asset.storage_path}`
-        );
+        thumbnailMap.set(asset.project_id, getAssetUrl(asset.storage_path));
       }
     }
   }
@@ -80,6 +125,93 @@ export async function fetchProjects(): Promise<ProjectWithThumbnail[]> {
     ...p,
     thumbnail: thumbnailMap.get(p.id),
   }));
+}
+
+/**
+ * Fetch recent projects based on latest addImage ops.
+ * Returns at most `limit` projects with thumbnail derived from op payload.src.
+ */
+export async function fetchRecentProjectsFromOps(limit = 4): Promise<ProjectWithThumbnail[]> {
+  if (limit <= 0) return [];
+
+  const scanLimit = Math.max(limit * 20, 50);
+
+  const { data: opRows, error: opError } = await supabase
+    .from('ops')
+    .select('document_id, payload, created_at')
+    .eq('op_type', 'addImage')
+    .order('created_at', { ascending: false })
+    .limit(scanLimit);
+
+  if (opError) throw opError;
+  if (!opRows || opRows.length === 0) return [];
+
+  const documentIds = Array.from(
+    new Set(
+      (opRows as AddImageOpRecord[])
+        .map(row => row.document_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    )
+  );
+
+  if (documentIds.length === 0) return [];
+
+  const { data: documentRows, error: documentError } = await supabase
+    .from('documents')
+    .select('id, project_id')
+    .in('id', documentIds);
+
+  if (documentError) throw documentError;
+  if (!documentRows || documentRows.length === 0) return [];
+
+  const docToProject = new Map<string, string>();
+  for (const row of documentRows as DocumentProjectRef[]) {
+    docToProject.set(row.id, row.project_id);
+  }
+
+  const recentMap = new Map<string, { thumbnail: string; updatedAt: string }>();
+  for (const row of opRows as AddImageOpRecord[]) {
+    const projectId = docToProject.get(row.document_id);
+    if (!projectId || recentMap.has(projectId)) continue;
+
+    const src = extractImageSrc(row.payload);
+    if (!src) continue;
+
+    recentMap.set(projectId, {
+      thumbnail: normalizeThumbnailUrl(src),
+      updatedAt: row.created_at,
+    });
+
+    if (recentMap.size >= limit) break;
+  }
+
+  if (recentMap.size === 0) return [];
+
+  const orderedProjectIds = Array.from(recentMap.keys());
+  const { data: projects, error: projectError } = await supabase
+    .from('projects')
+    .select('id, user_id, name, created_at, updated_at')
+    .in('id', orderedProjectIds);
+
+  if (projectError) throw projectError;
+  if (!projects || projects.length === 0) return [];
+
+  const projectMap = new Map(projects.map(project => [project.id, project]));
+
+  const result: ProjectWithThumbnail[] = [];
+  for (const projectId of orderedProjectIds) {
+    const project = projectMap.get(projectId);
+    const recent = recentMap.get(projectId);
+    if (!project || !recent) continue;
+
+    result.push({
+      ...project,
+      updated_at: recent.updatedAt,
+      thumbnail: recent.thumbnail,
+    });
+  }
+
+  return result;
 }
 
 /**

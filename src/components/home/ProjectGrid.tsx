@@ -107,6 +107,7 @@ function ProjectCard({ project, onClick, onDelete, onImageLoad }: ProjectCardPro
               src={project.thumbnail}
               alt={project.name}
               fill
+              unoptimized
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
               className={cn(
                 "object-cover transition-opacity duration-200",

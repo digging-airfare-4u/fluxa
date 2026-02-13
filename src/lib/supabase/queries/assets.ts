@@ -33,7 +33,29 @@ export interface Asset {
  * Get public URL for an asset storage path
  */
 export function getAssetUrl(storagePath: string): string {
-  return `${COS_PUBLIC_URL}/${storagePath}`;
+  const normalizedPath = storagePath.trim();
+
+  // Backward compatibility: some rows may already store a full URL.
+  if (/^https?:\/\//i.test(normalizedPath)) {
+    try {
+      const parsed = new URL(normalizedPath);
+
+      // COS signed URLs can expire; static path remains publicly accessible.
+      if (parsed.hostname.includes('.cos.') && parsed.hostname.endsWith('.myqcloud.com')) {
+        return `${parsed.origin}${parsed.pathname}`;
+      }
+
+      // Convert signed Supabase URL to public URL for public buckets.
+      if (parsed.pathname.includes('/storage/v1/object/sign/assets/')) {
+        return `${parsed.origin}${parsed.pathname.replace('/object/sign/assets/', '/object/public/assets/')}`;
+      }
+    } catch {
+      // Fall through to returning the original string below.
+    }
+    return normalizedPath;
+  }
+
+  return `${COS_PUBLIC_URL}/${normalizedPath.replace(/^\/+/, '')}`;
 }
 
 /**

@@ -23,7 +23,7 @@ import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
-  fetchProjects, 
+  fetchRecentProjectsFromOps,
   createProject, 
   deleteProject 
 } from '@/lib/supabase/queries/projects';
@@ -51,7 +51,7 @@ export default function HomePage() {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchProjects();
+      const data = await fetchRecentProjectsFromOps(4);
       setProjects(data.map(p => ({
         id: p.id,
         name: p.name,
