@@ -64,9 +64,10 @@ export function useCanvasZoom({ canvas, containerRef }: UseCanvasZoomOptions): U
     
     const vpt = canvas.viewportTransform;
     if (vpt) {
-      vpt[4] = container.clientWidth / 2;
-      vpt[5] = container.clientHeight / 2;
-      canvas.setViewportTransform(vpt);
+      const nextVpt = [...vpt] as typeof vpt;
+      nextVpt[4] = container.clientWidth / 2;
+      nextVpt[5] = container.clientHeight / 2;
+      canvas.setViewportTransform(nextVpt);
     }
   }, [canvas, containerRef]);
 
@@ -94,13 +95,14 @@ export function useCanvasZoom({ canvas, containerRef }: UseCanvasZoomOptions): U
         // Plain wheel = pan (scroll)
         const vpt = canvas.viewportTransform;
         if (vpt) {
+          const nextVpt = [...vpt] as typeof vpt;
           if (e.shiftKey) {
-            vpt[4] -= e.deltaY * PAN_SENSITIVITY;
+            nextVpt[4] -= e.deltaY * PAN_SENSITIVITY;
           } else {
-            vpt[4] -= e.deltaX * PAN_SENSITIVITY;
-            vpt[5] -= e.deltaY * PAN_SENSITIVITY;
+            nextVpt[4] -= e.deltaX * PAN_SENSITIVITY;
+            nextVpt[5] -= e.deltaY * PAN_SENSITIVITY;
           }
-          canvas.setViewportTransform(vpt);
+          canvas.setViewportTransform(nextVpt);
           canvas.requestRenderAll();
         }
       }

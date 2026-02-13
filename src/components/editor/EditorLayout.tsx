@@ -6,15 +6,16 @@
  */
 
 import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import * as fabric from 'fabric';
-import { 
+import {
   Menu, ChevronUp,
   Home, FolderOpen, Plus, Trash2, ImageIcon,
   Undo, Redo, Copy, Eye, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { LeftToolbar, ToolType } from './LeftToolbar';
-import CanvasStage, { CanvasStageRef, LayerInfo } from '../canvas/CanvasStage';
+import CanvasStage, { CanvasStageRef } from '../canvas/CanvasStage';
 import { ChatPanel, ChatPanelRef } from '../chat/ChatPanel';
 import { PointsBalanceIndicator } from '@/components/points';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
@@ -76,16 +77,12 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
   const [activeTool, setActiveTool] = useState<ToolType>('select');
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
-  const [layers, setLayers] = useState<LayerInfo[]>([]);
   
   // Project name editing
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(projectName);
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Generating state (kept for potential future use)
-  const [isGenerating, setIsGenerating] = useState(false);
 
   // Use extracted hooks
   const { executeOps } = useOpsExecution({
@@ -170,8 +167,8 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     setSelectedLayerId(layerId);
   }, []);
 
-  const handleLayersChange = useCallback((newLayers: LayerInfo[]) => {
-    setLayers(newLayers);
+  const handleLayersChange = useCallback(() => {
+    // Layer list is managed by LayerStore; callback retained for CanvasStage contract.
   }, []);
 
   const handleOpsGenerated = useCallback(async (ops: Op[]) => {
@@ -188,24 +185,6 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
       }
     }
   }, [executeOps]);
-
-  const handleExport = useCallback(async () => {
-    if (!canvasRef.current) return;
-
-    try {
-      const blob = await canvasRef.current.exportPNG(2);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectName || 'design'}-export.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('[Editor] Export failed:', error);
-    }
-  }, [projectName]);
 
   const handleImageUpload = useCallback(() => {
     const input = document.createElement('input');
@@ -345,11 +324,6 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
     else if (e.key === 'Escape') handleNameCancel();
   }, [handleNameSubmit, handleNameCancel]);
 
-  // Handle generating state change from ChatPanel
-  const handleGeneratingChange = useCallback((generating: boolean) => {
-    setIsGenerating(generating);
-  }, []);
-
   // Handle locate image on canvas
   const handleLocateImage = useCallback((layerId: string) => {
     canvasRef.current?.selectAndCenterLayer(layerId);
@@ -387,9 +361,11 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
                   <ChevronUp className="size-4 text-[#666] dark:text-[#888]" />
                 </div>
               ) : (
-                <img 
+                <Image
                   src="/logo.png" 
                   alt={tCommon('accessibility.logo_alt')} 
+                  width={32}
+                  height={32}
                   className="size-8 rounded-lg"
                 />
               )}
@@ -523,7 +499,6 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         documentId={documentId}
         onOpsGenerated={handleOpsGenerated}
         onCollapse={setIsChatCollapsed}
-        onGeneratingChange={handleGeneratingChange}
         onAddPlaceholder={handleAddPlaceholder}
         onRemovePlaceholder={removePlaceholder}
         onGetPlaceholderPosition={getPlaceholderPosition}

@@ -11,7 +11,6 @@ import type {
   Layer,
   LayerType,
   LayerState,
-  LayerActions,
   LayerStore,
 } from '@/lib/canvas/layer.types';
 import {

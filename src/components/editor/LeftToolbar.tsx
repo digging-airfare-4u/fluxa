@@ -11,7 +11,7 @@ import {
   BoxSelect,
   Square,
   Type,
-  Image,
+  Image as ImageIcon,
   Sparkles,
   Pencil,
 } from 'lucide-react';
@@ -44,7 +44,7 @@ const tools: Tool[] = [
   { id: 'rectangle', icon: <Square className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.rectangle', shortcut: 'R' },
   { id: 'text', icon: <Type className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.text', shortcut: 'T' },
   { id: 'pencil', icon: <Pencil className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.pencil', shortcut: 'P' },
-  { id: 'image', icon: <Image className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.image', shortcut: 'I' },
+  { id: 'image', icon: <ImageIcon className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.image', shortcut: 'I' },
   { id: 'ai', icon: <Sparkles className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.ai', shortcut: 'A' },
 ];
 

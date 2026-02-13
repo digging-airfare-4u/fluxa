@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, ChevronRight, UserCircle, HelpCircle, Mail, LogOut, Zap } from 'lucide-react';
@@ -61,7 +62,7 @@ export function UserPopover() {
           onMouseEnter={() => setOpen(true)}
         >
           {user?.avatar ? (
-            <img src={user.avatar} alt="" className="size-8 rounded-full" />
+            <Image src={user.avatar} alt="" width={32} height={32} unoptimized className="size-8 rounded-full" />
           ) : (
             <User className="size-4" />
           )}
@@ -76,7 +77,7 @@ export function UserPopover() {
         <div className="p-4 text-center">
           <div className="flex justify-center mb-3">
             {user?.avatar ? (
-              <img src={user.avatar} alt="" className="size-14 rounded-full" />
+              <Image src={user.avatar} alt="" width={56} height={56} unoptimized className="size-14 rounded-full" />
             ) : (
               <div className="size-14 rounded-full bg-muted flex items-center justify-center">
                 <User className="size-6 text-muted-foreground" />

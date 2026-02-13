@@ -29,6 +29,8 @@
     "locate_on_canvas": "在画布上定位",
     "ops_count": "包含 {count} 个操作步骤",
     "regenerate": "重新生成",
+    "thinking_details": "模型思考过程",
+    "view_thinking_process": "查看思考过程",
     "view_full_report": "查看完整报告"
   },
   "model_selector": {

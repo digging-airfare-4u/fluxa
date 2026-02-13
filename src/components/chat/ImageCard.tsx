@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { Download, Copy, PlusSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/hooks';
@@ -112,12 +113,16 @@ export function ImageCard({
       onMouseLeave={handleMouseLeave}
     >
       {/* Image */}
-      <img
-        src={src}
-        alt={alt || t('assets.generated_image')}
-        className="w-full h-auto object-cover"
-        loading="lazy"
-      />
+      <div className="relative w-full aspect-[4/3]">
+        <Image
+          src={src}
+          alt={alt || t('assets.generated_image')}
+          fill
+          unoptimized
+          sizes="(max-width: 768px) 100vw, 50vw"
+          className="object-cover"
+        />
+      </div>
 
       {/* Hover overlay with operation buttons */}
       {showOverlay && (

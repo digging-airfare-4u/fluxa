@@ -6,7 +6,8 @@
 'use client';
 
 import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react';
-import { Paperclip, AtSign, Lightbulb, Globe, Smile, ArrowUp } from 'lucide-react';
+import { AtSign, ArrowUp } from 'lucide-react';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -48,7 +49,6 @@ interface ChatInputProps {
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatInput({
   onSend,
-  onAttach,
   onCancel,
   onLocateImage,
   disabled = false,
@@ -82,20 +82,29 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
     focus: () => textareaRef.current?.focus(),
   }), []);
 
-  // Load assets when mention menu opens
-  useEffect(() => {
-    if (showMentionMenu && projectId) {
-      setAssetsLoading(true);
-      setSelectedIndex(0);
-      fetchProjectAssets(projectId)
-        .then((data) => {
-          const filtered = data.filter((asset) => asset.metadata?.source?.type !== 'canvas_tool');
-          setAssets(filtered);
-        })
-        .catch(console.error)
-        .finally(() => setAssetsLoading(false));
+  const loadMentionAssets = useCallback(async () => {
+    if (!projectId) {
+      setAssets([]);
+      return;
     }
-  }, [showMentionMenu, projectId]);
+
+    setAssetsLoading(true);
+    try {
+      const data = await fetchProjectAssets(projectId);
+      const filtered = data.filter((asset) => asset.metadata?.source?.type !== 'canvas_tool');
+      setAssets(filtered);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setAssetsLoading(false);
+    }
+  }, [projectId]);
+
+  const openMentionMenu = useCallback(() => {
+    setShowMentionMenu(true);
+    setSelectedIndex(0);
+    void loadMentionAssets();
+  }, [loadMentionAssets]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -175,7 +184,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
     
     // Check if user just typed @
     if (newValue.length > prevValue.length && newValue.endsWith('@')) {
-      setShowMentionMenu(true);
+      openMentionMenu();
     }
     
     setMessage(newValue);
@@ -232,11 +241,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                       : "hover:bg-black/5 dark:hover:bg-white/5"
                   )}
                 >
-                  <img
-                    src={asset.url}
-                    alt={asset.filename}
-                    className="size-6 rounded object-cover bg-[#f0f0f0] dark:bg-[#333]"
-                  />
+                  <div className="relative size-6 rounded overflow-hidden bg-[#f0f0f0] dark:bg-[#333]">
+                    <Image
+                      src={asset.url}
+                      alt={asset.filename || t('assets.generated_image')}
+                      fill
+                      unoptimized
+                      sizes="24px"
+                      className="object-cover"
+                    />
+                  </div>
                   <span className="text-xs text-[#1A1A1A] dark:text-white truncate flex-1 text-left">
                     {asset.metadata?.generation?.prompt || asset.filename || t('assets.generated_image')}
                   </span>
@@ -261,17 +275,28 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
             {referencedImage && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <img
-                    src={referencedImage.url}
-                    alt=""
-                    className="size-4 rounded object-cover cursor-pointer flex-shrink-0 mt-[3px] hover:ring-2 hover:ring-primary/50"
+                  <button
+                    type="button"
+                    className="relative size-4 rounded overflow-hidden cursor-pointer flex-shrink-0 mt-[3px] hover:ring-2 hover:ring-primary/50"
                     onClick={() => onLocateImage?.(referencedImage.url)}
-                  />
+                  >
+                    <Image
+                      src={referencedImage.url}
+                      alt={t('assets.reference_image')}
+                      fill
+                      unoptimized
+                      sizes="16px"
+                      className="object-cover"
+                    />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="p-1 bg-white dark:bg-[#1A1028]">
-                  <img
+                  <Image
                     src={referencedImage.url}
-                    alt=""
+                    alt={t('assets.reference_image')}
+                    width={200}
+                    height={200}
+                    unoptimized
                     className="max-w-[200px] max-h-[200px] rounded object-contain"
                   />
                 </TooltipContent>
@@ -350,7 +375,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                       ? "bg-[#1A1A1A] dark:bg-white text-white dark:text-black" 
                       : "text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
                   )}
-                  onClick={() => setShowMentionMenu(!showMentionMenu)}
+                  onClick={() => {
+                    if (showMentionMenu) {
+                      setShowMentionMenu(false);
+                    } else {
+                      openMentionMenu();
+                    }
+                  }}
                   disabled={isInputDisabled}
                 >
                   <AtSign className="size-3.5" />

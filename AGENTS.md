@@ -2,6 +2,26 @@
 
 This guide is for agentic coding assistants working on the Fluxa codebase.
 
+## Project Snapshot (Quick)
+
+- Product: AI-powered design generation platform with chat-driven canvas editing
+- Frontend stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Fabric.js 7
+- Backend stack: Supabase (Postgres/Auth/Realtime/Storage/Edge Functions), Zustand for client state
+- Core flow: User prompt -> `src/app/api/*` route -> Supabase Edge Function -> ops/image output -> canvas execution + realtime sync
+- Main editor route: `src/app/app/p/[projectId]/page.tsx`
+- Key execution modules:
+  - `src/lib/canvas/opsExecutor.ts` (op execution and animation)
+  - `src/lib/realtime/subscribeOps.ts` (ops realtime subscription + deduplication)
+  - `src/hooks/chat/useGeneration.ts` (generation lifecycle and placeholders)
+  - `supabase/functions/generate-ops/index.ts` and `supabase/functions/generate-image/index.ts` (AI generation backend)
+- Runtime requirement: Node.js >= 18.12 (recommended 20+) and pnpm 10+
+
+### Current Repository Notes (as checked on 2026-02-13)
+
+- `README.md` merge conflict markers were cleaned; re-check after major merges.
+- Baseline Vitest tests now exist under `tests/` and should be expanded for core flows.
+- Existing local environment with Node.js 14 cannot run current pnpm scripts (`pnpm lint` / `pnpm test`) until Node is upgraded.
+
 ## Commands
 
 ### Development

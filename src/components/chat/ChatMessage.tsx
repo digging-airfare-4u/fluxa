@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Image from 'next/image';
 import { Copy, Check, ChevronDown, Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ export function ChatMessage({
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   
   const isAI = message.role === 'assistant';
@@ -70,8 +72,6 @@ export function ChatMessage({
   
   // Get image URL from metadata.imageUrl or metadata.op.payload.src
   const imageUrl = metadata?.imageUrl || (metadata?.op as { payload?: { src?: string } })?.payload?.src;
-  
-  // Get layer ID from metadata.op.payload.id
   const layerId = (metadata?.op as { payload?: { id?: string } })?.payload?.id;
   
   // Get referenced image from user message
@@ -105,11 +105,11 @@ export function ChatMessage({
 
   const handleImageClick = useCallback(() => {
     console.log('[ChatMessage] handleImageClick called', { imageUrl });
-    // Always open preview dialog for chat history images
     if (imageUrl) {
+      onImageClick?.(imageUrl, layerId);
       setPreviewOpen(true);
     }
-  }, [imageUrl]);
+  }, [imageUrl, onImageClick, layerId]);
 
   // User message - simple clean style
   if (!isAI) {
@@ -141,17 +141,25 @@ export function ChatMessage({
         {/* Referenced image preview */}
         {referencedImage && (
           <div className="mb-2 group relative inline-block">
-            <img
-              src={referencedImage.url}
-              alt=""
-              className="size-10 rounded-lg object-cover cursor-pointer"
-            />
+            <div className="relative size-10 rounded-lg overflow-hidden cursor-pointer">
+              <Image
+                src={referencedImage.url}
+                alt={t('assets.reference_image')}
+                fill
+                unoptimized
+                sizes="40px"
+                className="object-cover"
+              />
+            </div>
             {/* Hover preview */}
             <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50">
               <div className="p-1 bg-white dark:bg-[#1A1028] rounded-lg shadow-lg border border-black/10 dark:border-white/10">
-                <img
+                <Image
                   src={referencedImage.url}
-                  alt=""
+                  alt={t('assets.reference_image')}
+                  width={200}
+                  height={200}
+                  unoptimized
                   className="max-w-[200px] max-h-[200px] rounded object-contain"
                 />
               </div>
@@ -188,6 +196,28 @@ export function ChatMessage({
       <div className="chat-message-ai">
         <p className="whitespace-pre-wrap font-medium">{message.content}</p>
       </div>
+
+      {/* Optional reasoning/thinking summary */}
+      {metadata?.thinking && (
+        <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen} className="mt-3">
+          <CollapsibleTrigger className="chat-collapsible-trigger w-full">
+            <Search className="size-3.5" />
+            <span>{t('message.view_thinking_process')}</span>
+            <ChevronDown className={cn(
+              "size-3 ml-auto transition-transform",
+              thinkingOpen && "rotate-180"
+            )} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="chat-quote-card">
+              <p className="text-xs text-foreground mb-2 font-medium">{t('message.thinking_details')}</p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                {metadata.thinking}
+              </p>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Collapsible info section (if there's a plan/process) */}
       {metadata?.plan && (
@@ -242,11 +272,15 @@ export function ChatMessage({
             <X className="size-5" />
           </button>
           {imageUrl && (
-            <img
-              src={imageUrl}
-              alt="Preview"
-              className="w-full h-full max-h-[85vh] object-contain"
-            />
+            <div className="relative w-[90vw] h-[85vh]">
+              <Image
+                src={imageUrl}
+                alt="Preview"
+                fill
+                unoptimized
+                className="object-contain"
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

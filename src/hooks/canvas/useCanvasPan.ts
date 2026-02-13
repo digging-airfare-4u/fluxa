@@ -3,7 +3,7 @@
  * Requirements: Space+drag and middle mouse panning
  */
 
-import { useState, useCallback, useEffect, useRef, RefObject } from 'react';
+import { useState, useEffect, useRef, RefObject } from 'react';
 import type * as fabric from 'fabric';
 import type { ToolType } from '@/components/canvas/types';
 

@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -147,9 +148,11 @@ export function AuthDialog({
       <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
         <DialogHeader className="p-6 pb-4">
           <div className="flex flex-col items-center gap-3">
-            <img 
+            <Image
               src="/logo.png" 
               alt={tCommon('accessibility.logo_alt')} 
+              width={48}
+              height={48}
               className="size-12 rounded-xl"
             />
             <DialogTitle className="text-xl font-semibold">

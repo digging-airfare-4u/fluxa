@@ -83,13 +83,18 @@ export default function LandingPage() {
   }, [animate, showIntro]);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    let isMounted = true;
 
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    setIsAuthenticated(!!session);
-  }
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleGetStarted = () => {
     if (isAuthenticated) {

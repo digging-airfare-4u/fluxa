@@ -7,10 +7,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import Image from 'next/image';
 import { useT } from '@/lib/i18n/hooks';
 import { 
   Plus, Home, FolderOpen, User, Info,
-  Image, Star, PenTool, ShoppingBag, Video,
+  Image as ImageIcon, Star, PenTool, ShoppingBag, Video,
   FileText, ShieldCheck
 } from 'lucide-react';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
@@ -29,7 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const QUICK_TAGS = [
-  { id: 'design', label: 'Design', icon: Image },
+  { id: 'design', label: 'Design', icon: ImageIcon },
   { id: 'branding', label: 'Branding', icon: Star },
   { id: 'illustration', label: 'Illustration', icon: PenTool },
   { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag },
@@ -46,11 +47,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -67,7 +64,11 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
 
   const handlePromptSubmit = useCallback(async (prompt: string) => {
     try {
@@ -121,9 +122,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
       {/* Top left logo */}
       <div className="fixed top-4 left-4 z-50">
-        <img 
+        <Image
           src="/logo.png" 
           alt={tCommon('accessibility.logo_alt')} 
+          width={40}
+          height={40}
           className="size-10 rounded-xl"
         />
       </div>
@@ -220,7 +223,13 @@ export default function HomePage() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-2" side="top">
-                    <img src="/contactwechat.png" alt={tCommon('accessibility.wechat_qr')} className="w-48 h-48 object-contain" />
+                    <Image
+                      src="/contactwechat.png"
+                      alt={tCommon('accessibility.wechat_qr')}
+                      width={192}
+                      height={192}
+                      className="w-48 h-48 object-contain"
+                    />
                     <p className="text-xs text-center text-muted-foreground mt-1">扫码加入微信群</p>
                   </PopoverContent>
                 </Popover>
@@ -244,9 +253,11 @@ export default function HomePage() {
           {/* Hero section */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <img 
+              <Image
                 src="/logo.png" 
                 alt={tCommon('accessibility.logo_alt')} 
+                width={40}
+                height={40}
                 className="size-10 rounded-xl"
               />
               <h1 className="text-3xl font-heading font-bold text-[#1A1A1A] dark:text-white">

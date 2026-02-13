@@ -9,14 +9,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { User, X } from 'lucide-react';
+import { User } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { UserProfilePoints } from './UserProfilePoints';
 import { supabase } from '@/lib/supabase/client';
 

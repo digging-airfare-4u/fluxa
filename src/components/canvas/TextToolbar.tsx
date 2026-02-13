@@ -6,7 +6,7 @@
  * Requirements: 13.1 - Translate all aria-label attributes
  */
 
-import { useState, useCallback, useEffect, forwardRef } from 'react';
+import { useState, useCallback, forwardRef } from 'react';
 import {
   Bold,
   Italic,

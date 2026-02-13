@@ -5,7 +5,7 @@
  * Requirements: 3.3 - Initialize points state on app load
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { usePointsStore } from '@/lib/store/usePointsStore';
@@ -46,6 +46,27 @@ export default function AppLayout({
   const [userId, setUserId] = useState<string | null>(null);
   const resetPointsStore = usePointsStore((state) => state.reset);
 
+  const checkAuth = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        setIsAuthenticated(true);
+        setUserId(session.user.id);
+      } else {
+        // No session - redirect to auth page
+        router.push('/auth');
+        return;
+      }
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      router.push('/auth');
+      return;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
   useEffect(() => {
     checkAuth();
 
@@ -64,28 +85,7 @@ export default function AppLayout({
     });
 
     return () => subscription.unsubscribe();
-  }, [router, resetPointsStore]);
-
-  async function checkAuth() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setIsAuthenticated(true);
-        setUserId(session.user.id);
-      } else {
-        // No session - redirect to auth page
-        router.push('/auth');
-        return;
-      }
-    } catch (err) {
-      console.error('Auth check failed:', err);
-      router.push('/auth');
-      return;
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, [checkAuth, router, resetPointsStore]);
 
   // Loading state
   if (isLoading) {

@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Plus, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useTranslations, useFormatter } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -103,11 +103,13 @@ function ProjectCard({ project, onClick, onDelete, onImageLoad }: ProjectCardPro
         {/* Thumbnail */}
         <div className="aspect-[4/3] relative bg-[#F0F0F0] dark:bg-[#0F0A1F]">
           {project.thumbnail ? (
-            <img
+            <Image
               src={project.thumbnail}
               alt={project.name}
+              fill
+              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
               className={cn(
-                "w-full h-full object-cover transition-opacity duration-200",
+                "object-cover transition-opacity duration-200",
                 imageLoaded ? "opacity-100" : "opacity-0"
               )}
               onLoad={handleImageLoad}
@@ -210,8 +212,6 @@ export function ProjectGrid({
   onDeleteProject,
   isLoading = false,
 }: ProjectGridProps) {
-  const router = useRouter();
-
   const handleProjectClick = (projectId: string) => {
     window.open(`/app/p/${projectId}`, '_blank');
   };

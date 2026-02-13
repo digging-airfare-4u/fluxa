@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   Plus, Home, FolderOpen, User, Info, Settings, LogOut
 } from 'lucide-react';
@@ -40,11 +41,7 @@ export default function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -61,7 +58,11 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
 
   const handleNewProject = useCallback(async () => {
     try {
@@ -95,9 +96,11 @@ export default function ProjectsPage() {
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
       {/* Top left logo */}
       <div className="fixed top-4 left-4 z-50">
-        <img 
+        <Image
           src="/logo.png" 
           alt={tCommon('accessibility.logo_alt')} 
+          width={40}
+          height={40}
           className="size-10 rounded-xl"
         />
       </div>

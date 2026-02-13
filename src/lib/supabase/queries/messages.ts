@@ -18,6 +18,8 @@ export interface MessageMetadata {
   plan?: string;
   ops?: Op[];
   imageUrl?: string;
+  /** Optional thought summary returned by model (for UI display) */
+  thinking?: string;
   /** Indicates a pending message during generation (client-side only) */
   isPending?: boolean;
   /** AI model name for display (e.g., "Nano Banana Pro") */

@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Image, MessageSquare, Zap } from 'lucide-react';
+import { Check, Image as ImageIcon, MessageSquare, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -37,19 +37,6 @@ function isImageModel(model: AIModel): boolean {
   return model.name.includes('seedream') || 
          model.name.includes('dall-e') || 
          model.name.includes('gemini') && model.name.includes('image');
-}
-
-/**
- * Get provider display name
- */
-function getProviderLabel(provider: string): string {
-  const labels: Record<string, string> = {
-    'volcengine': '火山引擎',
-    'google': 'Google',
-    'openai': 'OpenAI',
-    'anthropic': 'Anthropic',
-  };
-  return labels[provider] || provider;
 }
 
 export function ModelSelector({
@@ -85,7 +72,7 @@ export function ModelSelector({
               className="size-6 rounded-full text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-black/10 dark:border-white/10"
             >
               {currentIsImageModel ? (
-                <Image className="size-3.5" />
+                <ImageIcon className="size-3.5" />
               ) : (
                 <MessageSquare className="size-3.5" />
               )}
@@ -118,7 +105,7 @@ export function ModelSelector({
                 className="flex items-center justify-between gap-2 py-2 cursor-pointer"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Image className="size-3.5 text-muted-foreground shrink-0" />
+                  <ImageIcon className="size-3.5 text-muted-foreground shrink-0" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm truncate">{model.display_name}</span>
                     {model.description && (

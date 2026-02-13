@@ -20,7 +20,7 @@ import {
   Unlock,
   Square,
   Type,
-  Image,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,7 @@ function getLayerTypeIcon(type: LayerType) {
     case 'text':
       return <Type className="size-4" strokeWidth={1.5} />;
     case 'image':
-      return <Image className="size-4" strokeWidth={1.5} />;
+      return <ImageIcon className="size-4" strokeWidth={1.5} />;
     default:
       return <Square className="size-4" strokeWidth={1.5} />;
   }
@@ -126,7 +126,7 @@ export function LayerItem({
       onClick={onSelect}
       role="button"
       tabIndex={0}
-      aria-selected={isSelected}
+      aria-pressed={isSelected}
       aria-label={t('layer_panel.layer_aria', { name: layer.name })}
     >
       {/* Layer type icon */}

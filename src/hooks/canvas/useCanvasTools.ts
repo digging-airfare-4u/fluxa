@@ -19,45 +19,48 @@ export interface UseCanvasToolsOptions {
   activeTool: ToolType;
 }
 
+function applyToolToCanvas(canvas: fabric.Canvas, activeTool: ToolType): void {
+  // Reset drawing mode
+  canvas.isDrawingMode = false;
+  canvas.selection = true;
+
+  // Set cursor based on tool
+  switch (activeTool) {
+    case 'rectangle':
+      canvas.defaultCursor = 'crosshair';
+      canvas.hoverCursor = 'crosshair';
+      canvas.selection = false;
+      break;
+    case 'text':
+      canvas.defaultCursor = 'text';
+      canvas.hoverCursor = 'text';
+      canvas.selection = false;
+      break;
+    case 'pencil':
+      canvas.isDrawingMode = true;
+      canvas.selection = false;
+      canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+      canvas.freeDrawingBrush.color = '#000000';
+      canvas.freeDrawingBrush.width = 2;
+      break;
+    case 'boxSelect':
+      canvas.defaultCursor = 'crosshair';
+      canvas.hoverCursor = 'crosshair';
+      canvas.selection = true;
+      break;
+    default:
+      // Select tool - restore default cursor
+      canvas.defaultCursor = SELECT_CURSOR_URL;
+      canvas.hoverCursor = SELECT_CURSOR_URL;
+      break;
+  }
+
+  canvas.requestRenderAll();
+}
+
 export function useCanvasTools({ canvas, activeTool }: UseCanvasToolsOptions): void {
   useEffect(() => {
     if (!canvas) return;
-
-    // Reset drawing mode
-    canvas.isDrawingMode = false;
-    canvas.selection = true;
-
-    // Set cursor based on tool
-    switch (activeTool) {
-      case 'rectangle':
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-        break;
-      case 'text':
-        canvas.defaultCursor = 'text';
-        canvas.hoverCursor = 'text';
-        canvas.selection = false;
-        break;
-      case 'pencil':
-        canvas.isDrawingMode = true;
-        canvas.selection = false;
-        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
-        canvas.freeDrawingBrush.color = '#000000';
-        canvas.freeDrawingBrush.width = 2;
-        break;
-      case 'boxSelect':
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = true;
-        break;
-      default:
-        // Select tool - restore default cursor
-        canvas.defaultCursor = SELECT_CURSOR_URL;
-        canvas.hoverCursor = SELECT_CURSOR_URL;
-        break;
-    }
-
-    canvas.requestRenderAll();
+    applyToolToCanvas(canvas, activeTool);
   }, [canvas, activeTool]);
 }

@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage"
@@ -16,6 +16,10 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.4.1",
     "@number-flow/react": "^0.5.10",

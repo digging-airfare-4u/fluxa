@@ -13,23 +13,18 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    // Check localStorage first, then system preference
-    const stored = localStorage.getItem('theme') as Theme | null;
-    if (stored) {
-      setThemeState(stored);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setThemeState('dark');
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
     }
-  }, []);
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   useEffect(() => {
-    if (!mounted) return;
-    
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
@@ -37,7 +32,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
-  }, [theme, mounted]);
+  }, [theme]);
 
   const toggleTheme = () => {
     setThemeState(prev => prev === 'light' ? 'dark' : 'light');

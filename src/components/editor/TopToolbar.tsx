@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import {
   ChevronUp,
   Menu,
@@ -40,7 +41,6 @@ import { useT } from '@/lib/i18n/hooks';
 interface TopToolbarProps {
   projectName: string;
   onProjectNameChange?: (name: string) => void;
-  onExport?: () => void;
   onEditElement?: () => void;
   onEditText?: () => void;
   onNewProject?: () => void;
@@ -53,7 +53,6 @@ interface TopToolbarProps {
 export function TopToolbar({
   projectName,
   onProjectNameChange,
-  onExport,
   onEditElement,
   onEditText,
   onNewProject,
@@ -122,9 +121,11 @@ export function TopToolbar({
                   <ChevronUp className="size-4 text-[#666] dark:text-[#888]" />
                 </>
               ) : (
-                <img 
+                <Image
                   src="/logo.png" 
                   alt={tCommon('accessibility.logo_alt')} 
+                  width={32}
+                  height={32}
                   className="size-8 rounded-lg"
                 />
               )}

@@ -7,13 +7,14 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
-import { errorToResponse, AuthError, ValidationError, InsufficientPointsError } from '../_shared/errors/index.ts';
+import { errorToResponse, AuthError, ValidationError, InsufficientPointsError, ProviderError } from '../_shared/errors/index.ts';
 import { JobService } from '../_shared/services/job.ts';
 import { AssetService } from '../_shared/services/asset.ts';
 import { PointsService } from '../_shared/services/points.ts';
 import { OpsService } from '../_shared/services/ops.ts';
 import { createRegistry } from '../_shared/providers/registry-setup.ts';
 import { calculateDimensions } from '../_shared/providers/gemini.ts';
+import { fetchReferenceImageForGemini } from '../_shared/utils/reference-image.ts';
 import type { ImageGenerateRequest, ImageGenerateResponse, ResolutionPreset, AspectRatio } from '../_shared/types/index.ts';
 
 // CORS headers for browser requests
@@ -24,6 +25,7 @@ const corsHeaders = {
 
 // Default model
 const DEFAULT_MODEL = 'gemini-2.5-flash-image';
+const DEFAULT_REFERENCE_COMPRESS_THRESHOLD_BYTES = 2 * 1024 * 1024; // 2MB
 
 /**
  * Validate request body
@@ -72,21 +74,25 @@ function validateRequest(body: unknown): { valid: true; data: ImageGenerateReque
 /**
  * Fetch reference image and convert to base64
  */
-async function fetchReferenceImage(url: string): Promise<{ base64: string; mimeType: string } | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.warn(`[generate-image] Failed to fetch reference image: ${response.status}`);
-      return null;
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    const mimeType = response.headers.get('content-type') || 'image/png';
-    return { base64, mimeType };
-  } catch (error) {
-    console.warn(`[generate-image] Error fetching reference image:`, error);
-    return null;
+function arrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
+  // Avoid spreading large Uint8Arrays into fromCharCode (argument limit / stack overflow).
+  const bytes = new Uint8Array(arrayBuffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
   }
+
+  return btoa(binary);
+}
+
+function getIntEnv(name: string, fallback: number): number {
+  const raw = Deno.env.get(name);
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 /**
@@ -223,13 +229,29 @@ Deno.serve(async (req: Request) => {
       console.log(`[generate-image] Aspect Ratio: ${request.aspectRatio || '1:1'}`);
       console.log(`[generate-image] Has Image URL: ${!!request.imageUrl}`);
       
-      // Fetch reference image if provided
-      let referenceImage: { base64: string; mimeType: string } | null = null;
+      // Fetch and optionally compress reference image if provided
+      let referenceImage: { base64: string; mimeType: string; sizeBytes: number; strategy: string } | null = null;
       if (request.imageUrl) {
+        const compressThresholdBytes = getIntEnv(
+          'GEMINI_REFERENCE_COMPRESS_THRESHOLD_BYTES',
+          DEFAULT_REFERENCE_COMPRESS_THRESHOLD_BYTES
+        );
         console.log(`[generate-image] Fetching reference image from: ${request.imageUrl}`);
-        referenceImage = await fetchReferenceImage(request.imageUrl);
-        if (referenceImage) {
-          console.log(`[generate-image] Reference image fetched: ${referenceImage.mimeType}, base64 length: ${referenceImage.base64.length}`);
+        const preparedReference = await fetchReferenceImageForGemini(request.imageUrl, {
+          compressThresholdBytes,
+        });
+
+        if (preparedReference) {
+          const base64 = arrayBufferToBase64(preparedReference.arrayBuffer);
+          referenceImage = {
+            base64,
+            mimeType: preparedReference.mimeType,
+            sizeBytes: preparedReference.sizeBytes,
+            strategy: preparedReference.strategy,
+          };
+          console.log(
+            `[generate-image] Reference image ready: mime=${referenceImage.mimeType}, size=${referenceImage.sizeBytes}, strategy=${referenceImage.strategy}, base64Length=${referenceImage.base64.length}`
+          );
         } else {
           console.warn(`[generate-image] Failed to fetch reference image`);
         }
@@ -256,6 +278,15 @@ Deno.serve(async (req: Request) => {
         referenceImageBase64: referenceImage?.base64,
         referenceImageMimeType: referenceImage?.mimeType,
       });
+
+      const providerTextResponse =
+        typeof imageResult.metadata?.textResponse === 'string'
+          ? imageResult.metadata.textResponse
+          : undefined;
+      const providerThoughtSummary =
+        typeof imageResult.metadata?.thoughtSummary === 'string'
+          ? imageResult.metadata.thoughtSummary
+          : undefined;
 
       console.log(`[generate-image] ========== GENERATION SUCCESS ==========`);
       console.log(`[generate-image] Image size: ${imageResult.imageData.byteLength} bytes`);
@@ -312,6 +343,8 @@ Deno.serve(async (req: Request) => {
         model: selectedModel,
         resolution,
         aspectRatio,
+        textResponse: providerTextResponse,
+        thoughtSummary: providerThoughtSummary,
       };
 
       // Update job to done
@@ -334,6 +367,42 @@ Deno.serve(async (req: Request) => {
 
     } catch (providerError) {
       console.error(`[generate-image] Provider error:`, providerError);
+
+      // Gemini native mode can legitimately return text-only output (no image bytes).
+      // Treat this as a completed text response so the chat can render it.
+      if (providerError instanceof ProviderError && providerError.providerCode === 'TEXT_ONLY_RESPONSE') {
+        const details = (providerError.details as Record<string, unknown> | undefined) || {};
+        const textResponse = typeof details.textResponse === 'string'
+          ? details.textResponse
+          : providerError.message;
+        const thoughtSummary = typeof details.thoughtSummary === 'string'
+          ? details.thoughtSummary
+          : undefined;
+
+        const textOnlyOutput = {
+          model: selectedModel,
+          resolution,
+          aspectRatio: request.aspectRatio || '1:1',
+          textResponse,
+          thoughtSummary,
+          providerCode: providerError.providerCode,
+        };
+
+        await jobService.updateStatus(job.id, 'done', textOnlyOutput);
+        console.log(`[generate-image] Job completed with text-only response: ${job.id}`);
+
+        const response: ImageGenerateResponse = {
+          jobId: job.id,
+          pointsDeducted: deductResult.pointsDeducted,
+          remainingPoints: deductResult.balanceAfter,
+          modelUsed: selectedModel,
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       
       // Update job to failed
       const errorMessage = providerError instanceof Error ? providerError.message : 'Image generation failed';

@@ -17,7 +17,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Loader2,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -28,7 +27,6 @@ import type {
   PointTransaction,
   TransactionType,
   TransactionSource,
-  PaginatedTransactions,
 } from '@/lib/supabase/types/points';
 
 interface TransactionHistoryProps {

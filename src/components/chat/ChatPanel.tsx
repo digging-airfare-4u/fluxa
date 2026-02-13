@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import Image from 'next/image';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ChatMessage } from './ChatMessage';
@@ -102,7 +103,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     setModels,
     setError,
     clearError,
-    setInsufficientPointsError,
     clearInsufficientPointsError,
     startGeneration,
   } = useChatStore();
@@ -271,11 +271,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     }
   }, [initialPrompt, isLoading, models.length, handleSendMessage]);
 
-  const handleImageClick = useCallback((imageUrl: string, layerId?: string) => {
+  const handleImageClick = useCallback((_imageUrl: string, layerId?: string) => {
     if (layerId && onLocateImage) {
       onLocateImage(layerId);
-    } else {
-      window.open(imageUrl, '_blank');
     }
   }, [onLocateImage]);
 
@@ -326,7 +324,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt={t('panel.title')} className="size-5" />
+          <Image src="/logo.png" alt={t('panel.title')} width={20} height={20} className="size-5" />
           <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">{t('panel.title')}</h2>
         </div>
         <div className="flex items-center gap-0">
@@ -352,7 +350,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in-slow">
-            <img src="/logo.png" alt={t('panel.title')} className="size-16 rounded-2xl mb-4" />
+            <Image src="/logo.png" alt={t('panel.title')} width={64} height={64} className="size-16 rounded-2xl mb-4" />
             <h3 className="font-semibold mb-2">{t('empty_state.title')}</h3>
             <p className="text-sm text-muted-foreground max-w-[240px]">{t('empty_state.description')}</p>
           </div>

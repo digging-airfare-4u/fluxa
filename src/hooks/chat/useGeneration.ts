@@ -81,7 +81,6 @@ export function useGeneration({
 }: UseGenerationOptions): UseGenerationReturn {
   const {
     generationPhase,
-    selectedModel,
     setGenerationPhase,
     completeGeneration,
     failGeneration,
@@ -224,8 +223,11 @@ export function useGeneration({
             layerId?: string; 
             publicUrl?: string; 
             signedUrl?: string;
+            textResponse?: string;
+            thoughtSummary?: string;
           } | undefined;
           const imageUrl = output?.publicUrl || output?.signedUrl;
+          const assistantContent = output?.textResponse || '';
           console.log('[useGeneration] output?.op:', output?.op);
 
           // Execute the addImage op to render the image on canvas
@@ -235,12 +237,6 @@ export function useGeneration({
             
             // Register layer ID so Realtime knows to skip this op
             pendingGenerationTracker.registerLayerId(imageOp.payload.id);
-            
-            // Check if user moved the placeholder during generation
-            const positionChanged = finalPosition && (
-              finalPosition.x !== imageOp.payload.x ||
-              finalPosition.y !== imageOp.payload.y
-            );
             
             // Build the op to execute (with fadeIn and potentially updated position)
             const opToExecute: AddImageOp = finalPosition
@@ -302,12 +298,13 @@ export function useGeneration({
             const assistantMessage = await createMessage({
               conversation_id: conversationId,
               role: 'assistant',
-              content: '',
+              content: assistantContent,
               metadata: {
                 jobId: result.jobId,
                 imageUrl,
                 op: output?.op,
                 modelName: currentModelName,
+                thinking: output?.thoughtSummary,
               },
             });
 
@@ -321,7 +318,7 @@ export function useGeneration({
           unsubscribe();
         };
 
-        const handleJobFailed = (job: Job) => {
+        const handleJobFailed = async (job: Job) => {
           if (handled) return;
           handled = true;
 
@@ -329,9 +326,36 @@ export function useGeneration({
           pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
           
           onRemovePlaceholder?.(placeholderId);
-          failGeneration(job.error || 'Image generation failed');
+
+          const failedOutput = job.output as {
+            textResponse?: string;
+            thoughtSummary?: string;
+          } | undefined;
+          const fallbackContent = failedOutput?.textResponse || job.error || 'Image generation failed';
+
+          try {
+            const assistantMessage = await createMessage({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: fallbackContent,
+              metadata: {
+                jobId: result.jobId,
+                modelName: currentModelName,
+                thinking: failedOutput?.thoughtSummary,
+              },
+            });
+            onPendingReplaced(pendingMessageId, assistantMessage);
+          } catch (error) {
+            console.error('[useGeneration] Failed to create assistant message for failed job:', error);
+          }
+
+          if (failedOutput?.textResponse) {
+            completeGeneration();
+          } else {
+            failGeneration(job.error || 'Image generation failed');
+          }
           onGeneratingChange?.(false);
-          unsubscribe();
+          await unsubscribe();
         };
 
         const { unsubscribe } = subscribeToJob(result.jobId, {
@@ -346,7 +370,7 @@ export function useGeneration({
           if (existingJob.status === 'done') {
             await handleJobDone(existingJob);
           } else if (existingJob.status === 'failed') {
-            handleJobFailed(existingJob);
+            await handleJobFailed(existingJob);
           }
         }
       }

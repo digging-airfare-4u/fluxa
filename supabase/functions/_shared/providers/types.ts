@@ -52,6 +52,10 @@ export interface ProviderRequest {
   referenceImageBase64?: string;
   /** MIME type of the reference image */
   referenceImageMimeType?: string;
+  /** Gemini Files API URI for large reference images */
+  referenceImageFileUri?: string;
+  /** Gemini Files API resource name (for cleanup) */
+  referenceImageFileName?: string;
 }
 
 // ============================================================================

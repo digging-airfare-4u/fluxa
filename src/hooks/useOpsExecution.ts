@@ -4,7 +4,7 @@
  * Requirements: 9.1, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9
  */
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { OpsExecutor, createOpsExecutor } from '@/lib/canvas/opsExecutor';
 import { useLayerStore } from '@/lib/store/useLayerStore';
 import type { CanvasStageRef } from '@/components/canvas';
@@ -34,6 +34,7 @@ export function useOpsExecution({
 }: UseOpsExecutionOptions): UseOpsExecutionReturn {
   const opsExecutorRef = useRef<OpsExecutor | null>(null);
   const initialOpsLoadedRef = useRef(false);
+  const [isReady, setIsReady] = useState(false);
   
   // Get Layer Store actions
   const { initializeFromOps } = useLayerStore();
@@ -41,8 +42,13 @@ export function useOpsExecution({
   // Initialize OpsExecutor when canvas is ready
   useEffect(() => {
     const checkCanvas = () => {
+      if (opsExecutorRef.current) {
+        setIsReady(true);
+        return true;
+      }
+
       const canvas = canvasRef.current?.getCanvas();
-      if (canvas && !opsExecutorRef.current) {
+      if (canvas) {
         opsExecutorRef.current = createOpsExecutor({
           canvas,
           onOpExecuted: (op, index) => {
@@ -54,6 +60,7 @@ export function useOpsExecution({
             onError?.(error, op);
           },
         });
+        setIsReady(true);
         return true;
       }
       return false;
@@ -68,7 +75,7 @@ export function useOpsExecution({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [onOpExecuted, onError]);
+  }, [canvasRef, onOpExecuted, onError]);
 
   // Reset when document changes
   useEffect(() => {
@@ -96,6 +103,7 @@ export function useOpsExecution({
           onError?.(error, op);
         },
       });
+      setIsReady(true);
     }
 
     try {
@@ -131,6 +139,6 @@ export function useOpsExecution({
 
   return {
     executeOps,
-    isReady: opsExecutorRef.current !== null,
+    isReady,
   };
 }

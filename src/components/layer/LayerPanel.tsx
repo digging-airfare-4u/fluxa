@@ -11,7 +11,7 @@
  * - Auto-updates when Layer Store changes
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LayerItem } from './LayerItem';
@@ -36,8 +36,6 @@ export function LayerPanel({ className }: LayerPanelProps) {
   const layers = useLayersArray();
   const selectedLayerId = useSelectedLayerId();
   const isPanelVisible = useIsPanelVisible();
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [shouldRender, setShouldRender] = useState(isPanelVisible);
   
   // Get store actions
   const {
@@ -46,23 +44,6 @@ export function LayerPanel({ className }: LayerPanelProps) {
     toggleLock,
     renameLayer,
   } = useLayerStore();
-
-  // Handle animation states
-  useEffect(() => {
-    if (isPanelVisible) {
-      // Opening: render immediately, animation handled by CSS
-      setShouldRender(true);
-      setIsAnimating(false);
-    } else {
-      // Closing: start animation, then hide after animation completes
-      setIsAnimating(true);
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-        setIsAnimating(false);
-      }, 200); // Match animation duration
-      return () => clearTimeout(timer);
-    }
-  }, [isPanelVisible]);
 
   // Handle layer selection
   const handleLayerSelect = useCallback((layerId: string) => {
@@ -84,11 +65,6 @@ export function LayerPanel({ className }: LayerPanelProps) {
     renameLayer(layerId, name);
   }, [renameLayer]);
 
-  // Don't render if not visible and not animating
-  if (!shouldRender) {
-    return null;
-  }
-
   return (
     <div
       className={cn(
@@ -97,7 +73,9 @@ export function LayerPanel({ className }: LayerPanelProps) {
         'rounded-2xl overflow-hidden',
         'bg-popover/95 backdrop-blur-xl',
         'border border-border shadow-2xl',
-        isAnimating ? 'animate-slide-out-left pointer-events-none' : 'animate-slide-in-left',
+        isPanelVisible
+          ? 'animate-slide-in-left pointer-events-auto opacity-100'
+          : 'animate-slide-out-left pointer-events-none opacity-0 -translate-x-4',
         className
       )}
       style={{ width: LAYER_PANEL_WIDTH }}

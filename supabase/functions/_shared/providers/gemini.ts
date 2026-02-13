@@ -84,6 +84,16 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+function estimateBase64DecodedBytes(base64: string): number {
+  const sanitized = base64.trim();
+  if (sanitized.length === 0) return 0;
+
+  const padding = sanitized.endsWith('==') ? 2 : sanitized.endsWith('=') ? 1 : 0;
+  return Math.floor((sanitized.length * 3) / 4) - padding;
+}
+
+const DEFAULT_INLINE_REFERENCE_MAX_BYTES = 4 * 1024 * 1024; // 4MB
+
 // ============================================================================
 // Gemini Provider Implementation
 // ============================================================================
@@ -418,10 +428,39 @@ export class GeminiProvider implements ImageProvider {
     if (!apiKey) {
       throw new ProviderError('GEMINI_API_KEY not configured', 'CONFIG_ERROR');
     }
-    
+
     const apiHost = await this.getApiHost();
-    const requestBody = this.buildRequestBody(request);
-    
+    const normalizedHost = apiHost.replace(/\/+$/, '');
+    const inlineReferenceMaxBytes = this.getInlineReferenceMaxBytes();
+    let requestForProvider = request;
+    let uploadedReferenceFileName: string | null = null;
+
+    if (request.referenceImageBase64 && request.referenceImageMimeType) {
+      const decodedBytes = estimateBase64DecodedBytes(request.referenceImageBase64);
+      console.log(`[Gemini] Reference image size estimate: ${decodedBytes} bytes (inline max: ${inlineReferenceMaxBytes})`);
+
+      if (decodedBytes > inlineReferenceMaxBytes) {
+        console.log(`[Gemini] Reference image exceeds inline threshold, switching to Files API upload`);
+        const uploadResult = await this.uploadReferenceImageToFilesApi(
+          normalizedHost,
+          apiKey,
+          base64ToArrayBuffer(request.referenceImageBase64),
+          request.referenceImageMimeType
+        );
+
+        uploadedReferenceFileName = uploadResult.name;
+        requestForProvider = {
+          ...request,
+          referenceImageBase64: undefined,
+          referenceImageFileUri: uploadResult.fileUri,
+          referenceImageFileName: uploadResult.name,
+          referenceImageMimeType: uploadResult.mimeType,
+        };
+      }
+    }
+
+    const requestBody = this.buildRequestBody(requestForProvider);
+
     const resolution = request.resolution || '1K';
     const aspectRatio = request.aspectRatio || '1:1';
     
@@ -430,40 +469,47 @@ export class GeminiProvider implements ImageProvider {
     console.log(`[Gemini] Resolution: ${resolution}`);
     console.log(`[Gemini] Aspect Ratio: ${aspectRatio}`);
     console.log(`[Gemini] Prompt: ${request.prompt}`);
-    console.log(`[Gemini] Has Reference Image: ${!!request.referenceImageBase64}`);
-    console.log(`[Gemini] API Host: ${apiHost}`);
+    console.log(`[Gemini] Has Reference Image: ${!!(requestForProvider.referenceImageBase64 || requestForProvider.referenceImageFileUri)}`);
+    console.log(`[Gemini] Reference Image Mode: ${requestForProvider.referenceImageFileUri ? 'files-api' : 'inline'}`);
+    console.log(`[Gemini] API Host: ${normalizedHost}`);
     console.log(`[Gemini] Request Body:`, JSON.stringify(requestBody, null, 2));
     console.log(`[Gemini] ========== NATIVE REQUEST END ==========`);
-    
-    const response = await fetch(
-      `${apiHost}/v1beta/models/${this.modelName}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      }
-    );
-    
-    console.log(`[Gemini] ========== NATIVE RESPONSE START ==========`);
-    console.log(`[Gemini] Status: ${response.status} ${response.statusText}`);
-    console.log(`[Gemini] Headers:`, Object.fromEntries(response.headers.entries()));
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Gemini] Error Response Body:`, errorText);
-      console.log(`[Gemini] ========== NATIVE RESPONSE END (ERROR) ==========`);
-      throw new ProviderError(
-        `Gemini API error: ${response.status}`,
-        'API_ERROR',
-        errorText
+
+    try {
+      const response = await fetch(
+        `${normalizedHost}/v1beta/models/${this.modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        }
       );
+
+      console.log(`[Gemini] ========== NATIVE RESPONSE START ==========`);
+      console.log(`[Gemini] Status: ${response.status} ${response.statusText}`);
+      console.log(`[Gemini] Headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Gemini] Error Response Body:`, errorText);
+        console.log(`[Gemini] ========== NATIVE RESPONSE END (ERROR) ==========`);
+        throw new ProviderError(
+          `Gemini API error: ${response.status}`,
+          'API_ERROR',
+          errorText
+        );
+      }
+
+      const responseData = await response.json();
+      console.log(`[Gemini] Success Response Body:`, JSON.stringify(responseData, null, 2));
+      console.log(`[Gemini] ========== NATIVE RESPONSE END ==========`);
+
+      return this.parseNativeResponse(responseData, requestForProvider);
+    } finally {
+      if (uploadedReferenceFileName) {
+        await this.deleteUploadedReferenceFile(normalizedHost, apiKey, uploadedReferenceFileName);
+      }
     }
-    
-    const responseData = await response.json();
-    console.log(`[Gemini] Success Response Body:`, JSON.stringify(responseData, null, 2));
-    console.log(`[Gemini] ========== NATIVE RESPONSE END ==========`);
-    
-    return this.parseNativeResponse(responseData, request);
   }
   
   /**
@@ -508,6 +554,133 @@ export class GeminiProvider implements ImageProvider {
     
     return data.value.host;
   }
+
+  private getInlineReferenceMaxBytes(): number {
+    const raw = typeof Deno !== 'undefined' && Deno.env
+      ? Deno.env.get('GEMINI_INLINE_REFERENCE_MAX_BYTES')
+      : undefined;
+
+    if (!raw) return DEFAULT_INLINE_REFERENCE_MAX_BYTES;
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return DEFAULT_INLINE_REFERENCE_MAX_BYTES;
+    }
+
+    return Math.floor(parsed);
+  }
+
+  private async uploadReferenceImageToFilesApi(
+    apiHost: string,
+    apiKey: string,
+    imageData: ArrayBuffer,
+    mimeType: string
+  ): Promise<{ name: string; fileUri: string; mimeType: string }> {
+    const normalizedHost = apiHost.replace(/\/+$/, '');
+    const uploadStartUrl = `${normalizedHost}/upload/v1beta/files?key=${apiKey}`;
+    const imageBytes = new Uint8Array(imageData);
+
+    const startResponse = await fetch(uploadStartUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(imageBytes.byteLength),
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+      },
+      body: JSON.stringify({
+        file: {
+          display_name: `fluxa-reference-${Date.now()}`,
+        },
+      }),
+    });
+
+    if (!startResponse.ok) {
+      const errorBody = await startResponse.text();
+      throw new ProviderError(
+        `Failed to start Gemini Files upload: ${startResponse.status}`,
+        'FILES_UPLOAD_START_FAILED',
+        errorBody,
+        'gemini',
+        this.modelName,
+        startResponse.status
+      );
+    }
+
+    const uploadUrl = startResponse.headers.get('x-goog-upload-url')
+      || startResponse.headers.get('X-Goog-Upload-URL')
+      || startResponse.headers.get('X-Goog-Upload-Url');
+
+    if (!uploadUrl) {
+      throw new ProviderError(
+        'Missing resumable upload URL from Gemini Files API',
+        'FILES_UPLOAD_START_FAILED',
+        undefined,
+        'gemini',
+        this.modelName
+      );
+    }
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': mimeType,
+        'X-Goog-Upload-Command': 'upload, finalize',
+        'X-Goog-Upload-Offset': '0',
+      },
+      body: imageBytes,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorBody = await uploadResponse.text();
+      throw new ProviderError(
+        `Failed to finalize Gemini Files upload: ${uploadResponse.status}`,
+        'FILES_UPLOAD_FINALIZE_FAILED',
+        errorBody,
+        'gemini',
+        this.modelName,
+        uploadResponse.status
+      );
+    }
+
+    const uploadData = await uploadResponse.json() as Record<string, unknown>;
+    const fileNode = (uploadData.file as Record<string, unknown> | undefined) ?? uploadData;
+    const name = typeof fileNode.name === 'string' ? fileNode.name : '';
+    const fileUri = typeof fileNode.uri === 'string' ? fileNode.uri : '';
+    const uploadedMimeType = typeof fileNode.mimeType === 'string' ? fileNode.mimeType : mimeType;
+
+    if (!name || !fileUri) {
+      throw new ProviderError(
+        'Gemini Files API did not return file name/URI',
+        'FILES_UPLOAD_INVALID_RESPONSE',
+        uploadData,
+        'gemini',
+        this.modelName
+      );
+    }
+
+    return { name, fileUri, mimeType: uploadedMimeType };
+  }
+
+  private async deleteUploadedReferenceFile(
+    apiHost: string,
+    apiKey: string,
+    fileName: string
+  ): Promise<void> {
+    const normalizedHost = apiHost.replace(/\/+$/, '');
+    const deleteUrl = `${normalizedHost}/v1beta/${fileName}?key=${apiKey}`;
+
+    try {
+      const response = await fetch(deleteUrl, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.text();
+        console.warn(`[Gemini] Failed to delete uploaded reference file ${fileName}: ${response.status} ${body}`);
+      }
+    } catch (error) {
+      console.warn(`[Gemini] Failed to delete uploaded reference file ${fileName}:`, error);
+    }
+  }
   
   /**
    * Build Gemini API request body
@@ -516,8 +689,15 @@ export class GeminiProvider implements ImageProvider {
     const contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = [];
     const parts: Array<Record<string, unknown>> = [];
     
-    // Add reference image if provided (image-to-image)
-    if (request.referenceImageBase64 && request.referenceImageMimeType) {
+    // Prefer Files API references when available (for large inputs), otherwise inline base64.
+    if (request.referenceImageFileUri && request.referenceImageMimeType) {
+      parts.push({
+        fileData: {
+          mimeType: request.referenceImageMimeType,
+          fileUri: request.referenceImageFileUri,
+        },
+      });
+    } else if (request.referenceImageBase64 && request.referenceImageMimeType) {
       parts.push({
         inlineData: {
           mimeType: request.referenceImageMimeType,
@@ -536,7 +716,12 @@ export class GeminiProvider implements ImageProvider {
     
     // Build generation config
     const generationConfig: Record<string, unknown> = {
+      // Keep both modalities so we can surface model text when no image is produced.
       responseModalities: ['IMAGE', 'TEXT'],
+      // Enable thought summaries so frontend can optionally display reasoning.
+      thinkingConfig: {
+        includeThoughts: true,
+      },
     };
     
     // Add image config with aspect ratio
@@ -569,59 +754,159 @@ export class GeminiProvider implements ImageProvider {
       console.error(`[Gemini] Parse Error: No candidates in response`);
       throw new ProviderError('No candidates in Gemini response', 'PARSE_ERROR');
     }
-    
-    const content = candidates[0].content as Record<string, unknown> | undefined;
-    console.log(`[Gemini] Content exists: ${!!content}`);
-    
-    if (!content) {
-      console.error(`[Gemini] Parse Error: No content in candidate`);
-      throw new ProviderError('No content in Gemini response candidate', 'PARSE_ERROR');
-    }
-    
-    const parts = content.parts as Array<Record<string, unknown>> | undefined;
-    console.log(`[Gemini] Parts count: ${parts?.length || 0}`);
-    
-    if (!parts || parts.length === 0) {
-      console.error(`[Gemini] Parse Error: No parts in content`);
-      throw new ProviderError('No parts in Gemini response content', 'PARSE_ERROR');
-    }
-    
-    // Find the image part
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      console.log(`[Gemini] Part ${i} keys:`, Object.keys(part));
-      
-      const inlineData = part.inlineData as { mimeType: string; data: string } | undefined;
-      if (inlineData?.data) {
-        console.log(`[Gemini] Found image in part ${i}`);
-        console.log(`[Gemini] MIME Type: ${inlineData.mimeType}`);
-        console.log(`[Gemini] Base64 data length: ${inlineData.data.length} chars`);
-        
-        const imageData = base64ToArrayBuffer(inlineData.data);
-        console.log(`[Gemini] ArrayBuffer size: ${imageData.byteLength} bytes`);
-        
-        const dimensions = this.getImageDimensions(imageData, inlineData.mimeType);
-        console.log(`[Gemini] Dimensions: ${dimensions?.width}x${dimensions?.height}`);
-        
-        const result = {
-          imageData,
-          mimeType: inlineData.mimeType || 'image/png',
-          width: dimensions?.width,
-          height: dimensions?.height,
-          metadata: {
-            thoughtSignature: responseData.thoughtSignature,
-            resolution: request.resolution,
-            aspectRatio: request.aspectRatio,
-          },
-        };
-        
-        console.log(`[Gemini] ========== PARSING SUCCESS ==========`);
-        return result;
+
+    const thoughtParts: string[] = [];
+    const textParts: string[] = [];
+    const thoughtSignatures: string[] = [];
+    let foundImage: { mimeType: string; data: string; candidateIndex: number; partIndex: number } | null = null;
+
+    for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+      const candidate = candidates[candidateIndex];
+      const content = candidate.content as Record<string, unknown> | undefined;
+      console.log(`[Gemini] Candidate ${candidateIndex} content exists: ${!!content}`);
+
+      if (!content) continue;
+
+      const parts = content.parts as Array<Record<string, unknown>> | undefined;
+      console.log(`[Gemini] Candidate ${candidateIndex} parts count: ${parts?.length || 0}`);
+
+      if (!parts || parts.length === 0) continue;
+
+      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+        const part = parts[partIndex];
+        console.log(`[Gemini] Candidate ${candidateIndex} part ${partIndex} keys:`, Object.keys(part));
+
+        const inlineData = this.extractNativeInlineData(part);
+        if (inlineData?.data && !foundImage) {
+          foundImage = {
+            mimeType: inlineData.mimeType || 'image/png',
+            data: inlineData.data,
+            candidateIndex,
+            partIndex,
+          };
+        }
+
+        const text = typeof part.text === 'string' ? part.text.trim() : '';
+        if (text) {
+          // Some providers return data URL in text payloads, keep this as a fallback.
+          if (!foundImage) {
+            const dataUrlImage = this.extractBase64ImageFromText(text);
+            if (dataUrlImage) {
+              foundImage = {
+                mimeType: dataUrlImage.mimeType,
+                data: dataUrlImage.base64,
+                candidateIndex,
+                partIndex,
+              };
+            }
+          }
+
+          if (part.thought === true) {
+            thoughtParts.push(text);
+          } else {
+            textParts.push(text);
+          }
+        }
+
+        const thoughtSignature =
+          (typeof part.thoughtSignature === 'string' ? part.thoughtSignature : undefined) ||
+          (typeof part.thought_signature === 'string' ? part.thought_signature : undefined);
+        if (thoughtSignature) {
+          thoughtSignatures.push(thoughtSignature);
+        }
       }
     }
-    
+
+    if (foundImage) {
+      console.log(`[Gemini] Found image in candidate ${foundImage.candidateIndex} part ${foundImage.partIndex}`);
+      console.log(`[Gemini] MIME Type: ${foundImage.mimeType}`);
+      console.log(`[Gemini] Base64 data length: ${foundImage.data.length} chars`);
+
+      const imageData = base64ToArrayBuffer(foundImage.data);
+      console.log(`[Gemini] ArrayBuffer size: ${imageData.byteLength} bytes`);
+
+      const dimensions = this.getImageDimensions(imageData, foundImage.mimeType);
+      console.log(`[Gemini] Dimensions: ${dimensions?.width}x${dimensions?.height}`);
+
+      const result = {
+        imageData,
+        mimeType: foundImage.mimeType || 'image/png',
+        width: dimensions?.width,
+        height: dimensions?.height,
+        metadata: {
+          textResponse: textParts.join('\n\n') || undefined,
+          thoughtSummary: thoughtParts.join('\n\n') || undefined,
+          thoughtSignatures,
+          resolution: request.resolution,
+          aspectRatio: request.aspectRatio,
+        },
+      };
+
+      console.log(`[Gemini] ========== PARSING SUCCESS ==========`);
+      return result;
+    }
+
+    const textResponse = textParts.join('\n\n').trim();
+    const thoughtSummary = thoughtParts.join('\n\n').trim();
+
+    if (textResponse) {
+      console.warn(`[Gemini] Parse Warning: Model returned text but no image data`);
+      throw new ProviderError(
+        textResponse,
+        'TEXT_ONLY_RESPONSE',
+        {
+          textResponse,
+          thoughtSummary: thoughtSummary || undefined,
+          thoughtSignatures,
+        },
+        'gemini',
+        this.modelName
+      );
+    }
+
     console.error(`[Gemini] Parse Error: No image data found in any part`);
-    throw new ProviderError('No image data found in Gemini response', 'PARSE_ERROR');
+    throw new ProviderError('No image data found in Gemini response', 'PARSE_ERROR', {
+      thoughtSummary: thoughtSummary || undefined,
+      thoughtSignatures,
+    });
+  }
+
+  /**
+   * Extract native inline image payload from camelCase/snake_case response variants.
+   */
+  private extractNativeInlineData(
+    part: Record<string, unknown>
+  ): { mimeType: string; data: string } | null {
+    const inlineData = part.inlineData as Record<string, unknown> | undefined;
+    if (inlineData && typeof inlineData.data === 'string' && inlineData.data.length > 0) {
+      return {
+        mimeType: (typeof inlineData.mimeType === 'string' ? inlineData.mimeType : 'image/png'),
+        data: inlineData.data,
+      };
+    }
+
+    const inlineDataSnake = part.inline_data as Record<string, unknown> | undefined;
+    if (inlineDataSnake && typeof inlineDataSnake.data === 'string' && inlineDataSnake.data.length > 0) {
+      return {
+        mimeType:
+          (typeof inlineDataSnake.mimeType === 'string' ? inlineDataSnake.mimeType :
+            typeof inlineDataSnake.mime_type === 'string' ? inlineDataSnake.mime_type : 'image/png'),
+        data: inlineDataSnake.data,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract base64 image from text payload (e.g., markdown/data URL fallback responses).
+   */
+  private extractBase64ImageFromText(
+    text: string
+  ): { mimeType: string; base64: string } | null {
+    const match = text.match(/data:(image\/[a-zA-Z+]+);base64,([A-Za-z0-9+/=]+)/);
+    if (!match) return null;
+    return { mimeType: match[1], base64: match[2] };
   }
   
   /**

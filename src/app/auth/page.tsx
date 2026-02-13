@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -95,7 +96,7 @@ export default function AuthPage() {
         setPassword('');
         setConfirmPassword('');
       }
-    } catch (err) {
+    } catch {
       setError('操作失败，请重试');
     } finally {
       setIsLoading(false);
@@ -123,9 +124,11 @@ export default function AuthPage() {
       <div className="w-full max-w-md relative z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <img 
+          <Image
             src="/logo.png" 
             alt={tCommon('accessibility.logo_alt')} 
+            width={64}
+            height={64}
             className="size-16 rounded-2xl mx-auto mb-4"
           />
           <h1 className="text-3xl font-bold text-[#1A1A1A] dark:text-white">

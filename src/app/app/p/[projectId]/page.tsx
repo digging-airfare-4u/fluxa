@@ -17,8 +17,8 @@ import {
   type Document,
   type Conversation,
 } from '@/lib/supabase/queries/projects';
-import { subscribeToOps, fetchOps, recordsToOps, type OpsDbRecord } from '@/lib/realtime/subscribeOps';
-import { subscribeToJobs, type Job } from '@/lib/realtime/subscribeJobs';
+import { subscribeToOps, fetchOps, recordsToOps } from '@/lib/realtime/subscribeOps';
+import { subscribeToJobs } from '@/lib/realtime/subscribeJobs';
 import type { Op } from '@/lib/canvas/ops.types';
 
 interface ProjectData {
@@ -40,6 +40,7 @@ export default function EditorPage() {
   
   // Ref to EditorLayout for executing ops
   const editorRef = useRef<EditorLayoutRef>(null);
+  const documentId = projectData?.document.id;
 
   // Load project data
   useEffect(() => {
@@ -84,9 +85,8 @@ export default function EditorPage() {
 
   // Subscribe to realtime updates and load initial ops
   useEffect(() => {
-    if (!projectData) return;
+    if (!documentId) return;
 
-    const { document } = projectData;
     let opsSubscription: ReturnType<typeof subscribeToOps> | null = null;
     let jobsSubscription: ReturnType<typeof subscribeToJobs> | null = null;
     let initialOpsLoaded = false;
@@ -96,14 +96,14 @@ export default function EditorPage() {
     const initializeOps = async () => {
       try {
         // First, fetch existing ops
-        const records = await fetchOps(document.id);
+        const records = await fetchOps(documentId);
         if (cancelled) return;
         
         const lastSeq = records.length > 0 ? Math.max(...records.map(r => r.seq)) : 0;
         
         // Subscribe to new ops with lastSeq to avoid duplicates
         opsSubscription = subscribeToOps(
-          document.id,
+          documentId,
           {
             onNewOps: (ops: Op[]) => {
               if (!initialOpsLoaded || cancelled) {
@@ -165,7 +165,7 @@ export default function EditorPage() {
       opsSubscription?.unsubscribe();
       jobsSubscription?.unsubscribe();
     };
-  }, [projectData?.document.id, projectId]);
+  }, [documentId, projectId]);
 
   // Handle project name change
   const handleProjectNameChange = useCallback(async (name: string) => {

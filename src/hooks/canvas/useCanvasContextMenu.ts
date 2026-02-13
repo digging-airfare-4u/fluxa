@@ -30,6 +30,7 @@ export interface UseCanvasContextMenuReturn {
 
 export function useCanvasContextMenu({ canvas }: UseCanvasContextMenuOptions): UseCanvasContextMenuReturn {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [canPaste, setCanPaste] = useState(false);
   const clipboardRef = useRef<fabric.FabricObject | null>(null);
 
   const openContextMenu = useCallback((e: React.MouseEvent) => {
@@ -52,6 +53,7 @@ export function useCanvasContextMenu({ canvas }: UseCanvasContextMenuOptions): U
     if (activeObject) {
       activeObject.clone().then((cloned: fabric.FabricObject) => {
         clipboardRef.current = cloned;
+        setCanPaste(true);
       });
     }
   }, [canvas]);
@@ -108,7 +110,7 @@ export function useCanvasContextMenu({ canvas }: UseCanvasContextMenuOptions): U
 
   return {
     contextMenu,
-    canPaste: clipboardRef.current !== null,
+    canPaste,
     openContextMenu,
     closeContextMenu,
     handleCopy,

@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -31,20 +32,27 @@ export function SiteHeader() {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   useEffect(() => {
-    checkAuth();
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setIsAuthenticated(!!session);
+    let isMounted = true;
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session);
+        setIsLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session);
+        setIsLoading(false);
+      }
+    });
 
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    setIsAuthenticated(!!session);
-    setIsLoading(false);
-  }
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <>
@@ -53,7 +61,13 @@ export function SiteHeader() {
           {/* Left: Logo */}
           <div className="flex-1">
             <Link href="/" className="flex items-center gap-2 w-fit">
-              <img src="/logo.png" alt={tCommon('accessibility.logo_alt')} className="size-8 rounded-lg" />
+              <Image
+                src="/logo.png"
+                alt={tCommon('accessibility.logo_alt')}
+                width={32}
+                height={32}
+                className="size-8 rounded-lg"
+              />
               <span className="font-semibold text-lg">Fluxa</span>
             </Link>
           </div>

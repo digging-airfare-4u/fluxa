@@ -10,7 +10,7 @@ import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supab
 import { supabase } from '../supabase/client';
 import { localOpTracker } from './localOpTracker';
 import { pendingGenerationTracker } from './pendingGenerationTracker';
-import { Op, OpType, OpsRecord } from '../canvas/ops.types';
+import { Op, OpType } from '../canvas/ops.types';
 
 /**
  * Database ops record structure

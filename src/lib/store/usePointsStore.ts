@@ -81,7 +81,7 @@ let activeChannel: RealtimeChannel | null = null;
  * }, [userId]);
  * ```
  */
-export const usePointsStore = create<PointsStore>((set, get) => ({
+export const usePointsStore = create<PointsStore>((set) => ({
   ...initialState,
 
   /**
