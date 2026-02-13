@@ -459,52 +459,85 @@ export class GeminiProvider implements ImageProvider {
       }
     }
 
-    const requestBody = this.buildRequestBody(requestForProvider);
-
     const resolution = request.resolution || '1K';
     const aspectRatio = request.aspectRatio || '1:1';
+    const maxNoImageRetries = 1;
+    const imageOnlyRetryPrompt = `${request.prompt}\n\nIMPORTANT: Return exactly one generated image. Do not return text.`;
+    let attemptRequest = requestForProvider;
     
-    console.log(`[Gemini] ========== NATIVE REQUEST START ==========`);
-    console.log(`[Gemini] Model: ${this.modelName}`);
-    console.log(`[Gemini] Resolution: ${resolution}`);
-    console.log(`[Gemini] Aspect Ratio: ${aspectRatio}`);
-    console.log(`[Gemini] Prompt: ${request.prompt}`);
-    console.log(`[Gemini] Has Reference Image: ${!!(requestForProvider.referenceImageBase64 || requestForProvider.referenceImageFileUri)}`);
-    console.log(`[Gemini] Reference Image Mode: ${requestForProvider.referenceImageFileUri ? 'files-api' : 'inline'}`);
-    console.log(`[Gemini] API Host: ${normalizedHost}`);
-    console.log(`[Gemini] Request Body:`, JSON.stringify(requestBody, null, 2));
-    console.log(`[Gemini] ========== NATIVE REQUEST END ==========`);
-
     try {
-      const response = await fetch(
-        `${normalizedHost}/v1beta/models/${this.modelName}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        }
-      );
+      for (let attempt = 0; attempt <= maxNoImageRetries; attempt++) {
+        const requestBody = this.buildRequestBody(attemptRequest);
 
-      console.log(`[Gemini] ========== NATIVE RESPONSE START ==========`);
-      console.log(`[Gemini] Status: ${response.status} ${response.statusText}`);
-      console.log(`[Gemini] Headers:`, Object.fromEntries(response.headers.entries()));
+        console.log(`[Gemini] ========== NATIVE REQUEST START ==========`);
+        console.log(`[Gemini] Attempt: ${attempt + 1}/${maxNoImageRetries + 1}`);
+        console.log(`[Gemini] Model: ${this.modelName}`);
+        console.log(`[Gemini] Resolution: ${resolution}`);
+        console.log(`[Gemini] Aspect Ratio: ${aspectRatio}`);
+        console.log(`[Gemini] Prompt: ${attemptRequest.prompt}`);
+        console.log(`[Gemini] Has Reference Image: ${!!(attemptRequest.referenceImageBase64 || attemptRequest.referenceImageFileUri)}`);
+        console.log(`[Gemini] Reference Image Mode: ${attemptRequest.referenceImageFileUri ? 'files-api' : 'inline'}`);
+        console.log(`[Gemini] API Host: ${normalizedHost}`);
+        console.log(`[Gemini] Request Body:`, JSON.stringify(requestBody, null, 2));
+        console.log(`[Gemini] ========== NATIVE REQUEST END ==========`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Gemini] Error Response Body:`, errorText);
-        console.log(`[Gemini] ========== NATIVE RESPONSE END (ERROR) ==========`);
-        throw new ProviderError(
-          `Gemini API error: ${response.status}`,
-          'API_ERROR',
-          errorText
+        const response = await fetch(
+          `${normalizedHost}/v1beta/models/${this.modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          }
         );
+
+        console.log(`[Gemini] ========== NATIVE RESPONSE START ==========`);
+        console.log(`[Gemini] Status: ${response.status} ${response.statusText}`);
+        console.log(`[Gemini] Headers:`, Object.fromEntries(response.headers.entries()));
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[Gemini] Error Response Body:`, errorText);
+          console.log(`[Gemini] ========== NATIVE RESPONSE END (ERROR) ==========`);
+          throw new ProviderError(
+            `Gemini API error: ${response.status}`,
+            'API_ERROR',
+            errorText
+          );
+        }
+
+        const responseData = await response.json() as Record<string, unknown>;
+        console.log(`[Gemini] Success Response Body:`, JSON.stringify(responseData, null, 2));
+        console.log(`[Gemini] ========== NATIVE RESPONSE END ==========`);
+
+        const rawCandidates = responseData.candidates;
+        const candidates = Array.isArray(rawCandidates)
+          ? rawCandidates as Array<Record<string, unknown>>
+          : [];
+        const hasNoImageFinishReason = candidates.some((candidate) => candidate.finishReason === 'NO_IMAGE');
+
+        if (hasNoImageFinishReason) {
+          if (attempt < maxNoImageRetries) {
+            console.warn(`[Gemini] finishReason=NO_IMAGE, retrying with stricter image-only prompt`);
+            attemptRequest = {
+              ...attemptRequest,
+              prompt: imageOnlyRetryPrompt,
+            };
+            continue;
+          }
+
+          throw new ProviderError(
+            'Model returned NO_IMAGE (no image generated)',
+            'NO_IMAGE_RESPONSE',
+            responseData,
+            'gemini',
+            this.modelName
+          );
+        }
+
+        return this.parseNativeResponse(responseData, attemptRequest);
       }
 
-      const responseData = await response.json();
-      console.log(`[Gemini] Success Response Body:`, JSON.stringify(responseData, null, 2));
-      console.log(`[Gemini] ========== NATIVE RESPONSE END ==========`);
-
-      return this.parseNativeResponse(responseData, requestForProvider);
+      throw new ProviderError('Image generation failed after retries', 'NO_IMAGE_RESPONSE', undefined, 'gemini', this.modelName);
     } finally {
       if (uploadedReferenceFileName) {
         await this.deleteUploadedReferenceFile(normalizedHost, apiKey, uploadedReferenceFileName);
@@ -716,12 +749,8 @@ export class GeminiProvider implements ImageProvider {
     
     // Build generation config
     const generationConfig: Record<string, unknown> = {
-      // Keep both modalities so we can surface model text when no image is produced.
-      responseModalities: ['IMAGE', 'TEXT'],
-      // Enable thought summaries so frontend can optionally display reasoning.
-      thinkingConfig: {
-        includeThoughts: true,
-      },
+      // Force image-only output to avoid text-only fallbacks from proxy providers.
+      responseModalities: ['IMAGE'],
     };
     
     // Add image config with aspect ratio

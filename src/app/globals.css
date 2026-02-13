@@ -713,13 +713,24 @@ h1, h2, h3, h4, h5, h6 {
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-/* User message - clean, minimal style */
+/* User message bubble style */
 .chat-message-user {
-  @apply text-sm leading-relaxed;
-  background: transparent;
-  border: none;
-  padding: 0;
-  max-width: 100%;
+  @apply inline-block text-sm leading-relaxed whitespace-pre-wrap;
+  color: #1f1f23;
+  background: #f0f0f2;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  padding: 12px 18px;
+  max-width: 88%;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  word-break: break-word;
+}
+
+.dark .chat-message-user {
+  color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
 }
 
 /* AI message container */

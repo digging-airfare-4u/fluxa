@@ -101,9 +101,9 @@ export function getLockLabel(isLocked: boolean): string {
  */
 export const TOOLBAR_OFFSET = {
   /** Vertical offset from image top edge */
-  TOP: 12,
+  TOP: 20,
   /** Vertical offset from image bottom edge when positioned below */
-  BOTTOM: 12,
+  BOTTOM: 20,
   /** Minimum distance from viewport edge */
-  EDGE_MARGIN: 8,
+  EDGE_MARGIN: 12,
 };

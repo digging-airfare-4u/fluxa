@@ -63,7 +63,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   onRemovePlaceholder,
   onGetPlaceholderPosition,
   onGetFreePosition,
-  onLocateImage,
   onLocateImageByUrl,
   initialCollapsed = false,
   initialPrompt,
@@ -271,11 +270,10 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     }
   }, [initialPrompt, isLoading, models.length, handleSendMessage]);
 
-  const handleImageClick = useCallback((_imageUrl: string, layerId?: string) => {
-    if (layerId && onLocateImage) {
-      onLocateImage(layerId);
-    }
-  }, [onLocateImage]);
+  const handleImageClick = useCallback((_imageUrl: string, _layerId?: string) => {
+    // Keep chat image click behavior local to chat preview dialog.
+    // Do not auto-locate/camera-jump on canvas.
+  }, []);
 
   const handleLocateInputImage = useCallback((imageUrl: string) => {
     if (onLocateImageByUrl) {
@@ -319,7 +317,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   return (
     <div 
-      className={`fixed top-4 right-4 bottom-4 w-[360px] z-40 flex flex-col rounded-xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-xl border border-black/10 dark:border-white/10 ${isAnimating ? 'animate-slide-out-right pointer-events-none' : 'animate-slide-in-right'}`}
+      className={`fixed top-4 right-4 bottom-4 w-[420px] max-w-[calc(100vw-2rem)] z-40 flex flex-col rounded-xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-xl border border-black/10 dark:border-white/10 ${isAnimating ? 'animate-slide-out-right pointer-events-none' : 'animate-slide-in-right'}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2">

@@ -115,7 +115,7 @@ export function ChatMessage({
   if (!isAI) {
     return (
       <div 
-        className="chat-message-wrapper relative mb-5"
+        className="chat-message-wrapper relative mb-5 flex flex-col items-end"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -167,7 +167,18 @@ export function ChatMessage({
           </div>
         )}
 
-        <p className="chat-message-user pr-8 font-medium">{message.content}</p>
+        <p
+          className={cn(
+            "inline-block max-w-[88%] whitespace-pre-wrap break-words",
+            "rounded-xl border px-4 py-3",
+            "text-sm leading-relaxed",
+            "text-[#1f1f23] bg-[#f0f0f2] border-black/[0.06]",
+            "shadow-[0_1px_0_rgba(15,23,42,0.06)]",
+            "dark:text-white/95 dark:bg-white/10 dark:border-white/15 dark:shadow-[0_1px_0_rgba(0,0,0,0.28)]"
+          )}
+        >
+          {message.content}
+        </p>
         <span 
           className="text-[10px] text-muted-foreground/60 mt-1 block text-right cursor-default"
           title={fullDateTime}
@@ -261,7 +272,10 @@ export function ChatMessage({
 
       {/* Image preview dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/90 border-none">
+        <DialogContent
+          showCloseButton={false}
+          className="w-[92vw] h-[88vh] max-w-[1400px] max-h-[920px] p-0 bg-black/92 border-none overflow-hidden flex items-center justify-center gap-0"
+        >
           <VisuallyHidden>
             <DialogTitle>{t('message.image_preview')}</DialogTitle>
           </VisuallyHidden>
@@ -272,7 +286,7 @@ export function ChatMessage({
             <X className="size-5" />
           </button>
           {imageUrl && (
-            <div className="relative w-[90vw] h-[85vh]">
+            <div className="relative w-full h-full">
               <Image
                 src={imageUrl}
                 alt="Preview"

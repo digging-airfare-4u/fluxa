@@ -19,7 +19,7 @@ import React, {
 import * as fabric from 'fabric';
 import { toast } from 'sonner';
 import { ContextMenu } from './ContextMenu';
-import { SelectionInfo, QuickEditHint } from './SelectionInfo';
+import { SelectionInfo } from './SelectionInfo';
 import { TextToolbar, type TextProperties } from './TextToolbar';
 import { ImageToolbar } from './ImageToolbar';
 import type { ImageToolbarLoadingStates } from './ImageToolbar.types';
@@ -41,9 +41,12 @@ export type { ToolType, LayerInfo, CanvasState, LayerModifiedEvent };
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
-const ZOOM_FACTOR = 1.15;
-const ZOOM_STEP = 0.5;
+const WHEEL_ZOOM_SENSITIVITY = 0.0026;
+const ZOOM_STEP = 0.4;
 const PAN_SENSITIVITY = 1;
+const IMAGE_TOOLBAR_GAP = 20;
+const IMAGE_TOOLBAR_EDGE_MARGIN = 12;
+const IMAGE_CONTROL_HIT_SIZE = 28;
 
 // Custom cursor SVG for select tool
 const SELECT_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -94,6 +97,8 @@ interface SelectionInfoState {
   height: number;
   x: number;
   y: number;
+  attachedToImageBorder?: boolean;
+  attachedWidth?: number;
 }
 
 interface TextToolbarState {
@@ -159,7 +164,6 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     const selectedTextRef = useRef<fabric.IText | null>(null);
     const selectedImageRef = useRef<fabric.FabricImage | null>(null);
     const selectionInfoRef = useRef<HTMLDivElement | null>(null);
-    const quickEditHintRef = useRef<HTMLDivElement | null>(null);
     const textToolbarRef = useRef<HTMLDivElement | null>(null);
     const imageToolbarRef = useRef<HTMLDivElement | null>(null);
     const selectionUpdateRafRef = useRef<number | null>(null);
@@ -167,6 +171,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     const movingEventCountRef = useRef(0);
     const movingLogTimeRef = useRef(0);
     const lastMoveUpdateRef = useRef(0);
+    const isDraggingImageRef = useRef(false);
     const moveUpdateThrottleMs = 100;
 
     // Context menu state
@@ -233,6 +238,41 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       }
     }, [onLayersChange, extractLayers]);
 
+    const applyImageSelectionAppearance = useCallback((imageObj: fabric.FabricImage) => {
+      const alreadyApplied =
+        imageObj.hasBorders === true &&
+        imageObj.hasControls === true &&
+        imageObj.borderColor === '#3B82F6' &&
+        imageObj.borderScaleFactor === 1.25 &&
+        imageObj.cornerSize === IMAGE_CONTROL_HIT_SIZE &&
+        imageObj.moveCursor === SELECT_CURSOR_URL &&
+        imageObj.hoverCursor === SELECT_CURSOR_URL;
+
+      if (!alreadyApplied) {
+        imageObj.set({
+          hasBorders: true,
+          hasControls: true,
+          borderColor: '#3B82F6',
+          borderScaleFactor: 1.25,
+          cornerStyle: 'rect',
+          cornerColor: 'rgba(0, 0, 0, 0)',
+          cornerStrokeColor: 'rgba(0, 0, 0, 0)',
+          transparentCorners: false,
+          cornerSize: IMAGE_CONTROL_HIT_SIZE,
+          moveCursor: SELECT_CURSOR_URL,
+          hoverCursor: SELECT_CURSOR_URL,
+        });
+      }
+
+      const imageWithControls = imageObj as fabric.FabricImage & {
+        setControlsVisibility?: (options: Record<string, boolean>) => void;
+      };
+      imageWithControls.setControlsVisibility?.({ mtr: false });
+      if (!alreadyApplied) {
+        fabricRef.current?.requestRenderAll();
+      }
+    }, []);
+
     // Update selection info
     const updateSelectionInfo = useCallback((
       obj: fabric.FabricObject,
@@ -254,19 +294,15 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         if (!vpt) return;
 
-        const screenX = boundingRect.left * vpt[0] + vpt[4];
         const screenY = boundingRect.top * vpt[3] + vpt[5];
-        const centerX = screenX + (boundingRect.width * vpt[0]) / 2;
+        const centerX = (boundingRect.left + boundingRect.width / 2) * vpt[0] + vpt[4];
+        const isImage = obj.type === 'image';
 
         if (selectionInfoRef.current) {
           selectionInfoRef.current.style.left = `${centerX}px`;
-          selectionInfoRef.current.style.top = `${screenY - 36}px`;
-        }
-
-        if (quickEditHintRef.current) {
-          const hintTop = screenY + boundingRect.height * vpt[3] + 12;
-          quickEditHintRef.current.style.left = `${centerX}px`;
-          quickEditHintRef.current.style.top = `${hintTop}px`;
+          selectionInfoRef.current.style.top = isImage
+            ? `${screenY}px`
+            : `${screenY - 36}px`;
         }
 
         if (textToolbarRef.current) {
@@ -276,9 +312,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         if (imageToolbarRef.current) {
           const toolbarHeight = 44;
-          const edgeMargin = 8;
-          const positionBelow = screenY < toolbarHeight + edgeMargin;
-          const topY = positionBelow ? screenY + 12 : screenY - 12;
+          const positionBelow = screenY < toolbarHeight + IMAGE_TOOLBAR_EDGE_MARGIN;
+          const topY = positionBelow ? screenY + IMAGE_TOOLBAR_GAP : screenY - IMAGE_TOOLBAR_GAP;
           imageToolbarRef.current.style.left = `${centerX}px`;
           imageToolbarRef.current.style.top = `${topY}px`;
           imageToolbarRef.current.style.transform = positionBelow
@@ -288,11 +323,11 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         if (options?.positionOnly && obj.type === 'image') {
           const imageObj = obj as fabric.FabricImage;
+          applyImageSelectionAppearance(imageObj);
           const scaledWidth = boundingRect.width * vpt[0];
           const scaledHeight = boundingRect.height * vpt[3];
           const toolbarHeight = 44;
-          const edgeMargin = 8;
-          const positionBelow = screenY < toolbarHeight + edgeMargin;
+          const positionBelow = screenY < toolbarHeight + IMAGE_TOOLBAR_EDGE_MARGIN;
           const isLocked = !imageObj.selectable || !imageObj.evented;
 
           selectedImageRef.current = imageObj;
@@ -305,6 +340,16 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             positionBelow,
             isLocked,
           } : prev);
+
+          setSelectionInfo({
+            type: obj.type || 'object',
+            width: boundingRect.width,
+            height: boundingRect.height,
+            x: centerX,
+            y: screenY,
+            attachedToImageBorder: true,
+            attachedWidth: Math.max(110, scaledWidth),
+          });
         }
 
 
@@ -318,6 +363,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           height: boundingRect.height,
           x: centerX,
           y: screenY,
+          attachedToImageBorder: isImage,
+          attachedWidth: isImage ? Math.max(110, boundingRect.width * vpt[0]) : undefined,
         });
 
         // Check if selected object is a text type
@@ -349,7 +396,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           // Clear image toolbar when text is selected
           selectedImageRef.current = null;
           setImageToolbarInfo(null);
-        } else if (obj.type === 'activeselection') {
+        } else if (obj.type === 'activeselection' || obj.type === 'activeSelection') {
           // Multi-select (ActiveSelection): hide both toolbars
           selectedTextRef.current = null;
           setTextToolbarInfo(null);
@@ -358,6 +405,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         } else if (obj.type === 'image') {
           // Single image selection
           const imageObj = obj as fabric.FabricImage;
+          applyImageSelectionAppearance(imageObj);
           selectedImageRef.current = imageObj;
 
           // Calculate screen coordinates for toolbar positioning
@@ -366,8 +414,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
           // Check if image is near top edge of viewport (need to position toolbar below)
           const toolbarHeight = 44; // Approximate toolbar height
-          const edgeMargin = 8;
-          const positionBelow = screenY < toolbarHeight + edgeMargin;
+          const positionBelow = screenY < toolbarHeight + IMAGE_TOOLBAR_EDGE_MARGIN;
 
           // Check if image is locked
           const isLocked = !imageObj.selectable || !imageObj.evented;
@@ -404,7 +451,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           setImageToolbarInfo(null);
         }
       });
-    }, []);
+    }, [applyImageSelectionAppearance]);
 
     // Handle text property change
     const handleTextPropertyChange = useCallback((property: keyof TextProperties, value: string | number | boolean) => {
@@ -684,6 +731,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         scaleY,
         opacity: payload.fadeIn ? 0 : 1,
       });
+      applyImageSelectionAppearance(img);
 
       (img as fabric.FabricObject & { id?: string }).id = payload.id;
 
@@ -702,7 +750,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           onChange: () => canvas.requestRenderAll(),
         });
       }
-    }, [updateSelectionInfo, removePlaceholder]);
+    }, [updateSelectionInfo, removePlaceholder, applyImageSelectionAppearance]);
 
     const runToolAndPlaceImage = useCallback(async (tool: 'removeBackground' | 'upscale' | 'erase' | 'expand') => {
       const imageObj = selectedImageRef.current;
@@ -1180,7 +1228,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         renderOnAddRemove: true,
         defaultCursor: SELECT_CURSOR_URL,
         hoverCursor: SELECT_CURSOR_URL,
-        moveCursor: 'move',
+        moveCursor: SELECT_CURSOR_URL,
       });
 
       fabricRef.current = canvas;
@@ -1212,23 +1260,28 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       }, 0);
 
       // Selection events
-      canvas.on('selection:created', (e) => {
-        const selected = e.selected?.[0];
-        if (selected) {
-          onSelectionChange?.((selected as fabric.FabricObject & { id?: string }).id || null);
-          updateSelectionInfo(selected);
-        }
-      });
+      const handleSelectionChangeEvent = () => {
+        const active = canvas.getActiveObject();
+        if (!active) return;
 
-      canvas.on('selection:updated', (e) => {
-        const selected = e.selected?.[0];
-        if (selected) {
-          onSelectionChange?.((selected as fabric.FabricObject & { id?: string }).id || null);
-          updateSelectionInfo(selected);
+        isDraggingImageRef.current = false;
+
+        if (active.type === 'activeSelection' || active.type === 'activeselection') {
+          // Multi-select on canvas should not collapse back to a single layer.
+          onSelectionChange?.(null);
+          updateSelectionInfo(active);
+          return;
         }
-      });
+
+        onSelectionChange?.((active as fabric.FabricObject & { id?: string }).id || null);
+        updateSelectionInfo(active);
+      };
+
+      canvas.on('selection:created', handleSelectionChangeEvent);
+      canvas.on('selection:updated', handleSelectionChangeEvent);
 
       canvas.on('selection:cleared', () => {
+        isDraggingImageRef.current = false;
         onSelectionChange?.(null);
         setSelectionInfo(null);
         setTextToolbarInfo(null);
@@ -1237,13 +1290,27 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         selectedImageRef.current = null;
       });
 
+      const restoreImageToolbarAfterDrag = (): boolean => {
+        if (!isDraggingImageRef.current) return false;
+        isDraggingImageRef.current = false;
+
+        const active = canvas.getActiveObject();
+        if (active?.type === 'image') {
+          updateSelectionInfo(active);
+        }
+        return true;
+      };
+
       // Object modification events
       canvas.on('object:modified', () => {
+        const restoredFromDrag = restoreImageToolbarAfterDrag();
         saveHistory();
         notifyLayersChange();
         const active = canvas.getActiveObject();
         if (active) {
-          updateSelectionInfo(active);
+          if (!(restoredFromDrag && active.type === 'image')) {
+            updateSelectionInfo(active);
+          }
           const layerId = (active as fabric.FabricObject & { id?: string }).id;
           if (layerId && onLayerModified) {
             onLayerModified({
@@ -1275,11 +1342,22 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           movingLogTimeRef.current = now;
         }
 
+        const active = canvas.getActiveObject();
+        if (!active) return;
+
+        if (active.type === 'image') {
+          if (!isDraggingImageRef.current) {
+            isDraggingImageRef.current = true;
+            setImageToolbarInfo(null);
+            setSelectionInfo(null);
+          }
+          return;
+        }
+
         if (now - lastMoveUpdateRef.current < moveUpdateThrottleMs) return;
         lastMoveUpdateRef.current = now;
 
-        const active = canvas.getActiveObject();
-        if (active) updateSelectionInfo(active, { positionOnly: true });
+        updateSelectionInfo(active, { positionOnly: true });
       });
 
 
@@ -1295,6 +1373,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       canvas.on('object:added', () => { saveHistory(); notifyLayersChange(); });
       canvas.on('object:removed', () => { saveHistory(); notifyLayersChange(); });
+      canvas.on('mouse:up', restoreImageToolbarAfterDrag);
 
       saveHistory();
 
@@ -1314,6 +1393,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         movingEventCountRef.current = 0;
         movingLogTimeRef.current = 0;
         lastMoveUpdateRef.current = 0;
+        isDraggingImageRef.current = false;
+        canvas.off('selection:created', handleSelectionChangeEvent);
+        canvas.off('selection:updated', handleSelectionChangeEvent);
+        canvas.off('mouse:up', restoreImageToolbarAfterDrag);
         synchronizerRef.current?.dispose();
         synchronizerRef.current = null;
         persistenceManagerRef.current = null;
@@ -1326,6 +1409,14 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     useEffect(() => {
       const unsubscribe = useLayerStore.subscribe((state, prevState) => {
         if (state.selectedLayerId !== prevState.selectedLayerId && synchronizerRef.current) {
+          const activeObject = synchronizerRef.current.getCanvas().getActiveObject();
+          if (
+            state.selectedLayerId === null &&
+            activeObject &&
+            (activeObject.type === 'activeSelection' || activeObject.type === 'activeselection')
+          ) {
+            return;
+          }
           synchronizerRef.current.syncSelection(state.selectedLayerId);
         }
         for (const [id, layer] of state.layers) {
@@ -1348,8 +1439,8 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         const canvas = fabricRef.current;
         
         if (e.ctrlKey || e.metaKey) {
-          const direction = e.deltaY > 0 ? -1 : 1;
-          let newZoom = canvas.getZoom() * Math.pow(ZOOM_FACTOR, direction);
+          const zoomScale = Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY);
+          let newZoom = canvas.getZoom() * zoomScale;
           newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
           const rect = container.getBoundingClientRect();
           const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top);
@@ -1465,6 +1556,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
       canvas.isDrawingMode = false;
       canvas.selection = true;
+      canvas.moveCursor = SELECT_CURSOR_URL;
 
       if (activeTool === 'rectangle') {
         canvas.defaultCursor = 'crosshair';
@@ -1888,7 +1980,6 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         {selectionInfo && (
           <>
             <SelectionInfo ref={selectionInfoRef} {...selectionInfo} />
-            <QuickEditHint ref={quickEditHintRef} x={selectionInfo.x} y={selectionInfo.y} height={selectionInfo.height * zoom} />
           </>
         )}
 

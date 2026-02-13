@@ -363,8 +363,20 @@ export class CanvasSynchronizer {
    * Common handler for selection events
    */
   private handleSelectionEvent(e: SelectionEvent): void {
+    const activeObject = this.canvas.getActiveObject();
+    if (activeObject && (activeObject.type === 'activeSelection' || activeObject.type === 'activeselection')) {
+      this.onSelectionChange(null);
+      return;
+    }
+
     const selected = e.selected;
     if (!selected || selected.length === 0) {
+      this.onSelectionChange(null);
+      return;
+    }
+
+    // Multi-selection: keep canvas ActiveSelection, don't coerce to a single layer.
+    if (selected.length > 1) {
       this.onSelectionChange(null);
       return;
     }

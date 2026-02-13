@@ -8,6 +8,8 @@ export interface SelectionInfoProps {
   height: number;
   x: number;
   y: number;
+  attachedToImageBorder?: boolean;
+  attachedWidth?: number;
 }
 
 const typeLabels: Record<string, string> = {
@@ -26,10 +28,12 @@ const typeLabels: Record<string, string> = {
  * Displays selection info above the selected element - Theme aware
  */
 export const SelectionInfo = forwardRef<HTMLDivElement, SelectionInfoProps>(function SelectionInfo(
-  { type, width, height, x, y },
+  { type, width, height, x, y, attachedToImageBorder = false, attachedWidth },
   ref
 ) {
   const label = typeLabels[type] || type;
+  const isAttached = attachedToImageBorder && type === 'image';
+  const barWidth = attachedWidth ? Math.max(110, attachedWidth) : 110;
 
   return (
     <div
@@ -37,16 +41,48 @@ export const SelectionInfo = forwardRef<HTMLDivElement, SelectionInfoProps>(func
       className="absolute pointer-events-none z-50"
       style={{
         left: x,
-        top: y - 36,
-        transform: 'translateX(-50%)',
+        top: isAttached ? y + 1 : y - 36,
+        transform: isAttached ? 'translateX(-50%) translateY(-100%)' : 'translateX(-50%)',
       }}
     >
-      <div className="selection-info">
-        <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{label}</span>
-        <span style={{ color: 'var(--color-text-muted)' }}>|</span>
-        <span className="tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
-          {Math.round(width)} × {Math.round(height)}
-        </span>
+      <div
+        className="selection-info"
+        style={isAttached ? {
+          width: barWidth,
+          minWidth: 110,
+          border: 'none',
+          borderRadius: 0,
+          background: 'transparent',
+          boxShadow: 'none',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          padding: '0 2px',
+          fontSize: 9,
+          lineHeight: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+        } : undefined}
+      >
+        {isAttached ? (
+          <>
+            <span className="truncate font-medium" style={{ color: '#1D4ED8', maxWidth: '64%', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}>
+              {label}
+            </span>
+            <span className="tabular-nums shrink-0" style={{ color: '#1D4ED8', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}>
+              {Math.round(width)} × {Math.round(height)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{label}</span>
+            <span style={{ color: 'var(--color-text-muted)' }}>|</span>
+            <span className="tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
+              {Math.round(width)} × {Math.round(height)}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

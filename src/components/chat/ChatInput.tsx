@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react';
+import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { AtSign, ArrowUp } from 'lucide-react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
@@ -50,7 +50,6 @@ interface ChatInputProps {
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatInput({
   onSend,
   onCancel,
-  onLocateImage,
   disabled = false,
   isLoading = false,
   isBusy = false,
@@ -210,6 +209,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
     textareaRef.current?.focus();
   };
 
+  const handleReferencedImageClick = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Keep the referenced image attached in the input and retain typing flow.
+    textareaRef.current?.focus();
+  }, []);
+
   const canSend = message.trim().length > 0 && !disabled && !isLoading && !isBusy;
   const isInputDisabled = disabled || isBusy;
 
@@ -219,7 +225,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
       {showMentionMenu && (
         <div
           ref={mentionMenuRef}
-          className="absolute bottom-full left-3 right-3 mb-2 bg-white dark:bg-[#1A1028] rounded-lg border border-black/10 dark:border-white/10 shadow-lg overflow-hidden z-50"
+          className="absolute bottom-full left-3 mb-2 w-[300px] max-w-[calc(100%-1.5rem)] bg-white dark:bg-[#1A1028] rounded-lg border border-black/10 dark:border-white/10 shadow-lg overflow-hidden z-50"
         >
           <div className="px-2 py-1.5 border-b border-black/5 dark:border-white/5">
             <span className="text-xs text-[#888]">{t('assets.this_project')}</span>
@@ -278,7 +284,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   <button
                     type="button"
                     className="relative size-4 rounded overflow-hidden cursor-pointer flex-shrink-0 mt-[3px] hover:ring-2 hover:ring-primary/50"
-                    onClick={() => onLocateImage?.(referencedImage.url)}
+                    onClick={handleReferencedImageClick}
                   >
                     <Image
                       src={referencedImage.url}
@@ -290,15 +296,31 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                     />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="p-1 bg-white dark:bg-[#1A1028]">
-                  <Image
-                    src={referencedImage.url}
-                    alt={t('assets.reference_image')}
-                    width={200}
-                    height={200}
-                    unoptimized
-                    className="max-w-[200px] max-h-[200px] rounded object-contain"
-                  />
+                <TooltipContent
+                  side="right"
+                  align="start"
+                  sideOffset={8}
+                  collisionPadding={16}
+                  className="p-1 bg-white dark:bg-[#1A1028]"
+                >
+                  <div
+                    className="relative rounded overflow-hidden"
+                    style={{
+                      width: 180,
+                      height: 180,
+                      maxWidth: 'calc(100vw - 2rem)',
+                      maxHeight: 'calc(100vh - 6rem)',
+                    }}
+                  >
+                    <Image
+                      src={referencedImage.url}
+                      alt={t('assets.reference_image')}
+                      fill
+                      unoptimized
+                      sizes="180px"
+                      className="object-contain"
+                    />
+                  </div>
                 </TooltipContent>
               </Tooltip>
             )}

@@ -37,7 +37,6 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
   {
     x,
     y,
-    imageWidth,
     positionBelow = false,
     onDownload,
     onCopy,
@@ -120,7 +119,8 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
 
   // Calculate toolbar position
   const toolbarStyle = useMemo(() => {
-    const centerX = x + imageWidth / 2;
+    // x is already the image center in CanvasStage, use it directly as anchor.
+    const centerX = x;
     const topY = positionBelow
       ? y + TOOLBAR_OFFSET.BOTTOM
       : y - TOOLBAR_OFFSET.TOP;
@@ -132,7 +132,7 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
         ? 'translateX(-50%)'
         : 'translateX(-50%) translateY(-100%)',
     };
-  }, [x, y, imageWidth, positionBelow]);
+  }, [x, y, positionBelow]);
 
   // Group tools by their group property
   const groupedTools = useMemo(() => {
@@ -156,7 +156,7 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   aria-label={t(tool.label)}
                   disabled={isAnyLoading}
                 >
@@ -168,7 +168,7 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
               {t(tool.label)}
             </TooltipContent>
           </Tooltip>
-          <DropdownMenuContent align="end" className="min-w-[160px]">
+          <DropdownMenuContent align="end" className="min-w-[160px] border-none shadow-none">
             {MORE_MENU_ITEMS.map((item) => {
               if (item.type === 'divider') {
                 return <DropdownMenuSeparator key={item.id} />;
@@ -204,7 +204,7 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 relative"
+            className="h-8 w-8 p-0 relative focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleToolClick(tool.id)}
             disabled={isDisabled}
             aria-label={t(tool.label)}
@@ -235,8 +235,7 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
     <div
       ref={ref}
       className={cn(
-        'absolute z-50 flex items-center gap-1 px-2 py-1.5 rounded-lg shadow-lg pointer-events-auto',
-        'animate-in fade-in-0 duration-150',
+        'absolute z-50 flex items-center gap-1 px-2 py-1.5 rounded-lg border-none outline-none ring-0 pointer-events-auto',
         className
       )}
       style={toolbarStyle}
@@ -245,16 +244,12 @@ export const ImageToolbar = forwardRef<HTMLDivElement, ImageToolbarProps>(functi
       <div
         className={cn(
           'flex items-center gap-0.5 px-1.5 py-1 rounded-lg',
-          'shadow-lg',
           'bg-background/95 backdrop-blur-sm',
           'dark:bg-background/90'
         )}
       >
         {/* AI Tools Group */}
         {groupedTools.aiTools.map(renderToolButton)}
-
-        {/* Separator between AI and Primary tools */}
-        <div className="w-px h-5 bg-border mx-1" />
 
         {/* Primary Tools Group */}
         {groupedTools.primaryTools.map(renderToolButton)}

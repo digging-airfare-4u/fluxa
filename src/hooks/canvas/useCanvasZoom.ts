@@ -8,8 +8,8 @@ import * as fabric from 'fabric';
 
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
-export const ZOOM_FACTOR = 1.15; // 15% per scroll step
-export const ZOOM_STEP = 0.5; // Step for button clicks
+export const WHEEL_ZOOM_SENSITIVITY = 0.0026; // slightly faster wheel/trackpad zoom speed
+export const ZOOM_STEP = 0.4; // slightly faster step for button clicks
 const PAN_SENSITIVITY = 1;
 
 export interface UseCanvasZoomOptions {
@@ -81,8 +81,8 @@ export function useCanvasZoom({ canvas, containerRef }: UseCanvasZoomOptions): U
 
       // Ctrl/Cmd + wheel = zoom
       if (e.ctrlKey || e.metaKey) {
-        const direction = e.deltaY > 0 ? -1 : 1;
-        let newZoom = canvas.getZoom() * Math.pow(ZOOM_FACTOR, direction);
+        const zoomScale = Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY);
+        let newZoom = canvas.getZoom() * zoomScale;
         
         newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
 
