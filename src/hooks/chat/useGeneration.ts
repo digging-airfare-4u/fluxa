@@ -226,14 +226,41 @@ export function useGeneration({
             textResponse?: string;
             thoughtSummary?: string;
           } | undefined;
-          const imageUrl = output?.publicUrl || output?.signedUrl;
+          const imageUrl =
+            output?.publicUrl ||
+            output?.signedUrl ||
+            ((output?.op as AddImageOp | undefined)?.payload?.src);
           const assistantContent = output?.textResponse || '';
           console.log('[useGeneration] output?.op:', output?.op);
 
+          const fallbackImageOp: AddImageOp | undefined =
+            !output?.op && imageUrl
+              ? {
+                  type: 'addImage',
+                  payload: {
+                    id:
+                      (typeof output?.layerId === 'string' && output.layerId) ||
+                      `layer-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                    src: imageUrl,
+                    x: finalPosition?.x ?? placeholderX,
+                    y: finalPosition?.y ?? placeholderY,
+                    width: placeholderDimensions.width,
+                    height: placeholderDimensions.height,
+                  },
+                }
+              : undefined;
+
+          const effectiveImageOp = (output?.op as AddImageOp | undefined) || fallbackImageOp;
+
           // Execute the addImage op to render the image on canvas
-          if (output?.op) {
-            // The Edge Function returns an addImage op, so we safely cast it
-            const imageOp = output.op as AddImageOp;
+          if (effectiveImageOp) {
+            if (!output?.op && fallbackImageOp) {
+              console.warn('[useGeneration] job output missing op, using fallback addImage op', {
+                jobId: result.jobId,
+                layerId: fallbackImageOp.payload.id,
+              });
+            }
+            const imageOp = effectiveImageOp;
             
             // Register layer ID so Realtime knows to skip this op
             pendingGenerationTracker.registerLayerId(imageOp.payload.id);
@@ -302,7 +329,7 @@ export function useGeneration({
               metadata: {
                 jobId: result.jobId,
                 imageUrl,
-                op: output?.op,
+                op: effectiveImageOp,
                 modelName: currentModelName,
                 thinking: output?.thoughtSummary,
               },

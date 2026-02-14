@@ -107,16 +107,19 @@ export function useOpsExecution({
     }
 
     try {
-      // Set synchronizer to updating mode to prevent duplicate layer creation
+      // Only suppress Canvas->Layer sync during the first replay initialization.
+      // After initialization, new ops must flow through synchronizer events
+      // so LayerPanel receives newly added/removed objects in real time.
       const synchronizer = canvasRef.current?.getSynchronizer();
-      if (synchronizer) {
+      const shouldSuppressSync = !initialOpsLoadedRef.current;
+      if (synchronizer && shouldSuppressSync) {
         synchronizer.setUpdating(true);
       }
       
       await opsExecutorRef.current.execute(ops, documentId);
       
-      // Reset synchronizer updating mode
-      if (synchronizer) {
+      // Reset synchronizer updating mode only if we changed it above
+      if (synchronizer && shouldSuppressSync) {
         synchronizer.setUpdating(false);
       }
       
@@ -127,7 +130,7 @@ export function useOpsExecution({
         console.log('[useOpsExecution] Layers initialized from ops');
       }
     } catch (error) {
-      // Reset synchronizer updating mode on error
+      // Reset synchronizer updating mode on error (safe no-op if already false)
       const synchronizer = canvasRef.current?.getSynchronizer();
       if (synchronizer) {
         synchronizer.setUpdating(false);
