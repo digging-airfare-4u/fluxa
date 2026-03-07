@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import Image from 'next/image';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput, ChatInputRef } from './ChatInput';
@@ -25,8 +25,12 @@ import {
 } from '@/lib/store/useChatStore';
 import { useMembershipLevel } from '@/lib/store/usePointsStore';
 import { fetchModels } from '@/lib/supabase/queries/models';
+import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
+import { resolveSelectableModels, isSelectableImageModel } from '@/lib/models/resolve-selectable-models';
 import type { Op } from '@/lib/canvas/ops.types';
 import { InsufficientPointsDialog } from '@/components/points/InsufficientPointsDialog';
+import { InvalidProviderConfigDialog } from '@/components/points/InvalidProviderConfigDialog';
+import { ShareDialog } from '@/components/share';
 import type { MessageMetadata } from '@/lib/supabase/queries/messages';
 
 
@@ -46,6 +50,8 @@ interface ChatPanelProps {
   onGetPlaceholderPosition?: (id: string) => { x: number; y: number } | null;
   /** Get a free position for placing an object without overlapping existing objects */
   onGetFreePosition?: (width: number, height: number) => { x: number; y: number };
+  /** Callback to open provider config settings */
+  onOpenSettings?: () => void;
   onLocateImage?: (layerId: string) => void;
   onLocateImageByUrl?: (imageUrl: string) => void;
   initialCollapsed?: boolean;
@@ -63,6 +69,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   onRemovePlaceholder,
   onGetPlaceholderPosition,
   onGetFreePosition,
+  onOpenSettings,
   onLocateImageByUrl,
   initialCollapsed = false,
   initialPrompt,
@@ -70,6 +77,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   const t = useTranslations('chat');
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<ChatInputRef>(null);
@@ -93,6 +101,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     selectedResolution,
     selectedAspectRatio,
     models,
+    selectableModels,
     generationPhase,
     error: generationError,
     insufficientPointsError,
@@ -100,9 +109,12 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     setSelectedResolution,
     setSelectedAspectRatio,
     setModels,
+    setSelectableModels,
     setError,
     clearError,
     clearInsufficientPointsError,
+    userProviderConfigError,
+    clearUserProviderConfigError,
     startGeneration,
   } = useChatStore();
 
@@ -119,6 +131,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     documentId,
     conversationId,
     models,
+    selectableModels,
     selectedResolution,
     selectedAspectRatio,
     onOpsGenerated,
@@ -136,12 +149,16 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     },
   }), []);
 
-  // Load models on mount
+  // Load models on mount (system + user BYOK)
   useEffect(() => {
-    fetchModels().then((data) => {
-      setModels(data);
+    Promise.all([
+      fetchModels(),
+      fetchUserProviderConfigs().catch(() => []),
+    ]).then(([systemModels, userConfigs]) => {
+      setModels(systemModels);
+      setSelectableModels(resolveSelectableModels(systemModels, userConfigs));
     });
-  }, [setModels]);
+  }, [setModels, setSelectableModels]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -194,7 +211,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       // Add pending message
       const pendingMessageId = `pending-${Date.now()}`;
       const currentModel = model || selectedModel;
-      const currentModelName = models.find(m => m.name === currentModel)?.display_name || currentModel;
+      const currentModelName = selectableModels.find(m => m.value === currentModel)?.displayName
+        || models.find(m => m.name === currentModel)?.display_name
+        || currentModel;
       
       addMessage({
         id: pendingMessageId,
@@ -219,11 +238,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       };
 
       // Determine model type and start appropriate generation
-      const modelConfig = models.find(m => m.name === currentModel);
-      const isImageModel = modelConfig?.type === 'image' || 
-        modelConfig?.name.includes('seedream') || 
-        modelConfig?.name.includes('dall-e') ||
-        (modelConfig?.name.includes('gemini') && modelConfig?.name.includes('image'));
+      // user:{configId} models are always image models; system models check by type/name
+      const isImageModel = isSelectableImageModel(currentModel, selectableModels);
       
       const ctx = {
         content,
@@ -252,7 +268,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       clearPendingMessages();
     }
   }, [
-    conversationId, selectedModel, models, t,
+    conversationId, selectedModel, models, selectableModels, t,
     createUserMessage, addMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
     startGeneration, startImageGeneration, startOpsGeneration, clearError, setError, onGeneratingChange,
   ]);
@@ -326,6 +342,20 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
           <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">{t('panel.title')}</h2>
         </div>
         <div className="flex items-center gap-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                onClick={() => setIsShareOpen(true)}
+                aria-label="Share"
+              >
+                <Share2 className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>分享</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all" onClick={handleToggleCollapse}>
@@ -413,6 +443,14 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         projectId={projectId}
       />
 
+      <ShareDialog
+        open={isShareOpen}
+        onOpenChange={setIsShareOpen}
+        conversationId={conversationId}
+        projectId={projectId}
+        documentId={documentId}
+      />
+
       {/* Insufficient Points Dialog */}
       <InsufficientPointsDialog
         open={insufficientPointsError !== null}
@@ -421,6 +459,14 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         requiredPoints={insufficientPointsError?.required_points ?? 0}
         modelName={insufficientPointsError?.model_name}
         membershipLevel={insufficientPointsError?.membership_level}
+      />
+
+      {/* Invalid Provider Config Dialog */}
+      <InvalidProviderConfigDialog
+        open={userProviderConfigError !== null}
+        onClose={clearUserProviderConfigError}
+        message={userProviderConfigError?.message}
+        onOpenSettings={onOpenSettings}
       />
     </div>
   );

@@ -70,6 +70,23 @@ export class PointsService {
   }
 
   /**
+   * Get current points balance for a user.
+   */
+  async getCurrentBalance(userId: string): Promise<number> {
+    const { data, error } = await this.supabase
+      .from('point_balances')
+      .select('balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      return 0;
+    }
+
+    return data.balance;
+  }
+
+  /**
    * Deduct points from user balance
    * Requirements: 4.3, 4.5
    * 

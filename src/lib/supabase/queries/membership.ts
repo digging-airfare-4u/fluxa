@@ -1,9 +1,11 @@
 /**
  * Membership configuration queries
- * Fetches pricing and membership data from Supabase
+ * Fetches pricing and membership data from Supabase.
+ * When payment products are available, prices come from the backend instead of hardcoded values.
  */
 
 import { supabase } from '@/lib/supabase/client';
+import type { PaymentProduct } from '@/lib/payments/types';
 
 export interface MembershipConfig {
   level: 'free' | 'pro' | 'team';
@@ -29,6 +31,9 @@ export interface PricingPlan {
   href: string;
   isPopular: boolean;
   level: 'free' | 'pro' | 'team';
+  productCode?: string;
+  yearlyProductCode?: string;
+  isSelfServe: boolean;
 }
 
 /**
@@ -49,10 +54,16 @@ export async function getMembershipConfigs(): Promise<MembershipConfig[]> {
 }
 
 /**
- * Transform membership configs to pricing plans format
+ * Transform membership configs to pricing plans format.
+ * When products are provided, prices come from the backend; otherwise falls back to hardcoded values.
  */
-export function transformToPricingPlans(configs: MembershipConfig[]): PricingPlan[] {
-  const planDetails: Record<string, Partial<PricingPlan>> = {
+export function transformToPricingPlans(
+  configs: MembershipConfig[],
+  products: PaymentProduct[] = []
+): PricingPlan[] {
+  const productByCode = new Map(products.map((p) => [p.code, p]));
+
+  const planDetails: Record<string, Partial<PricingPlan> & { monthlyCode?: string; yearlyCode?: string }> = {
     free: {
       price: '0',
       yearlyPrice: '0',
@@ -60,25 +71,32 @@ export function transformToPricingPlans(configs: MembershipConfig[]): PricingPla
       buttonText: '开始使用',
       href: '/auth',
       isPopular: false,
+      isSelfServe: true,
       description: '适合个人用户体验',
     },
     pro: {
-      price: '29',
-      yearlyPrice: '23',
+      price: '49',
+      yearlyPrice: '399',
       period: 'month',
       buttonText: '升级专业版',
-      href: '/app/pricing?plan=pro',
+      href: '#checkout',
       isPopular: true,
+      isSelfServe: true,
       description: '适合专业设计师和创作者',
+      monthlyCode: 'pro-monthly',
+      yearlyCode: 'pro-yearly',
     },
     team: {
-      price: '99',
-      yearlyPrice: '79',
+      price: '199',
+      yearlyPrice: '1999',
       period: 'month',
       buttonText: '联系我们',
-      href: '/app/pricing?plan=team',
+      href: '#contact-sales',
       isPopular: false,
+      isSelfServe: false,
       description: '适合团队协作和企业用户',
+      monthlyCode: 'team-monthly',
+      yearlyCode: 'team-yearly',
     },
   };
 
@@ -86,17 +104,33 @@ export function transformToPricingPlans(configs: MembershipConfig[]): PricingPla
     const details = planDetails[config.level] || {};
     const features = generateFeatures(config);
 
+    // Override prices from backend products when available
+    const monthlyProduct = details.monthlyCode ? productByCode.get(details.monthlyCode) : undefined;
+    const yearlyProduct = details.yearlyCode ? productByCode.get(details.yearlyCode) : undefined;
+
+    const monthlyPrice = monthlyProduct
+      ? (monthlyProduct.amount_fen / 100).toString()
+      : details.price || '0';
+    const yearlyPrice = yearlyProduct
+      ? (yearlyProduct.amount_fen / 100 / 12).toFixed(0)
+      : details.yearlyPrice || '0';
+
+    const isSelfServe = monthlyProduct?.is_self_serve ?? details.isSelfServe ?? true;
+
     return {
       name: config.display_name,
       level: config.level,
-      price: details.price || '0',
-      yearlyPrice: details.yearlyPrice || '0',
+      price: monthlyPrice,
+      yearlyPrice,
       period: details.period || 'month',
       features,
       description: details.description || '',
-      buttonText: details.buttonText || '选择',
-      href: details.href || '#',
+      buttonText: isSelfServe ? (details.buttonText || '选择') : '联系我们',
+      href: isSelfServe ? '#checkout' : '#contact-sales',
       isPopular: details.isPopular || false,
+      productCode: details.monthlyCode,
+      yearlyProductCode: details.yearlyCode,
+      isSelfServe,
     };
   });
 }

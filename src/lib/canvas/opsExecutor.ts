@@ -4,6 +4,7 @@
  */
 
 import * as fabric from 'fabric';
+import { getProxyImageUrl } from '@/lib/utils/image-url';
 import {
   Op,
   SetBackgroundOp,
@@ -379,7 +380,8 @@ export class OpsExecutor {
 
       case 'image': {
         const imageUrl = value as string;
-        fabric.FabricImage.fromURL(imageUrl).then((img) => {
+        const proxiedUrl = getProxyImageUrl(imageUrl);
+        fabric.FabricImage.fromURL(proxiedUrl).then((img) => {
           const width = this.canvas.getWidth();
           const height = this.canvas.getHeight();
 
@@ -513,7 +515,8 @@ export class OpsExecutor {
     }
 
     return new Promise((resolve, reject) => {
-      fabric.FabricImage.fromURL(payload.src, { crossOrigin: 'anonymous' })
+      const proxiedSrc = getProxyImageUrl(payload.src);
+      fabric.FabricImage.fromURL(proxiedSrc, { crossOrigin: 'anonymous' })
         .then((img) => {
           let scaleX = 1;
           let scaleY = 1;

@@ -8,6 +8,7 @@
 
 import * as fabric from 'fabric';
 import { saveOp } from '@/lib/supabase/queries/ops';
+import { getProxyImageUrl } from '@/lib/utils/image-url';
 import type {
   AddTextOp,
   AddRectOp,
@@ -243,9 +244,10 @@ export class OpsPersistenceManager {
    */
   async addImage(params: AddImageParams): Promise<string> {
     const layerId = this.generateLayerId();
+    const proxiedSrc = getProxyImageUrl(params.src);
 
     return new Promise((resolve, reject) => {
-      fabric.FabricImage.fromURL(params.src, { crossOrigin: 'anonymous' })
+      fabric.FabricImage.fromURL(proxiedSrc, { crossOrigin: 'anonymous' })
         .then((img) => {
           let scaleX = 1;
           let scaleY = 1;

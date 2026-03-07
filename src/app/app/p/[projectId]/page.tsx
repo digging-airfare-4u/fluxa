@@ -167,6 +167,11 @@ export default function EditorPage() {
     };
   }, [documentId, projectId]);
 
+  // Handle opening settings
+  const handleOpenSettings = useCallback(() => {
+    router.push('/app?settings=true');
+  }, [router]);
+
   // Handle project name change
   const handleProjectNameChange = useCallback(async (name: string) => {
     if (!projectData) return;
@@ -225,6 +230,7 @@ export default function EditorPage() {
       canvasHeight={document.height}
       onProjectNameChange={handleProjectNameChange}
       initialPrompt={initialPrompt}
+      onOpenSettings={handleOpenSettings}
     />
   );
 }

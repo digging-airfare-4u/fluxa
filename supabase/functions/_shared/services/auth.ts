@@ -117,7 +117,8 @@ export class AuthService {
   }
 
   /**
-   * Get user's membership level and permissions
+   * Get user's membership level and permissions.
+   * Reads from user_profiles (canonical runtime snapshot) joined with membership_configs for perks.
    * Requirements: 3.5
    * 
    * @param serviceClient - Supabase client with service role key
@@ -128,22 +129,38 @@ export class AuthService {
     serviceClient: SupabaseClient,
     userId: string
   ): Promise<UserMembership> {
-    const { data, error } = await serviceClient
-      .from('memberships')
-      .select('level, membership_configs!inner(perks)')
-      .eq('user_id', userId)
+    const { data: profile, error: profileError } = await serviceClient
+      .from('user_profiles')
+      .select('membership_level, membership_expires_at')
+      .eq('id', userId)
       .single();
 
-    if (error || !data) {
-      // Default to free tier if no membership found
+    if (profileError || !profile) {
       return { level: 'free', maxResolution: '1K' };
     }
 
-    const perks = (data.membership_configs as { perks: { max_image_resolution?: string } })?.perks;
+    let level = profile.membership_level as 'free' | 'pro' | 'team';
+
+    // If membership has expired, treat as free
+    if (level !== 'free' && profile.membership_expires_at) {
+      const expiresAt = new Date(profile.membership_expires_at);
+      if (expiresAt < new Date()) {
+        level = 'free';
+      }
+    }
+
+    // Look up perks from membership_configs
+    const { data: config } = await serviceClient
+      .from('membership_configs')
+      .select('perks')
+      .eq('level', level)
+      .single();
+
+    const perks = config?.perks as { max_image_resolution?: string } | undefined;
     const maxRes = perks?.max_image_resolution as ResolutionPreset | undefined;
 
     return {
-      level: data.level as 'free' | 'pro' | 'team',
+      level,
       maxResolution: maxRes && maxRes in RESOLUTION_PRESETS ? maxRes : '1K',
     };
   }

@@ -53,6 +53,7 @@ interface EditorLayoutProps {
   canvasHeight?: number;
   onProjectNameChange?: (name: string) => void;
   initialPrompt?: string;
+  onOpenSettings?: () => void;
 }
 
 export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(function EditorLayout({
@@ -64,6 +65,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
   canvasHeight = 1350,
   onProjectNameChange,
   initialPrompt,
+  onOpenSettings,
 }, ref) {
   const router = useRouter();
   const t = useT('editor');
@@ -503,6 +505,7 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         onRemovePlaceholder={removePlaceholder}
         onGetPlaceholderPosition={getPlaceholderPosition}
         onGetFreePosition={handleGetFreePosition}
+        onOpenSettings={onOpenSettings}
         onLocateImage={handleLocateImage}
         onLocateImageByUrl={handleLocateImageByUrl}
         initialCollapsed={isChatCollapsed}

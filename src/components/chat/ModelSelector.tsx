@@ -1,13 +1,14 @@
 /**
  * ModelSelector Component
- * Icon button to select AI model for chat
- * Requirements: 6.1, 6.3, 6.5
+ * Icon button to select AI model for chat.
+ * Displays both system models and user-configured (BYOK) models in a unified dropdown.
+ * Requirements: 6.1-6.6
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Check, Image as ImageIcon, MessageSquare, Zap } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Check, Image as ImageIcon, MessageSquare, Zap, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -18,25 +19,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { fetchModels, type AIModel } from '@/lib/supabase/queries/models';
+import { fetchModels } from '@/lib/supabase/queries/models';
+import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
+import {
+  resolveSelectableModels,
+  type SelectableModel,
+} from '@/lib/models/resolve-selectable-models';
 
 interface ModelSelectorProps {
   selectedModel: string;
-  onModelChange: (modelName: string) => void;
+  onModelChange: (modelValue: string) => void;
   disabled?: boolean;
-}
-
-/**
- * Check if model is an image generation model
- * Requirements: 6.6 - distinguish Gemini from other providers
- */
-function isImageModel(model: AIModel): boolean {
-  // Check by type field first (preferred)
-  if (model.type === 'image') return true;
-  // Fallback to name-based detection for backwards compatibility
-  return model.name.includes('seedream') || 
-         model.name.includes('dall-e') || 
-         model.name.includes('gemini') && model.name.includes('image');
 }
 
 export function ModelSelector({
@@ -44,21 +37,31 @@ export function ModelSelector({
   onModelChange,
   disabled = false,
 }: ModelSelectorProps) {
-  const [models, setModels] = useState<AIModel[]>([]);
+  const [models, setModels] = useState<SelectableModel[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    fetchModels().then(setModels);
+  const loadModels = useCallback(async () => {
+    try {
+      const [systemModels, userConfigs] = await Promise.all([
+        fetchModels(),
+        fetchUserProviderConfigs().catch(() => []),
+      ]);
+      setModels(resolveSelectableModels(systemModels, userConfigs));
+    } catch (err) {
+      console.error('[ModelSelector] Failed to load models:', err);
+    }
   }, []);
 
-  const currentModel = models.find(m => m.name === selectedModel) || models[0];
-  
-  // Check if current model is image generation model
-  const currentIsImageModel = currentModel ? isImageModel(currentModel) : false;
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
 
-  // Group models by type
-  const imageModels = models.filter(isImageModel);
-  const opsModels = models.filter(m => !isImageModel(m));
+  const currentModel = models.find((m) => m.value === selectedModel) || models[0];
+  const currentIsImageModel = currentModel?.type === 'image';
+
+  // Group models
+  const imageModels = models.filter((m) => m.type === 'image');
+  const opsModels = models.filter((m) => m.type === 'ops');
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -81,12 +84,15 @@ export function ModelSelector({
         </TooltipTrigger>
         <TooltipContent>
           <div className="flex items-center gap-1.5">
-            <span>{currentModel?.display_name || '选择模型'}</span>
-            {currentModel?.points_cost && (
+            <span>{currentModel?.displayName || '选择模型'}</span>
+            {currentModel && !currentModel.isByok && (
               <span className="flex items-center gap-0.5 text-amber-500">
                 <Zap className="size-3" />
-                {currentModel.points_cost}
+                {currentModel.pointsCost}
               </span>
+            )}
+            {currentModel?.isByok && (
+              <span className="text-xs text-emerald-500 font-medium">BYOK</span>
             )}
           </div>
         </TooltipContent>
@@ -100,14 +106,22 @@ export function ModelSelector({
             </DropdownMenuLabel>
             {imageModels.map((model) => (
               <DropdownMenuItem
-                key={model.id}
-                onClick={() => onModelChange(model.name)}
+                key={model.value}
+                onClick={() => onModelChange(model.value)}
                 className="flex items-center justify-between gap-2 py-2 cursor-pointer"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <ImageIcon className="size-3.5 text-muted-foreground shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm truncate">{model.display_name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm truncate">{model.displayName}</span>
+                      {model.isByok && (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                          <Key className="size-2.5" />
+                          BYOK
+                        </span>
+                      )}
+                    </div>
                     {model.description && (
                       <span className="text-xs text-muted-foreground truncate">
                         {model.description}
@@ -116,12 +130,15 @@ export function ModelSelector({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Points cost display - Requirements: 6.5 */}
-                  <span className="flex items-center gap-0.5 text-xs text-amber-500">
-                    <Zap className="size-3" />
-                    {model.points_cost}
-                  </span>
-                  {selectedModel === model.name && (
+                  {model.isByok ? (
+                    <span className="text-xs text-emerald-500 font-medium">免费</span>
+                  ) : (
+                    <span className="flex items-center gap-0.5 text-xs text-amber-500">
+                      <Zap className="size-3" />
+                      {model.pointsCost}
+                    </span>
+                  )}
+                  {selectedModel === model.value && (
                     <Check className="size-3.5 text-primary" />
                   )}
                 </div>
@@ -129,12 +146,12 @@ export function ModelSelector({
             ))}
           </>
         )}
-        
-        {/* Separator between model types */}
+
+        {/* Separator */}
         {imageModels.length > 0 && opsModels.length > 0 && (
           <DropdownMenuSeparator />
         )}
-        
+
         {/* Ops/Text Generation Models */}
         {opsModels.length > 0 && (
           <>
@@ -143,20 +160,20 @@ export function ModelSelector({
             </DropdownMenuLabel>
             {opsModels.map((model) => (
               <DropdownMenuItem
-                key={model.id}
-                onClick={() => onModelChange(model.name)}
+                key={model.value}
+                onClick={() => onModelChange(model.value)}
                 className="flex items-center justify-between gap-2 py-2 cursor-pointer"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <MessageSquare className="size-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-sm truncate">{model.display_name}</span>
+                  <span className="text-sm truncate">{model.displayName}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="flex items-center gap-0.5 text-xs text-amber-500">
                     <Zap className="size-3" />
-                    {model.points_cost}
+                    {model.pointsCost}
                   </span>
-                  {selectedModel === model.name && (
+                  {selectedModel === model.value && (
                     <Check className="size-3.5 text-primary" />
                   )}
                 </div>

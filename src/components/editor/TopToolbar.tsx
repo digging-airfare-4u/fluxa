@@ -24,6 +24,7 @@ import {
   Eye,
   ZoomIn,
   ZoomOut,
+  Share2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -46,8 +47,10 @@ interface TopToolbarProps {
   onNewProject?: () => void;
   onDeleteProject?: () => void;
   onImportImage?: () => void;
+  onShare?: () => void;
   hasSelection?: boolean;
   hasTextSelection?: boolean;
+  hasMessages?: boolean;
 }
 
 export function TopToolbar({
@@ -58,8 +61,10 @@ export function TopToolbar({
   onNewProject,
   onDeleteProject,
   onImportImage,
+  onShare,
   hasSelection = false,
   hasTextSelection = false,
+  hasMessages = false,
 }: TopToolbarProps) {
   const router = useRouter();
   const t = useT('editor');
@@ -213,6 +218,17 @@ export function TopToolbar({
 
       {/* Right section */}
       <div className="flex items-center gap-2 mr-[380px]">
+        {hasMessages && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onShare}>
+                <Share2 className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>分享</TooltipContent>
+          </Tooltip>
+        )}
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon-sm" onClick={onEditElement} disabled={!hasSelection}>

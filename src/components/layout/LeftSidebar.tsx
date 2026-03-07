@@ -7,7 +7,7 @@
  */
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Plus, Home, FolderOpen, User, Settings } from 'lucide-react';
+import { Plus, Home, FolderOpen, Compass, User, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -38,6 +38,7 @@ export function LeftSidebar({ onNewProject }: LeftSidebarProps) {
   const navItems: NavItem[] = [
     { icon: <Plus className="size-5" />, label: t('accessibility.new_project'), onClick: onNewProject },
     { icon: <Home className="size-5" />, label: t('accessibility.home'), href: '/app', isActive: pathname === '/app' },
+    { icon: <Compass className="size-5" />, label: 'Discover', href: '/app/discover', isActive: pathname?.startsWith('/app/discover') },
     { icon: <FolderOpen className="size-5" />, label: t('accessibility.projects_list'), href: '/app/projects', isActive: pathname === '/app/projects' },
   ];
 

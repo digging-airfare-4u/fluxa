@@ -13,10 +13,11 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { Check, Star } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import NumberFlow from '@number-flow/react';
 import { useTranslations } from 'next-intl';
+import { CheckoutDialog } from './CheckoutDialog';
 
 export interface PricingPlan {
   name: string;
@@ -29,6 +30,9 @@ export interface PricingPlan {
   href: string;
   isPopular: boolean;
   level?: 'free' | 'pro' | 'team';
+  productCode?: string;
+  yearlyProductCode?: string;
+  isSelfServe?: boolean;
 }
 
 interface PricingProps {
@@ -45,9 +49,21 @@ export function Pricing({
   paymentEnabled = true,
 }: PricingProps) {
   const [isMonthly, setIsMonthly] = useState(true);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const switchRef = useRef<HTMLButtonElement>(null);
   const t = useTranslations('points');
+
+  const handleCheckout = useCallback((plan: PricingPlan) => {
+    setSelectedPlan(plan);
+    setCheckoutOpen(true);
+  }, []);
+
+  const handlePaymentSuccess = useCallback(() => {
+    // Delay briefly to let Realtime propagate, then reload to show new state
+    setTimeout(() => window.location.reload(), 1500);
+  }, []);
 
   // Use translations as defaults if not provided
   const displayTitle = title ?? t('pricing.title');
@@ -184,21 +200,36 @@ export function Pricing({
               </ul>
 
               <div className="mt-auto pt-4">
-                {/* 按钮：充值关闭时付费套餐显示禁用状态 */}
                 {paymentEnabled || plan.level === 'free' ? (
-                  <Link
-                    href={plan.href}
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'w-full font-medium',
-                      'transition-all duration-200 hover:ring-2 hover:ring-primary hover:ring-offset-1',
-                      plan.isPopular
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                        : ''
-                    )}
-                  >
-                    {plan.buttonText}
-                  </Link>
+                  plan.isSelfServe !== false && plan.level !== 'free' && plan.productCode ? (
+                    <button
+                      onClick={() => handleCheckout(plan)}
+                      className={cn(
+                        buttonVariants({ variant: 'outline', size: 'sm' }),
+                        'w-full font-medium',
+                        'transition-all duration-200 hover:ring-2 hover:ring-primary hover:ring-offset-1',
+                        plan.isPopular
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                          : ''
+                      )}
+                    >
+                      {plan.buttonText}
+                    </button>
+                  ) : (
+                    <Link
+                      href={plan.href}
+                      className={cn(
+                        buttonVariants({ variant: 'outline', size: 'sm' }),
+                        'w-full font-medium',
+                        'transition-all duration-200 hover:ring-2 hover:ring-primary hover:ring-offset-1',
+                        plan.isPopular
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                          : ''
+                      )}
+                    >
+                      {plan.buttonText}
+                    </Link>
+                  )
                 ) : (
                   <button
                     disabled
@@ -216,6 +247,21 @@ export function Pricing({
           </motion.div>
         ))}
       </div>
+
+      {selectedPlan && (
+        <CheckoutDialog
+          open={checkoutOpen}
+          onOpenChange={setCheckoutOpen}
+          productCode={
+            isMonthly
+              ? selectedPlan.productCode ?? ''
+              : selectedPlan.yearlyProductCode ?? selectedPlan.productCode ?? ''
+          }
+          productName={selectedPlan.name}
+          amountDisplay={`¥${isMonthly ? selectedPlan.price : (Number(selectedPlan.yearlyPrice) * 12).toString()}`}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 }

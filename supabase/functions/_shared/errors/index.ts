@@ -19,6 +19,7 @@ export const ERROR_CODES = {
   DOCUMENT_NOT_FOUND: 'DOCUMENT_NOT_FOUND',
   INSUFFICIENT_POINTS: 'INSUFFICIENT_POINTS',
   PROVIDER_ERROR: 'PROVIDER_ERROR',
+  USER_PROVIDER_CONFIG_INVALID: 'USER_PROVIDER_CONFIG_INVALID',
   CONFIG_ERROR: 'CONFIG_ERROR',
   API_ERROR: 'API_ERROR',
   PARSE_ERROR: 'PARSE_ERROR',
@@ -135,6 +136,19 @@ export class ProviderError extends AppError {
       ...(this.httpStatus !== undefined && { http_status: this.httpStatus }),
       ...(this.details !== undefined && { details: this.details }),
     };
+  }
+}
+
+/**
+ * Invalid user provider config (missing/disabled/deleted).
+ * Returns stable error contract for `user:{configId}` invalid routes.
+ */
+export class UserProviderConfigInvalidError extends AppError {
+  readonly code = ERROR_CODES.USER_PROVIDER_CONFIG_INVALID;
+  readonly statusCode = 400;
+
+  constructor(message: string, details?: unknown) {
+    super(message, details);
   }
 }
 

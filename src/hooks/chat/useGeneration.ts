@@ -12,6 +12,7 @@ import { saveOp } from '@/lib/supabase/queries/ops';
 import { useChatStore, type GenerationPhase } from '@/lib/store/useChatStore';
 import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
+import type { SelectableModel } from '@/lib/models/resolve-selectable-models';
 
 const RESOLUTION_PIXELS: Record<string, number> = {
   '1K': 1024,
@@ -35,6 +36,8 @@ export interface UseGenerationOptions {
   documentId: string;
   conversationId: string;
   models: AIModel[];
+  /** Unified selectable model list for display name resolution */
+  selectableModels?: SelectableModel[];
   selectedResolution?: string;
   selectedAspectRatio?: string;
   onOpsGenerated?: (ops: Op[]) => void;
@@ -70,6 +73,7 @@ export function useGeneration({
   documentId,
   conversationId,
   models,
+  selectableModels = [],
   selectedResolution = '1K',
   selectedAspectRatio = '1:1',
   onOpsGenerated,
@@ -86,6 +90,7 @@ export function useGeneration({
     failGeneration,
     stopGeneration,
     setInsufficientPointsError,
+    setUserProviderConfigError,
   } = useChatStore();
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -133,8 +138,23 @@ export function useGeneration({
         return true;
       }
     }
+
+    if (err instanceof GenerationApiError && err.isUserProviderConfigInvalid()) {
+      const details = err.getUserProviderConfigInvalidDetails();
+      if (details) {
+        setUserProviderConfigError({
+          code: details.code,
+          message: details.message,
+        });
+        cleanup();
+        setGenerationPhase('idle');
+        onGeneratingChange?.(false);
+        return true;
+      }
+    }
+
     return false;
-  }, [setInsufficientPointsError, setGenerationPhase, onGeneratingChange]);
+  }, [setInsufficientPointsError, setUserProviderConfigError, setGenerationPhase, onGeneratingChange]);
 
   const startImageGeneration = useCallback(async (ctx: GenerationContext) => {
     const { content, model, referencedImage, pendingMessageId, onPendingReplaced, onCleanup } = ctx;
@@ -143,7 +163,9 @@ export function useGeneration({
     
     abortControllerRef.current = new AbortController();
     
-    const currentModelName = models.find(m => m.name === model)?.display_name || model;
+    const currentModelName = selectableModels.find(m => m.value === model)?.displayName
+      || models.find(m => m.name === model)?.display_name
+      || model;
     
     // Phase A: Start with placeholder
     const placeholderId = `placeholder-${Date.now()}`;
@@ -414,7 +436,7 @@ export function useGeneration({
       }
     }
   }, [
-    projectId, documentId, conversationId, models,
+    projectId, documentId, conversationId, models, selectableModels,
     selectedResolution, selectedAspectRatio,
     onAddPlaceholder, onRemovePlaceholder, onGetPlaceholderPosition, onGetFreePosition,
     onOpsGenerated, onGeneratingChange,
@@ -427,7 +449,9 @@ export function useGeneration({
     
     abortControllerRef.current = new AbortController();
     
-    const currentModelName = models.find(m => m.name === model)?.display_name || model;
+    const currentModelName = selectableModels.find(m => m.value === model)?.displayName
+      || models.find(m => m.name === model)?.display_name
+      || model;
 
     // Phase B timer
     phaseATimeoutRef.current = setTimeout(() => {
@@ -477,7 +501,7 @@ export function useGeneration({
       }
     }
   }, [
-    projectId, documentId, conversationId, models,
+    projectId, documentId, conversationId, models, selectableModels,
     onGeneratingChange, setGenerationPhase, completeGeneration,
     clearPhaseATimeout, handleApiError,
   ]);

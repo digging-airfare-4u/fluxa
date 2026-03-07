@@ -33,6 +33,7 @@ import { useT } from '@/lib/i18n/hooks';
 import { runImageTool, GenerationApiError } from '@/lib/api/generate';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
 import { pendingGenerationTracker } from '@/lib/realtime/pendingGenerationTracker';
+import { getProxyImageUrl } from '@/lib/utils/image-url';
 import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { ToolType, LayerInfo, CanvasState, LayerModifiedEvent } from './types';
 
@@ -700,8 +701,9 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       if (!canvas) return;
 
       const payload = (op as AddImageOp).payload;
+      const proxiedSrc = getProxyImageUrl(payload.src);
 
-      const img = await fabric.FabricImage.fromURL(payload.src, { crossOrigin: 'anonymous' });
+      const img = await fabric.FabricImage.fromURL(proxiedSrc, { crossOrigin: 'anonymous' });
       let scaleX = 1;
       let scaleY = 1;
 

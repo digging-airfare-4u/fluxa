@@ -9,7 +9,6 @@
  */
 
 import { Gift, X } from 'lucide-react';
-import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,12 +92,11 @@ export function InsufficientPointsDialog({
             {t('insufficient.later')}
           </Button>
           <Button
-            asChild
-            className="px-6 rounded-full bg-foreground text-background hover:bg-foreground/90"
+            variant="outline"
+            onClick={onClose}
+            className="px-6 rounded-full bg-muted hover:bg-muted/80 border-0"
           >
-            <Link href="/pricing">
-              {t('insufficient.upgrade')}
-            </Link>
+            {t('insufficient.upgrade')}
           </Button>
         </div>
       </DialogContent>

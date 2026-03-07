@@ -21,6 +21,49 @@ This guide is for agentic coding assistants working on the Fluxa codebase.
 - `README.md` merge conflict markers were cleaned; re-check after major merges.
 - Baseline Vitest tests now exist under `tests/` and should be expanded for core flows.
 - Existing local environment with Node.js 14 cannot run current pnpm scripts (`pnpm lint` / `pnpm test`) until Node is upgraded.
+- Model Config Settings feature (BYOK) is fully implemented with encryption, allowlist validation, and multi-config support (2026-02-28).
+
+## Current Functionality (as checked on 2026-03-01)
+
+### Auth & Account
+- Email/password login + registration via Supabase; logout; profile page with points and history.
+
+### Project Management
+- Create projects (default document + conversation), list recent/all projects, delete projects, rename in editor.
+
+### Editor Layout
+- Fabric.js canvas + chat panel; left toolbar (select/box select/rect/text/pencil/image upload/AI); layer panel toggle; points indicator; language + theme controls.
+
+### Canvas Editing
+- Pan/zoom/fit view, selection info, context menu (copy/paste/delete/arrange), undo/redo history, drag/drop images, text toolbar (font/size/style/color/align), image toolbar (download/copy/delete, lock, layer order, AI tools).
+
+### Layer System & Ops
+- Ops-based persistence for add/update/remove + visibility/lock/rename; debounced updateLayer persistence; ops replay on load; local-op tracking to prevent self-echo.
+
+### AI Generation
+- Chat-based ops generation (plan + ops), image generation jobs with model selector, aspect ratio + resolution, reference image support, and placeholder UX; image tools (remove background, upscale, erase, expand) create new assets/ops.
+- **BYOK Support**: Users can configure their own image generation providers (Volcengine, OpenAI-compatible APIs) via Settings panel.
+
+### Realtime Sync
+- Supabase Realtime for ops, jobs, messages, and points with seq-based deduplication.
+
+### Assets & Export
+- Generated assets stored in storage (COS/Supabase); chat @-mention to reference assets; image toolbar download; PNG export helpers in canvas utilities.
+
+### Points & Membership
+- Points balance indicator, insufficient points dialog, membership pricing from `membership_configs`, payment feature flag, points cost per model.
+
+### i18n & Theming
+- zh-CN/en-US locales, LanguageSwitcher, light/dark theme toggle.
+
+### Provider Configuration (BYOK)
+- User can add/edit/delete custom provider configs (Volcengine, OpenAI-compatible)
+- API keys encrypted with AES-256-GCM before storage
+- Host allowlist validation (production: system_settings, dev: env)
+- Multi-config support per provider type
+- Test connection before saving
+- No points deducted for user-configured models (BYOK = free)
+- UI: ProviderConfigPanel and ProviderConfigForm components
 
 ## Commands
 

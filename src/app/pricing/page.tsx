@@ -2,7 +2,7 @@
 
 /**
  * Pricing Page (Public)
- * Displays membership plans fetched from Supabase
+ * Displays membership plans fetched from Supabase and payment products from the API.
  */
 
 import { useEffect, useState } from 'react';
@@ -11,6 +11,18 @@ import { SiteHeader } from '@/components/layout';
 import { getMembershipConfigs, transformToPricingPlans } from '@/lib/supabase/queries/membership';
 import { isPaymentEnabled } from '@/lib/supabase/queries/settings';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { PaymentProduct } from '@/lib/payments/types';
+
+async function fetchPaymentProducts(): Promise<PaymentProduct[]> {
+  try {
+    const res = await fetch('/api/payments/products');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.products ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export default function PricingPage() {
   const [plans, setPlans] = useState<PricingPlan[]>([]);
@@ -21,11 +33,12 @@ export default function PricingPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [configs, enabled] = await Promise.all([
+        const [configs, enabled, products] = await Promise.all([
           getMembershipConfigs(),
           isPaymentEnabled(),
+          fetchPaymentProducts(),
         ]);
-        const pricingPlans = transformToPricingPlans(configs);
+        const pricingPlans = transformToPricingPlans(configs, products);
         setPlans(pricingPlans);
         setPaymentEnabled(enabled);
       } catch (err) {

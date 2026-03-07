@@ -5,12 +5,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { useT } from '@/lib/i18n/hooks';
 import { 
-  Plus, Home, FolderOpen, User, Info,
+  Plus, Home, FolderOpen, Compass, User, Info, Settings,
   Image as ImageIcon, Star, PenTool, ShoppingBag, Video,
   FileText, ShieldCheck
 } from 'lucide-react';
@@ -21,13 +21,17 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
 import { UserPopover } from '@/components/layout';
+import { ProviderConfigPanel } from '@/components/settings';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { 
+import { PublicationCard } from '@/components/discover/PublicationCard';
+import {
   fetchRecentProjectsFromOps,
-  createProject, 
-  deleteProject 
+  createProject,
+  deleteProject
 } from '@/lib/supabase/queries/projects';
+import { fetchGalleryPublications, type GalleryPublication } from '@/lib/supabase/queries/publications';
 import { cn } from '@/lib/utils';
+import { isModelConfigEnabled as checkModelConfigEnabled } from '@/lib/observability/feature-flags';
 
 const QUICK_TAGS = [
   { id: 'design', label: 'Design', icon: ImageIcon },
@@ -39,6 +43,7 @@ const QUICK_TAGS = [
 
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations('home');
   const tCommon = useT('common');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -46,6 +51,19 @@ export default function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(searchParams.get('settings') === 'true');
+  const [isModelConfigEnabled, setIsModelConfigEnabled] = useState(false);
+  const [inspirationItems, setInspirationItems] = useState<GalleryPublication[]>([]);
+  const [isInspirationLoading, setIsInspirationLoading] = useState(true);
+  const [inspirationError, setInspirationError] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    checkModelConfigEnabled().then((enabled) => {
+      if (mounted) setIsModelConfigEnabled(enabled);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -66,9 +84,31 @@ export default function HomePage() {
     }
   }, [t]);
 
+  const loadInspiration = useCallback(async () => {
+    try {
+      setIsInspirationLoading(true);
+      setInspirationError(false);
+      const publications = await fetchGalleryPublications({
+        sortBy: 'latest',
+        limit: 6,
+      });
+      setInspirationItems(publications);
+    } catch (err) {
+      console.error('Failed to load inspiration feed:', err);
+      setInspirationError(true);
+      setInspirationItems([]);
+    } finally {
+      setIsInspirationLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
+
+  useEffect(() => {
+    void loadInspiration();
+  }, [loadInspiration]);
 
   const handlePromptSubmit = useCallback(async (prompt: string) => {
     try {
@@ -151,18 +191,32 @@ export default function HomePage() {
           <button className="size-9 rounded-xl flex items-center justify-center text-[#1A1A1A] dark:text-white bg-black/5 dark:bg-white/10">
             <Home className="size-4" />
           </button>
+          <button
+            onClick={() => router.push('/app/discover')}
+            className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <Compass className="size-4" />
+          </button>
           <button 
             onClick={() => router.push('/app/projects')}
             className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
             <FolderOpen className="size-4" />
           </button>
-          <button 
+          <button
             onClick={() => setProfileOpen(true)}
             className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
             <User className="size-4" />
           </button>
+          {isModelConfigEnabled && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <Settings className="size-4" />
+            </button>
+          )}
           
           {/* Info button with popover */}
           <Popover>
@@ -315,7 +369,7 @@ export default function HomePage() {
                 </button>
               )}
             </div>
-            
+
             <ProjectGrid
               projects={projects}
               onNewProject={handleNewProject}
@@ -323,11 +377,56 @@ export default function HomePage() {
               isLoading={isLoading}
             />
           </div>
+
+          {/* Inspiration section */}
+          <div className="mt-12">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-[#1A1A1A] dark:text-white">
+                  {tCommon('discover.title')}
+                </h2>
+                <p className="text-sm text-[#666] dark:text-[#888] mt-1">
+                  {tCommon('discover.sort_latest')}
+                </p>
+              </div>
+              <button
+                onClick={() => router.push('/app/discover')}
+                className="text-sm text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white transition-colors flex items-center gap-1"
+              >
+                {t('dashboard.see_all')} <span>›</span>
+              </button>
+            </div>
+
+            {isInspirationLoading ? (
+              <div className="columns-2 sm:columns-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-muted animate-pulse" style={{ height: 180 + (i % 3) * 40 }} />
+                ))}
+              </div>
+            ) : inspirationItems.length > 0 ? (
+              <div className="columns-2 sm:columns-3 gap-4">
+                {inspirationItems.map((publication) => (
+                  <PublicationCard key={publication.id} publication={publication} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1A1028] p-6 text-center">
+                <p className="text-sm text-[#666] dark:text-[#888]">
+                  {inspirationError ? t('errors.load_failed') : tCommon('discover.empty_description')}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
       {/* Profile Dialog */}
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
+
+      {/* Provider Config Settings */}
+      {isModelConfigEnabled && (
+        <ProviderConfigPanel open={settingsOpen} onOpenChange={setSettingsOpen} />
+      )}
     </div>
   );
 }

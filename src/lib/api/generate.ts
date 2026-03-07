@@ -124,6 +124,13 @@ export class GenerationApiError extends Error {
   }
 
   /**
+   * Check if this is a user provider config invalid error
+   */
+  isUserProviderConfigInvalid(): boolean {
+    return this.code === 'USER_PROVIDER_CONFIG_INVALID';
+  }
+
+  /**
    * Get insufficient points details if applicable
    */
   getInsufficientPointsDetails() {
@@ -134,6 +141,17 @@ export class GenerationApiError extends Error {
       required_points: this.details?.required_points ?? 0,
       model_name: this.details?.model_name,
       membership_level: this.details?.membership_level,
+    };
+  }
+
+  /**
+   * Get user provider config invalid details if applicable
+   */
+  getUserProviderConfigInvalidDetails() {
+    if (!this.isUserProviderConfigInvalid()) return null;
+    return {
+      code: this.code,
+      message: this.message,
     };
   }
 }

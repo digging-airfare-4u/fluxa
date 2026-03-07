@@ -1,0 +1,9 @@
+{
+  "invalid_config": {
+    "title": "配置无效",
+    "description": "您的自定义 Provider 配置无效或已失效。请检查设置中的配置是否正确。",
+    "hint": "可能的原因：配置被禁用、API 密钥过期或已删除",
+    "later": "稍后",
+    "go_settings": "前往设置"
+  }
+}

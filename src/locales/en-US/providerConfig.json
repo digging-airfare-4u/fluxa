@@ -1,0 +1,9 @@
+{
+  "invalid_config": {
+    "title": "Invalid Configuration",
+    "description": "Your custom provider configuration is invalid or no longer available. Please check your settings.",
+    "hint": "Possible reasons: config disabled, API key expired, or deleted",
+    "later": "Later",
+    "go_settings": "Go to Settings"
+  }
+}

@@ -43,7 +43,17 @@
     "recommended": "Recommended",
     "save_percent": "Save 20%",
     "title": "Simple, Transparent Pricing",
-    "yearly": "Yearly"
+    "yearly": "Yearly",
+    "no_channels": "No payment channels available",
+    "creating_order": "Creating order...",
+    "scan_qr": "Scan QR code with WeChat to pay",
+    "redirect_hint": "Redirected to payment page. Please complete payment in the new window.",
+    "waiting_payment": "Waiting for payment...",
+    "order_no": "Order No",
+    "payment_success": "Payment successful!",
+    "payment_failed": "Payment failed",
+    "done": "Done",
+    "retry": "Retry"
   },
   "transaction": {
     "balance_after": "Balance: {balance}",
