@@ -4,7 +4,9 @@
     "fit_view": "适应视图 (⌘0)",
     "reset_zoom": "重置缩放",
     "zoom_in": "放大",
-    "zoom_out": "缩小"
+    "zoom_out": "缩小",
+    "drop_unsupported_file": "已跳过不支持的文件：{name}",
+    "drop_upload_failed": "上传失败：{name}"
   },
   "context_menu": {
     "bring_forward": "上移一层",

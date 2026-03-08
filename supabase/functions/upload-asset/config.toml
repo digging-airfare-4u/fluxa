@@ -1,0 +1,2 @@
+[functions.upload-asset]
+verify_jwt = true

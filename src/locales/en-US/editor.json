@@ -4,7 +4,9 @@
     "fit_view": "Fit view (⌘0)",
     "reset_zoom": "Reset zoom",
     "zoom_in": "Zoom in",
-    "zoom_out": "Zoom out"
+    "zoom_out": "Zoom out",
+    "drop_unsupported_file": "Unsupported file skipped: {name}",
+    "drop_upload_failed": "Upload failed: {name}"
   },
   "context_menu": {
     "bring_forward": "Bring Forward",
