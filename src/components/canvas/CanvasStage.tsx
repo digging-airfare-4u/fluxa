@@ -31,6 +31,7 @@ import { findFreePosition, getViewportBounds, type BoundingBox } from '@/lib/can
 import { usePlaceholderManager } from '@/hooks/usePlaceholderManager';
 import { useT } from '@/lib/i18n/hooks';
 import { runImageTool, GenerationApiError } from '@/lib/api/generate';
+import { uploadDroppedAsset } from '@/lib/api/assets-upload';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
 import { pendingGenerationTracker } from '@/lib/realtime/pendingGenerationTracker';
 import { getProxyImageUrl } from '@/lib/utils/image-url';
@@ -48,6 +49,14 @@ const PAN_SENSITIVITY = 1;
 const IMAGE_TOOLBAR_GAP = 20;
 const IMAGE_TOOLBAR_EDGE_MARGIN = 12;
 const IMAGE_CONTROL_HIT_SIZE = 28;
+const DROP_FILE_CONCURRENCY = Number(process.env.NEXT_PUBLIC_DROP_FILE_CONCURRENCY || 3);
+const DROP_FILE_OFFSET = 28;
+const DROP_PLACEHOLDER_WIDTH = 220;
+const DROP_PLACEHOLDER_HEIGHT = 220;
+const DROP_COMPRESS_MAX_BYTES = Number(process.env.NEXT_PUBLIC_DROP_COMPRESS_MAX_BYTES || 10 * 1024 * 1024);
+const DROP_COMPRESS_MAX_DIMENSION = Number(process.env.NEXT_PUBLIC_DROP_COMPRESS_MAX_DIMENSION || 4096);
+const DROP_COMPRESS_QUALITY = Number(process.env.NEXT_PUBLIC_DROP_COMPRESS_QUALITY || 0.82);
+const DROP_COMPRESS_TARGET_MIME = process.env.NEXT_PUBLIC_DROP_COMPRESS_TARGET_MIME || 'image/webp';
 
 // Custom cursor SVG for select tool
 const SELECT_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -178,6 +187,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     // Context menu state
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
     const clipboardRef = useRef<fabric.FabricObject | null>(null);
+    const activeDropPlaceholdersRef = useRef<Set<string>>(new Set());
 
     const { addPlaceholder, removePlaceholder, getPlaceholderPosition } = usePlaceholderManager({
       canvasRef: placeholderCanvasRef,
@@ -1171,12 +1181,169 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       e.dataTransfer.dropEffect = 'copy';
     }, []);
 
+    const runWithConcurrency = useCallback(async (
+      tasks: Array<() => Promise<void>>,
+      limit: number,
+    ) => {
+      if (tasks.length === 0) return;
+
+      const safeLimit = Math.max(1, limit);
+      let cursor = 0;
+
+      const worker = async () => {
+        while (cursor < tasks.length) {
+          const current = cursor;
+          cursor += 1;
+          await tasks[current]();
+        }
+      };
+
+      await Promise.all(Array.from({ length: Math.min(safeLimit, tasks.length) }, () => worker()));
+    }, []);
+
+    const shouldCompressDroppedImage = useCallback(async (file: File): Promise<boolean> => {
+      if (file.size > DROP_COMPRESS_MAX_BYTES) {
+        return true;
+      }
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error ?? new Error('failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.width, height: image.height });
+        image.onerror = () => reject(new Error('failed to decode image dimensions'));
+        image.src = dataUrl;
+      });
+
+      const { width, height } = dimensions;
+      return Math.max(width, height) > DROP_COMPRESS_MAX_DIMENSION;
+    }, []);
+
+    const compressDroppedImage = useCallback(async (file: File): Promise<File> => {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error ?? new Error('failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('failed to decode image for compression'));
+        img.src = dataUrl;
+      });
+
+      const maxDimension = Math.max(image.width, image.height);
+      const scale = maxDimension > DROP_COMPRESS_MAX_DIMENSION
+        ? DROP_COMPRESS_MAX_DIMENSION / maxDimension
+        : 1;
+
+      const targetWidth = Math.max(1, Math.round(image.width * scale));
+      const targetHeight = Math.max(1, Math.round(image.height * scale));
+
+      const canvasEl = document.createElement('canvas');
+      canvasEl.width = targetWidth;
+      canvasEl.height = targetHeight;
+
+      const ctx = canvasEl.getContext('2d');
+      if (!ctx) {
+        throw new Error('failed to create canvas context for compression');
+      }
+
+      ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvasEl.toBlob((result) => {
+          if (!result) {
+            reject(new Error('compression to blob failed'));
+            return;
+          }
+          resolve(result);
+        }, DROP_COMPRESS_TARGET_MIME, DROP_COMPRESS_QUALITY);
+      });
+
+      const nextName = file.name.replace(/\.[^.]+$/, '') + '.webp';
+      return new File([blob], nextName, { type: blob.type || DROP_COMPRESS_TARGET_MIME });
+    }, []);
+
+    const processDroppedFiles = useCallback(async (
+      droppedFiles: File[],
+      anchorX: number,
+      anchorY: number,
+      persistenceManager: OpsPersistenceManager,
+    ) => {
+      const tasks = droppedFiles.map((file, index) => async () => {
+        if (!file.type.startsWith('image/')) {
+          toast.error(t('canvas.drop_unsupported_file', { name: file.name }));
+          // continue processing dropped files
+          return;
+        }
+
+        const x = anchorX + index * DROP_FILE_OFFSET;
+        const y = anchorY + index * DROP_FILE_OFFSET;
+        const placeholderId = `drop-upload-${Date.now()}-${index}`;
+
+        activeDropPlaceholdersRef.current.add(placeholderId);
+        addPlaceholder(placeholderId, x, y, DROP_PLACEHOLDER_WIDTH, DROP_PLACEHOLDER_HEIGHT);
+
+        try {
+          let uploadFile = file;
+          const shouldCompress = await shouldCompressDroppedImage(file);
+          if (shouldCompress) {
+            uploadFile = await compressDroppedImage(file);
+          }
+
+          const uploadResult = await uploadDroppedAsset({
+            projectId,
+            documentId,
+            file: uploadFile,
+          });
+
+          const finalPosition = getPlaceholderPosition(placeholderId);
+          await persistenceManager.addImage({
+            src: uploadResult.url,
+            x: finalPosition?.x ?? x,
+            y: finalPosition?.y ?? y,
+          });
+        } catch (error) {
+          console.error('[CanvasStage] Failed to process dropped file:', error);
+          toast.error(t('canvas.drop_upload_failed', { name: file.name }));
+        } finally {
+          removePlaceholder(placeholderId);
+          activeDropPlaceholdersRef.current.delete(placeholderId);
+        }
+      });
+
+      await runWithConcurrency(tasks, DROP_FILE_CONCURRENCY);
+    }, [addPlaceholder, removePlaceholder, getPlaceholderPosition, runWithConcurrency, shouldCompressDroppedImage, compressDroppedImage, projectId, documentId, t]);
+
     const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       const canvas = fabricRef.current;
       const container = containerRef.current;
       const persistenceManager = persistenceManagerRef.current;
       if (!canvas || !container || !persistenceManager) return;
+
+      const rect = container.getBoundingClientRect();
+      const vpt = canvas.viewportTransform;
+      if (!vpt) return;
+
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const canvasX = (screenX - vpt[4]) / vpt[0];
+      const canvasY = (screenY - vpt[5]) / vpt[3];
+
+      const droppedFiles = Array.from(e.dataTransfer.files ?? []);
+      if (droppedFiles.length > 0) {
+        await processDroppedFiles(droppedFiles, canvasX, canvasY, persistenceManager);
+        return;
+      }
 
       const fluxaData = e.dataTransfer.getData('application/x-fluxa-image');
       let imageUrl: string | null = null;
@@ -1193,15 +1360,6 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       }
       if (!imageUrl) return;
 
-      const rect = container.getBoundingClientRect();
-      const vpt = canvas.viewportTransform;
-      if (!vpt) return;
-
-      const screenX = e.clientX - rect.left;
-      const screenY = e.clientY - rect.top;
-      const canvasX = (screenX - vpt[4]) / vpt[0];
-      const canvasY = (screenY - vpt[5]) / vpt[3];
-
       try {
         const layerId = await persistenceManager.addImage({ src: imageUrl, x: canvasX, y: canvasY });
         const objects = canvas.getObjects();
@@ -1213,7 +1371,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
       } catch (error) {
         console.error('[CanvasStage] Failed to add dropped image:', error);
       }
-    }, []);
+    }, [processDroppedFiles]);
 
     // Initialize Fabric canvas
     useEffect(() => {
@@ -1391,6 +1549,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (selectionUpdateRafRef.current) {
           cancelAnimationFrame(selectionUpdateRafRef.current);
         }
+        for (const placeholderId of activeDropPlaceholdersRef.current) {
+          removePlaceholder(placeholderId);
+        }
+        activeDropPlaceholdersRef.current.clear();
         selectionUpdateCountRef.current = 0;
         movingEventCountRef.current = 0;
         movingLogTimeRef.current = 0;

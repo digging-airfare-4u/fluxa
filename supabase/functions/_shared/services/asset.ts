@@ -21,14 +21,15 @@ const COS_PUBLIC_URL = `https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com`;
  * Asset metadata for generation tracking
  */
 export interface AssetMetadata {
-  model: string;
-  prompt: string;
+  model?: string;
+  prompt?: string;
   resolution?: string;
   aspectRatio?: string;
   source?: {
-    type: 'generate' | 'canvas_tool';
+    type: 'generate' | 'canvas_tool' | 'upload';
     origin?: string;
   };
+  documentId?: string;
 }
 
 // ============================================================================
@@ -159,25 +160,31 @@ async function generatePresignedUrl(
  * Uses native fetch + COS V5 signing (no AWS SDK dependency)
  * Requirements: 5.1
  */
+function getExtension(contentType: string): string {
+  if (contentType === 'image/jpeg') return 'jpg';
+  if (contentType === 'image/png') return 'png';
+  if (contentType === 'image/webp') return 'webp';
+  if (contentType === 'image/gif') return 'gif';
+  return 'bin';
+}
+
 export class AssetService {
   constructor(
     private supabase: SupabaseClient,
     _supabaseUrl: string // Keep for backward compatibility
   ) {}
 
-  /**
-   * Upload image and create asset record
-   * Requirements: 5.2, 5.3, 5.6
-   */
-  async uploadImage(
+  private async uploadAsset(
     userId: string,
     projectId: string,
     imageData: ArrayBuffer,
     contentType: string,
-    metadata: AssetMetadata
+    type: 'generate' | 'upload',
+    metadata: AssetMetadata,
+    filenamePrefix: 'generated' | 'upload'
   ): Promise<AssetRecord> {
     const assetId = crypto.randomUUID();
-    const extension = contentType === 'image/jpeg' ? 'jpg' : 'png';
+    const extension = getExtension(contentType);
     const storagePath = `${userId}/${projectId}/${assetId}.${extension}`;
 
     console.log(`[AssetService] ========== UPLOAD START ==========`);
@@ -255,32 +262,41 @@ export class AssetService {
     // Create asset record
     console.log(`[AssetService] Creating asset record in database...`);
     const dbStart = Date.now();
+    const assetMetadata: Record<string, unknown> = {
+      source: {
+        type: metadata.source?.type ?? (type === 'upload' ? 'upload' : 'generate'),
+        origin: metadata.source?.origin ?? (type === 'upload' ? 'user_upload' : 'ai_generation'),
+        timestamp: new Date().toISOString(),
+      },
+      scan: { status: 'pending' },
+      dimensions,
+    };
+
+    if (type === 'generate') {
+      assetMetadata.generation = {
+        model: metadata.model,
+        prompt: metadata.prompt,
+        parameters: {
+          resolution: metadata.resolution,
+          aspectRatio: metadata.aspectRatio,
+        },
+      };
+    }
+
+    if (metadata.documentId) {
+      assetMetadata.document_id = metadata.documentId;
+    }
+
     const { error: assetError } = await this.supabase.from('assets').insert({
       id: assetId,
       project_id: projectId,
       user_id: userId,
-      type: 'generate',
+      type,
       storage_path: storagePath,
-      filename: `generated-${assetId}.${extension}`,
+      filename: `${filenamePrefix}-${assetId}.${extension}`,
       mime_type: contentType,
       size_bytes: imageData.byteLength,
-      metadata: {
-        source: {
-          type: metadata.source?.type ?? 'generate',
-          origin: metadata.source?.origin ?? 'ai_generation',
-          timestamp: new Date().toISOString(),
-        },
-        generation: {
-          model: metadata.model,
-          prompt: metadata.prompt,
-          parameters: {
-            resolution: metadata.resolution,
-            aspectRatio: metadata.aspectRatio,
-          },
-        },
-        scan: { status: 'pending' },
-        dimensions,
-      },
+      metadata: assetMetadata,
     });
 
     if (assetError) {
@@ -310,6 +326,44 @@ export class AssetService {
       sizeBytes: imageData.byteLength,
       dimensions: dimensions || undefined,
     };
+  }
+
+  /**
+   * Upload image and create asset record
+   * Requirements: 5.2, 5.3, 5.6
+   */
+  async uploadImage(
+    userId: string,
+    projectId: string,
+    imageData: ArrayBuffer,
+    contentType: string,
+    metadata: AssetMetadata
+  ): Promise<AssetRecord> {
+    return this.uploadAsset(userId, projectId, imageData, contentType, 'generate', metadata, 'generated');
+  }
+
+  async uploadUserAsset(
+    userId: string,
+    projectId: string,
+    imageData: ArrayBuffer,
+    contentType: string,
+    options?: { documentId?: string }
+  ): Promise<AssetRecord> {
+    return this.uploadAsset(
+      userId,
+      projectId,
+      imageData,
+      contentType,
+      'upload',
+      {
+        source: {
+          type: 'upload',
+          origin: 'user_upload',
+        },
+        documentId: options?.documentId,
+      },
+      'upload'
+    );
   }
 
   /**
