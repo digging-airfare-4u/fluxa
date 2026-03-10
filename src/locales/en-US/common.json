@@ -79,7 +79,9 @@
     "comment_submit": "Send",
     "reply_to": "Reply",
     "delete_comment": "Delete",
-    "login_to_interact": "Sign in to like, bookmark and comment"
+    "login_to_interact": "Sign in to like, bookmark and comment",
+    "remix_cta": "Remix this",
+    "remix_failed": "Failed to create remix project. Please try again"
   },
   "share": {
     "title": "Share Conversation",

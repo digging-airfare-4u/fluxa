@@ -5,12 +5,13 @@
  * Displays a published work with cover, metadata, conversation replay, and social interactions.
  */
 
-import { use, useState, useEffect, useCallback } from 'react';
+import { use, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Eye, Heart, Bookmark, Calendar } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -23,6 +24,9 @@ import {
   type PublicationSnapshot,
   type GalleryPublication,
 } from '@/lib/supabase/queries/publications';
+import { createProject } from '@/lib/supabase/queries/projects';
+import { buildRemixPrompt, buildRemixEditorUrl } from '@/lib/inspiration/remix';
+import { trackDiscoverRemixEvent } from '@/lib/observability/discover';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
 import { LikeButton, BookmarkButton, CommentSection, FollowButton } from '@/components/social';
 import { PublicationCard } from '@/components/discover/PublicationCard';
@@ -42,6 +46,8 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
   const [notFound, setNotFound] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isRemixing, setIsRemixing] = useState(false);
+  const remixInFlightRef = useRef(false);
 
   const { setLikedIds, setBookmarkedIds } = useInteractionStore();
 
@@ -95,6 +101,49 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
   const formatDate = useCallback((dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }, []);
+
+  const handleRemixFromDetail = useCallback(async () => {
+    if (!publication || remixInFlightRef.current) return;
+
+    remixInFlightRef.current = true;
+
+    try {
+      setIsRemixing(true);
+      trackDiscoverRemixEvent('discover_remix_click', {
+        entry: 'detail',
+        publicationId: publication.id,
+      });
+
+      const prompt = buildRemixPrompt({
+        title: publication.title,
+        categoryName: publication.category?.name,
+        tags: publication.tags,
+        description: publication.description,
+      });
+
+      const { project } = await createProject();
+      trackDiscoverRemixEvent('discover_remix_project_created', {
+        entry: 'detail',
+        publicationId: publication.id,
+        projectId: project.id,
+      });
+
+      const remixUrl = buildRemixEditorUrl({
+        projectId: project.id,
+        prompt,
+        entry: "detail",
+        publicationId: publication.id,
+      });
+
+      router.push(remixUrl);
+    } catch (error) {
+      console.error('[PublicationDetail] Failed to remix:', error);
+      toast.error(t('discover.remix_failed'));
+    } finally {
+      remixInFlightRef.current = false;
+      setIsRemixing(false);
+    }
+  }, [publication, router, t]);
 
   if (isLoading) {
     return (
@@ -217,6 +266,9 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-2 border-y border-black/5 dark:border-white/5 py-3">
             <LikeButton publicationId={publication.id} initialCount={publication.like_count} />
             <BookmarkButton publicationId={publication.id} initialCount={publication.bookmark_count} />
+            <Button variant="secondary" size="sm" onClick={handleRemixFromDetail} disabled={isRemixing}>
+              {t('discover.remix_cta')}
+            </Button>
           </div>
         </div>
 

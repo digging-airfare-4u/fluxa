@@ -22,7 +22,9 @@ export type MetricEvent =
   | 'byok_generation_success'
   | 'byok_generation_failure'
   | 'allowlist_fail_closed'
-  | 'provider_revalidation_timeout';
+  | 'provider_revalidation_timeout'
+  | 'discover_remix_click'
+  | 'discover_remix_project_created';
 
 export interface MetricPayload {
   event: MetricEvent;

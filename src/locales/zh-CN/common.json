@@ -79,7 +79,9 @@
     "comment_submit": "发送",
     "reply_to": "回复",
     "delete_comment": "删除",
-    "login_to_interact": "登录后可点赞、收藏和评论"
+    "login_to_interact": "登录后可点赞、收藏和评论",
+    "remix_cta": "复刻同款",
+    "remix_failed": "创建复刻项目失败，请重试"
   },
   "share": {
     "title": "分享当前对话",

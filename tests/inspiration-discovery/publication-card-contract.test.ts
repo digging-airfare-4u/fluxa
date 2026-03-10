@@ -15,4 +15,22 @@ describe('inspiration-discovery PublicationCard contract', () => {
     expect(source).toContain('publication.like_count');
     expect(source).toContain('href={`/app/discover/${publication.id}`}');
   });
+
+  it('supports remix action loading contract', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/discover/PublicationCard.tsx'),
+      'utf8'
+    );
+    const discoverPage = readFileSync(
+      resolve(process.cwd(), 'src/app/app/discover/page.tsx'),
+      'utf8'
+    );
+
+    expect(source).toContain('onRemix?:');
+    expect(source).toContain('isRemixing?: boolean');
+    expect(source).toContain('disabled={!!isRemixing}');
+    expect(source).toContain("t('discover.remix_cta')");
+    expect(source).toContain("t('actions.loading')");
+    expect(discoverPage).toContain('entry: "card"');
+  });
 });
