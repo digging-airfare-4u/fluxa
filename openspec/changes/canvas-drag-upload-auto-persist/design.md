@@ -45,9 +45,10 @@ This change spans frontend interaction, upload API behavior, and asset persisten
   - No compression: rejected because oversized images degrade upload reliability and quota usage.
 
 ### 4) Add authenticated upload API for drag-drop ingestion
-- **Decision:** Introduce a dedicated upload endpoint for dropped files that handles auth, validation, strict quota pre-check enforcement, COS upload, and `assets` insert, returning canonical URL/metadata.
-- **Why:** Centralizes trust boundaries and keeps client logic focused on UX + orchestration.
+- **Decision:** Introduce a dedicated upload endpoint for dropped files that acts as a compatibility adapter and forwards multipart uploads to a new Supabase Edge Function (`upload-asset`). Shared COS upload/signing logic is reused from `supabase/functions/_shared/services/asset.ts`.
+- **Why:** Avoids long-term divergence between Next route logic and Edge function logic while preserving existing frontend contract and UX.
 - **Alternatives considered:**
+  - Keep route-local COS upload logic in Next API: rejected due to duplicate implementation and maintenance drift risk.
   - Client direct upload to COS with temporary credentials: rejected for current scope due to complexity and key management.
   - Reuse unrelated existing API routes: rejected due to mismatched request/response contracts.
 

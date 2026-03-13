@@ -2,9 +2,10 @@
 
 - [x] 1.1 Add an authenticated upload endpoint for dropped images (e.g. `/api/assets/upload`) that accepts multipart form data (`projectId`, optional `documentId`, `file`).
 - [x] 1.2 Implement server-side validation for MIME type and max accepted payload boundaries before storage write.
-- [x] 1.3 Implement persistent storage upload path generation using existing asset path conventions and upload the file content to COS-backed storage.
+- [x] 1.3 Implement persistent storage upload path generation using existing asset path conventions and upload the file content via Edge shared asset service (`supabase/functions/_shared/services/asset.ts`).
 - [x] 1.4 Insert `assets` metadata row for each successful upload with `type = upload`, ownership fields, and `metadata.source.origin = user_upload`.
 - [x] 1.5 Return canonical response payload (`assetId`, `storagePath`, `url`, `mimeType`, `sizeBytes`, optional dimensions) and normalized error codes for frontend handling.
+- [x] 1.6 Add Edge function `supabase/functions/upload-asset/index.ts` and route adapter mapping in `src/app/api/assets/upload/route.ts`.
 
 ## 2. Canvas Drag-Drop File Pipeline
 
