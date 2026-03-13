@@ -10,18 +10,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Search, ArrowUpDown, Loader2, ImageOff } from 'lucide-react';
+import { toast } from 'sonner';
 import { fetchGalleryPublications, fetchCategories, type GalleryPublication, type Category } from '@/lib/supabase/queries/publications';
+import { checkUserInteractions } from '@/lib/supabase/queries/publications';
+import { createProject } from '@/lib/supabase/queries/projects';
+import { buildRemixPrompt, buildRemixEditorUrl } from '@/lib/inspiration/remix';
+import { trackDiscoverRemixEvent } from '@/lib/observability/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { PointsBalanceIndicator } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { useInteractionStore } from '@/lib/store/useInteractionStore';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 500;
-const DISCOVER_SKELETON_HEIGHTS = ['h-48', 'h-64', 'h-56', 'h-72'] as const;
-const DISCOVER_MASONRY_CLASS_NAME = 'columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-3 sm:gap-4 pt-2';
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -40,10 +44,14 @@ export default function DiscoverPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [remixingPublicationId, setRemixingPublicationId] = useState<string | null>(null);
 
+  const { setLikedIds, setBookmarkedIds } = useInteractionStore();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useRef(paramSearch);
+  const publicationsRef = useRef<GalleryPublication[]>([]);
+  const remixInFlightRef = useRef(false);
 
   const updateParams = useCallback(
     (updates: Record<string, string>) => {
@@ -78,9 +86,24 @@ export default function DiscoverPage() {
           limit: PAGE_SIZE,
         });
 
-        const newPubs = append ? [...publications, ...data] : data;
-        setPublications(newPubs);
+        const nextPublications = append
+          ? [...publicationsRef.current, ...data]
+          : data;
+
+        setPublications((prev) => {
+          if (!append) return data;
+          return [...prev, ...data];
+        });
+        publicationsRef.current = nextPublications;
         setHasMore(data.length === PAGE_SIZE);
+
+        const mergedIds = nextPublications.map((p) => p.id);
+        if (mergedIds.length > 0) {
+          checkUserInteractions(mergedIds).then(({ likedIds, bookmarkedIds }) => {
+            setLikedIds(likedIds);
+            setBookmarkedIds(bookmarkedIds);
+          });
+        }
       } catch (e) {
         console.error('[Discover] Failed to load publications:', e);
       } finally {
@@ -88,7 +111,7 @@ export default function DiscoverPage() {
         setIsFetchingMore(false);
       }
     },
-    [categorySlug, sortBy, publications],
+    [categorySlug, sortBy, setLikedIds, setBookmarkedIds],
   );
 
   useEffect(() => {
@@ -124,6 +147,50 @@ export default function DiscoverPage() {
     [categorySlug, updateParams],
   );
 
+  const handleRemixFromCard = useCallback(async (publication: GalleryPublication) => {
+    if (remixInFlightRef.current) return;
+
+    remixInFlightRef.current = true;
+
+    try {
+      setRemixingPublicationId(publication.id);
+      trackDiscoverRemixEvent('discover_remix_click', {
+        entry: 'card',
+        publicationId: publication.id,
+      });
+
+      const prompt = buildRemixPrompt({
+        title: publication.title,
+        categoryName: publication.category_name,
+        tags: publication.tags,
+        description: publication.description,
+      });
+
+      const { project } = await createProject();
+      trackDiscoverRemixEvent('discover_remix_project_created', {
+        entry: 'card',
+        publicationId: publication.id,
+        projectId: project.id,
+      });
+
+      // buildRemixEditorUrl includes source=discover and ref=<publicationId> query metadata.
+      const remixUrl = buildRemixEditorUrl({
+        projectId: project.id,
+        prompt,
+        entry: "card",
+        publicationId: publication.id,
+      });
+
+      router.push(remixUrl);
+    } catch (error) {
+      console.error('[Discover] Failed to remix from card:', error);
+      toast.error(t('discover.remix_failed'));
+    } finally {
+      remixInFlightRef.current = false;
+      setRemixingPublicationId(null);
+    }
+  }, [router, t]);
+
   const loadMore = useCallback(() => {
     if (isFetchingMore || !hasMore || publications.length === 0) return;
     const last = publications[publications.length - 1];
@@ -142,6 +209,12 @@ export default function DiscoverPage() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
@@ -226,15 +299,9 @@ export default function DiscoverPage() {
 
         {/* Gallery masonry */}
         {isLoading ? (
-          <div className={DISCOVER_MASONRY_CLASS_NAME}>
+          <div className="columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-4 pt-2">
             {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'mb-3 break-inside-avoid rounded-2xl bg-muted animate-pulse sm:mb-4',
-                  DISCOVER_SKELETON_HEIGHTS[i % DISCOVER_SKELETON_HEIGHTS.length]
-                )}
-              />
+              <div key={i} className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-muted animate-pulse" style={{ height: 180 + (i % 3) * 60 }} />
             ))}
           </div>
         ) : publications.length === 0 ? (
@@ -244,9 +311,15 @@ export default function DiscoverPage() {
             <p className="text-sm text-muted-foreground mt-1">{t('discover.empty_description')}</p>
           </div>
         ) : (
-          <div className={DISCOVER_MASONRY_CLASS_NAME}>
+          <div className="columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-4 pt-2">
             {publications.map((pub) => (
-              <PublicationCard key={pub.id} publication={pub} />
+              <PublicationCard
+                key={pub.id}
+                publication={pub}
+                onRemix={() => handleRemixFromCard(pub)}
+                isRemixing={remixingPublicationId !== null}
+                isRemixActive={remixingPublicationId === pub.id}
+              />
             ))}
           </div>
         )}
