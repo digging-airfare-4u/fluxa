@@ -11,17 +11,17 @@ import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Search, ArrowUpDown, Loader2, ImageOff } from 'lucide-react';
 import { fetchGalleryPublications, fetchCategories, type GalleryPublication, type Category } from '@/lib/supabase/queries/publications';
-import { checkUserInteractions } from '@/lib/supabase/queries/publications';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { PointsBalanceIndicator } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
-import { useInteractionStore } from '@/lib/store/useInteractionStore';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 500;
+const DISCOVER_SKELETON_HEIGHTS = ['h-48', 'h-64', 'h-56', 'h-72'] as const;
+const DISCOVER_MASONRY_CLASS_NAME = 'columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-3 sm:gap-4 pt-2';
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -41,7 +41,6 @@ export default function DiscoverPage() {
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  const { setLikedIds, setBookmarkedIds } = useInteractionStore();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useRef(paramSearch);
@@ -82,14 +81,6 @@ export default function DiscoverPage() {
         const newPubs = append ? [...publications, ...data] : data;
         setPublications(newPubs);
         setHasMore(data.length === PAGE_SIZE);
-
-        const ids = newPubs.map((p) => p.id);
-        if (ids.length > 0) {
-          checkUserInteractions(ids).then(({ likedIds, bookmarkedIds }) => {
-            setLikedIds(likedIds);
-            setBookmarkedIds(bookmarkedIds);
-          });
-        }
       } catch (e) {
         console.error('[Discover] Failed to load publications:', e);
       } finally {
@@ -97,7 +88,7 @@ export default function DiscoverPage() {
         setIsFetchingMore(false);
       }
     },
-    [categorySlug, sortBy, publications, setLikedIds, setBookmarkedIds],
+    [categorySlug, sortBy, publications],
   );
 
   useEffect(() => {
@@ -235,9 +226,15 @@ export default function DiscoverPage() {
 
         {/* Gallery masonry */}
         {isLoading ? (
-          <div className="columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-4 pt-2">
+          <div className={DISCOVER_MASONRY_CLASS_NAME}>
             {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-muted animate-pulse" style={{ height: 180 + (i % 3) * 60 }} />
+              <div
+                key={i}
+                className={cn(
+                  'mb-3 break-inside-avoid rounded-2xl bg-muted animate-pulse sm:mb-4',
+                  DISCOVER_SKELETON_HEIGHTS[i % DISCOVER_SKELETON_HEIGHTS.length]
+                )}
+              />
             ))}
           </div>
         ) : publications.length === 0 ? (
@@ -247,7 +244,7 @@ export default function DiscoverPage() {
             <p className="text-sm text-muted-foreground mt-1">{t('discover.empty_description')}</p>
           </div>
         ) : (
-          <div className="columns-2 sm:columns-3 md:columns-4 xl:columns-5 gap-4 pt-2">
+          <div className={DISCOVER_MASONRY_CLASS_NAME}>
             {publications.map((pub) => (
               <PublicationCard key={pub.id} publication={pub} />
             ))}

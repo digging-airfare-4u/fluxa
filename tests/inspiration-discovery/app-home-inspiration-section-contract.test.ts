@@ -27,4 +27,11 @@ describe('app home inspiration section contract', () => {
     expect(content).toContain('isInspirationLoading');
     expect(content).toContain('inspirationError');
   });
+
+  it('uses a tighter preview masonry rhythm for the inspiration section', () => {
+    expect(content).toContain("const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-44', 'h-56', 'h-48', 'h-64'] as const");
+    expect(content).toContain('columns-2 lg:columns-3 gap-3 sm:gap-4');
+    expect(content).toContain('HOME_INSPIRATION_SKELETON_HEIGHTS[i % HOME_INSPIRATION_SKELETON_HEIGHTS.length]');
+    expect(content).toContain('<PublicationCard key={publication.id} publication={publication} />');
+  });
 });

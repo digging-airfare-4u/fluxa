@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { GalleryPublication } from '@/lib/supabase/queries/publications';
-import { LikeButton, BookmarkButton } from '@/components/social';
+
+const IMAGE_RATIO_CLASSES = ['aspect-[3/4]', 'aspect-[4/5]', 'aspect-square'] as const;
+
+function getImageRatioClass(publicationId: string) {
+  const hash = publicationId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return IMAGE_RATIO_CLASSES[hash % IMAGE_RATIO_CLASSES.length];
+}
 
 interface PublicationCardProps {
   publication: GalleryPublication;
@@ -14,56 +20,44 @@ interface PublicationCardProps {
 }
 
 export function PublicationCard({ publication, footerActions }: PublicationCardProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-
   return (
-    <Link href={`/app/discover/${publication.id}`} className="group block mb-4 break-inside-avoid">
-      <div className="rounded-xl overflow-hidden bg-white dark:bg-[#1A1028] border border-black/5 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
-        <div className="relative w-full overflow-hidden">
-          <Image
-            src={publication.cover_image_url}
-            alt={publication.title}
-            width={400}
-            height={300}
-            unoptimized
-            className={cn(
-              'w-full h-auto object-cover transition-all duration-300 group-hover:scale-[1.02]',
-              !imageLoaded && 'opacity-0'
-            )}
-            onLoad={() => setImageLoaded(true)}
-          />
-          {!imageLoaded && <div className="absolute inset-0 bg-muted animate-pulse" style={{ aspectRatio: '4/3' }} />}
-        </div>
+    <article className="mb-3 break-inside-avoid space-y-3 sm:mb-4">
+      <Link href={`/app/discover/${publication.id}`} className="group block">
+        <div className="space-y-3">
+          <div className={cn('relative overflow-hidden rounded-2xl bg-muted', getImageRatioClass(publication.id))}>
+            <Image
+              src={publication.cover_image_url}
+              alt={publication.title}
+              fill
+              unoptimized
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          </div>
 
-        <div className="p-3 space-y-2">
-          <h3 className="text-sm font-medium text-foreground line-clamp-1">{publication.title}</h3>
+          <div className="space-y-2 px-1">
+            <h3 className="line-clamp-2 text-sm font-medium text-foreground">{publication.title}</h3>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               {publication.avatar_url ? (
-                <Image src={publication.avatar_url} alt="" width={20} height={20} className="size-5 rounded-full object-cover" unoptimized />
+                <Image src={publication.avatar_url} alt="" width={24} height={24} className="size-6 rounded-full object-cover" unoptimized />
               ) : (
-                <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
+                <div className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
                   {(publication.display_name || 'U')[0]}
                 </div>
               )}
-              <span className="text-xs text-muted-foreground truncate">{publication.display_name || 'User'}</span>
+              <span className="truncate text-xs text-muted-foreground">{publication.display_name || 'User'}</span>
             </div>
 
-            <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
-              <Eye className="size-3" />
-              {publication.view_count}
-            </span>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Heart className="size-3.5" />
+              <span>{publication.like_count}</span>
+            </div>
           </div>
-
-          <div className="flex items-center gap-1">
-            <LikeButton publicationId={publication.id} initialCount={publication.like_count} size="sm" />
-            <BookmarkButton publicationId={publication.id} initialCount={publication.bookmark_count} size="sm" />
-          </div>
-
-          {footerActions ? <div className="pt-1">{footerActions}</div> : null}
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {footerActions ? <div className="px-1">{footerActions}</div> : null}
+    </article>
   );
 }

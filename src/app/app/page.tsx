@@ -41,6 +41,8 @@ const QUICK_TAGS = [
   { id: 'video', label: 'Video', icon: Video },
 ];
 
+const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-44', 'h-56', 'h-48', 'h-64'] as const;
+
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -398,13 +400,19 @@ export default function HomePage() {
             </div>
 
             {isInspirationLoading ? (
-              <div className="columns-2 sm:columns-3 gap-4">
+              <div className="columns-2 lg:columns-3 gap-3 sm:gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-muted animate-pulse" style={{ height: 180 + (i % 3) * 40 }} />
+                  <div
+                    key={i}
+                    className={cn(
+                      'mb-3 break-inside-avoid rounded-2xl bg-muted animate-pulse sm:mb-4',
+                      HOME_INSPIRATION_SKELETON_HEIGHTS[i % HOME_INSPIRATION_SKELETON_HEIGHTS.length]
+                    )}
+                  />
                 ))}
               </div>
             ) : inspirationItems.length > 0 ? (
-              <div className="columns-2 sm:columns-3 gap-4">
+              <div className="columns-2 lg:columns-3 gap-3 sm:gap-4">
                 {inspirationItems.map((publication) => (
                   <PublicationCard key={publication.id} publication={publication} />
                 ))}
