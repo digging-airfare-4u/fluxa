@@ -5,11 +5,15 @@
  * Requirements: 3.3 - Initialize points state on app load
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { usePointsStore } from '@/lib/store/usePointsStore';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
+import {
+  clearPendingInviteCode,
+  shouldClearPendingInviteCode,
+} from '@/lib/supabase/queries/invite-codes';
 
 /**
  * Points Initializer Component
@@ -45,6 +49,7 @@ export default function AppLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const resetPointsStore = usePointsStore((state) => state.reset);
+  const autoRedeemAttemptedUserIdRef = useRef<string | null>(null);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -78,6 +83,7 @@ export default function AppLayout({
       } else {
         setIsAuthenticated(false);
         setUserId(null);
+        autoRedeemAttemptedUserIdRef.current = null;
         // Reset points store on logout
         resetPointsStore();
         router.push('/auth');
@@ -86,6 +92,39 @@ export default function AppLayout({
 
     return () => subscription.unsubscribe();
   }, [checkAuth, router, resetPointsStore]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+    if (autoRedeemAttemptedUserIdRef.current === userId) return;
+
+    autoRedeemAttemptedUserIdRef.current = userId;
+
+    const tryAutoRedeem = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const pendingInviteCode = String(session?.user?.user_metadata?.pending_invite_code ?? '').trim();
+        if (!session?.access_token || !pendingInviteCode) return;
+
+        const response = await fetch('/api/invite/redeem', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ invite_code: pendingInviteCode }),
+        });
+
+        const payload = await response.json();
+        if (shouldClearPendingInviteCode(payload)) {
+          await clearPendingInviteCode();
+        }
+      } catch (err) {
+        console.error('[app/layout] auto invite redeem failed:', err);
+      }
+    };
+
+    void tryAutoRedeem();
+  }, [isAuthenticated, userId]);
 
   // Loading state
   if (isLoading) {

@@ -65,17 +65,22 @@ export default function ProjectsPage() {
   }, [loadProjects]);
 
   const handleNewProject = useCallback(async () => {
+    const newTab = window.open('about:blank', '_blank');
     try {
       setIsCreating(true);
       setError(null);
       const { project } = await createProject();
-      router.push(`/app/p/${project.id}`);
+      if (newTab) {
+        newTab.location.href = `/app/p/${project.id}`;
+      }
     } catch (err) {
       console.error('Failed to create project:', err);
+      newTab?.close();
       setError('创建项目失败，请重试');
+    } finally {
       setIsCreating(false);
     }
-  }, [router]);
+  }, []);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     try {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('inspiration-discovery PublicationCard contract', () => {
-  it('uses the lightweight feed card contract', () => {
+  it('opens discover detail in-place instead of linking to a route', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/discover/PublicationCard.tsx'),
       'utf8'
@@ -12,16 +12,18 @@ describe('inspiration-discovery PublicationCard contract', () => {
     expect(source).toContain('const IMAGE_RATIO_CLASSES');
     expect(source).toContain('function getImageRatioClass(publicationId: string)');
     expect(source).toContain('getImageRatioClass(publication.id)');
-    expect(source).toContain('publication.title');
-    expect(source).toContain('publication.cover_image_url');
+    expect(source).toContain('onOpenDetail?: (publicationId: string) => void');
+    expect(source).toContain('onClick={() => onOpenDetail?.(publication.id)}');
+    expect(source).toContain('type="button"');
     expect(source).toContain('line-clamp-2');
     expect(source).toContain('publication.display_name');
     expect(source).toContain('publication.like_count');
-    expect(source).not.toContain('LikeButton');
-    expect(source).not.toContain('BookmarkButton');
-    expect(source).not.toContain('publication.view_count');
+    expect(source).toContain('aria-hidden="true"');
+    expect(source).toContain('aria-label={`${publication.like_count} likes`}');
     expect(source).toContain('footerActions');
-    expect(source).toContain('href={`/app/discover/${publication.id}`}');
+    expect(source).not.toContain('href={`/app/discover/${publication.id}`}');
+    expect(source).not.toContain("router.push(`/app/discover/${publication.id}`)");
+    expect(source).not.toContain('<Link');
   });
 
   it('supports remix action loading contract', () => {

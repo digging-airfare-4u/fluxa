@@ -2190,7 +2190,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           />
         )}
 
-        <div className="canvas-controls absolute bottom-4 left-1/2 -translate-x-1/2">
+        <div className="canvas-controls absolute bottom-14 left-4">
           <button onClick={() => handleZoom(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} title={t('canvas.zoom_out')}><Minus size={14} /></button>
           <button onClick={() => handleZoom(1)} className="min-w-[44px] text-xs font-medium text-gray-300" title={t('canvas.reset_zoom')}>{Math.round(zoom * 100)}%</button>
           <button onClick={() => handleZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} title={t('canvas.zoom_in')}><Plus size={14} /></button>

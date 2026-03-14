@@ -24,6 +24,7 @@ import { UserPopover } from '@/components/layout';
 import { ProviderConfigPanel } from '@/components/settings';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
+import { PublicationDetailDialog } from '@/components/discover';
 import {
   fetchRecentProjectsFromOps,
   createProject,
@@ -58,6 +59,8 @@ export default function HomePage() {
   const [inspirationItems, setInspirationItems] = useState<GalleryPublication[]>([]);
   const [isInspirationLoading, setIsInspirationLoading] = useState(true);
   const [inspirationError, setInspirationError] = useState(false);
+  const [activePublicationId, setActivePublicationId] = useState<string | null>(null);
+  const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -113,31 +116,41 @@ export default function HomePage() {
   }, [loadInspiration]);
 
   const handlePromptSubmit = useCallback(async (prompt: string) => {
+    // Open tab synchronously so the browser trusts the user gesture
+    const newTab = window.open('about:blank', '_blank');
     try {
       setIsCreating(true);
       setError(null);
       const { project } = await createProject();
-      // Pass prompt via URL parameter, will be auto-sent in editor
-      router.push(`/app/p/${project.id}?prompt=${encodeURIComponent(prompt)}`);
+      if (newTab) {
+        newTab.location.href = `/app/p/${project.id}?prompt=${encodeURIComponent(prompt)}`;
+      }
     } catch (err) {
       console.error('Failed to create project:', err);
+      newTab?.close();
       setError(t('errors.create_failed'));
+    } finally {
       setIsCreating(false);
     }
-  }, [router, t]);
+  }, [t]);
 
   const handleNewProject = useCallback(async () => {
+    const newTab = window.open('about:blank', '_blank');
     try {
       setIsCreating(true);
       setError(null);
       const { project } = await createProject();
-      router.push(`/app/p/${project.id}`);
+      if (newTab) {
+        newTab.location.href = `/app/p/${project.id}`;
+      }
     } catch (err) {
       console.error('Failed to create project:', err);
+      newTab?.close();
       setError(t('errors.create_failed'));
+    } finally {
       setIsCreating(false);
     }
-  }, [router, t]);
+  }, [t]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     try {
@@ -413,8 +426,16 @@ export default function HomePage() {
               </div>
             ) : inspirationItems.length > 0 ? (
               <div className="columns-2 lg:columns-3 gap-3 sm:gap-4">
+                {/* Baseline card contract: <PublicationCard key={publication.id} publication={publication} /> */}
                 {inspirationItems.map((publication) => (
-                  <PublicationCard key={publication.id} publication={publication} />
+                  <PublicationCard
+                    key={publication.id}
+                    publication={publication}
+                    onOpenDetail={(publicationId) => {
+                      setActivePublicationId(publicationId);
+                      setIsPublicationDialogOpen(true);
+                    }}
+                  />
                 ))}
               </div>
             ) : (
@@ -427,6 +448,13 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      <PublicationDetailDialog
+        open={isPublicationDialogOpen}
+        onOpenChange={setIsPublicationDialogOpen}
+        publicationId={activePublicationId}
+        onPublicationChange={setActivePublicationId}
+      />
 
       {/* Profile Dialog */}
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />

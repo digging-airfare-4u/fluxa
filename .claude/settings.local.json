@@ -1,6 +1,23 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint:*)",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "Bash(pnpm dev)",
+      "Bash(open http://localhost:3000)",
+      "Bash(osascript -e '\ntell application \"Safari\" to activate\ndelay 0.5\ntell application \"System Events\"\n    tell process \"Safari\"\n        -- 尝试查找并点击包含 \"Get Started\" 的按钮\n        set buttonFound to false\n        try\n            set startButton to first button whose description contains \"Get Started\" or name contains \"Get Started\"\n            click startButton\n            set buttonFound to true\n        end try\n        if not buttonFound then\n            -- 如果找不到按钮，尝试按键\n            keystroke tab\n        end if\n    end tell\nend tell\n')",
+      "Bash(open http://localhost:3000/app/p/bf8d3a09-9215-4d20-a30e-ae3c3a27e82d)",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__get_edge_function",
+      "mcp__supabase__execute_sql",
+      "WebFetch(domain:new.12ai.org)",
+      "Bash(openspec list --json)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "shadcn"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Left Toolbar Component - Editor vertical tool buttons
- * Requirements: 6.2, 7.6, 14.1 - Left toolbar with vertical icon buttons and i18n tooltips
+ * Editor Toolbar Component - Supports vertical (left sidebar) and horizontal (bottom bar) layouts
+ * Requirements: 6.2, 7.6, 14.1 - Toolbar with icon buttons and i18n tooltips
  */
 
 import { useCallback } from 'react';
@@ -30,12 +30,16 @@ interface Tool {
   shortcut?: string;
 }
 
+type ToolbarDirection = 'vertical' | 'horizontal';
+
 interface LeftToolbarProps {
   activeTool?: ToolType;
   onToolChange?: (tool: ToolType) => void;
   onImageUpload?: () => void;
   onAIClick?: () => void;
   style?: React.CSSProperties;
+  direction?: ToolbarDirection;
+  className?: string;
 }
 
 const tools: Tool[] = [
@@ -54,8 +58,12 @@ export function LeftToolbar({
   onImageUpload,
   onAIClick,
   style,
+  direction = 'vertical',
+  className,
 }: LeftToolbarProps) {
   const t = useT('editor');
+  const isHorizontal = direction === 'horizontal';
+  const tooltipSide = isHorizontal ? 'top' : 'right';
 
   const handleToolClick = useCallback((tool: Tool) => {
     if (tool.id === 'image') {
@@ -73,7 +81,11 @@ export function LeftToolbar({
 
   return (
     <div 
-      className="editor-toolbar z-40 transition-[left] duration-300 ease-in-out"
+      className={cn(
+        "editor-toolbar z-40",
+        isHorizontal ? "editor-toolbar--horizontal" : "editor-toolbar--vertical",
+        className,
+      )}
       style={style}
       role="toolbar"
       aria-label={t('toolbar.aria_label')}
@@ -111,7 +123,7 @@ export function LeftToolbar({
                 </Toggle>
               )}
             </TooltipTrigger>
-            <TooltipContent side="right">
+            <TooltipContent side={tooltipSide}>
               {label}{tool.shortcut && ` (${tool.shortcut})`}
             </TooltipContent>
           </Tooltip>

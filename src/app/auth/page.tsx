@@ -27,6 +27,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,11 +75,15 @@ export default function AuthPage() {
 
         router.push('/app');
       } else {
+        const normalizedInviteCode = inviteCode.trim();
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/app`,
+            data: normalizedInviteCode
+              ? { pending_invite_code: normalizedInviteCode }
+              : undefined,
           },
         });
 
@@ -95,13 +100,14 @@ export default function AuthPage() {
         setMode('login');
         setPassword('');
         setConfirmPassword('');
+        setInviteCode('');
       }
     } catch {
       setError('操作失败，请重试');
     } finally {
       setIsLoading(false);
     }
-  }, [mode, email, password, confirmPassword, router]);
+  }, [mode, email, password, confirmPassword, inviteCode, router]);
 
   const toggleMode = useCallback(() => {
     setMode(mode === 'login' ? 'register' : 'login');
@@ -109,6 +115,7 @@ export default function AuthPage() {
     setSuccess(null);
     setPassword('');
     setConfirmPassword('');
+    setInviteCode('');
   }, [mode]);
 
   return (
@@ -208,6 +215,23 @@ export default function AuthPage() {
                       disabled={isLoading}
                     />
                   </div>
+                </div>
+              )}
+
+              {mode === 'register' && (
+                <div>
+                  <label htmlFor="inviteCode" className="block text-sm font-medium mb-2 text-muted-foreground">
+                    邀请码（选填）
+                  </label>
+                  <Input
+                    id="inviteCode"
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder="输入邀请码"
+                    className="h-12"
+                    disabled={isLoading}
+                  />
                 </div>
               )}
 

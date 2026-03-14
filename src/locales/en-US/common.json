@@ -81,7 +81,11 @@
     "delete_comment": "Delete",
     "login_to_interact": "Sign in to like, bookmark and comment",
     "remix_cta": "Remix this",
-    "remix_failed": "Failed to create remix project. Please try again"
+    "remix_failed": "Failed to create remix project. Please try again",
+    "anonymous": "Anonymous",
+    "conversation_replay": "Conversation Replay",
+    "load_error": "Failed to load. Please try again later",
+    "load_error_title": "Loading Error"
   },
   "share": {
     "title": "Share Conversation",

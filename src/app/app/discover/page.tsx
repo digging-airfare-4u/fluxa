@@ -17,6 +17,7 @@ import { createProject } from '@/lib/supabase/queries/projects';
 import { buildRemixPrompt, buildRemixEditorUrl } from '@/lib/inspiration/remix';
 import { trackDiscoverRemixEvent } from '@/lib/observability/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
+import { PublicationDetailDialog } from '@/components/discover/PublicationDetailDialog';
 import { PointsBalanceIndicator } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -45,6 +46,8 @@ export default function DiscoverPage() {
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [remixingPublicationId, setRemixingPublicationId] = useState<string | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailPublicationId, setDetailPublicationId] = useState<string | null>(null);
 
   const { setLikedIds, setBookmarkedIds } = useInteractionStore();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,6 +149,11 @@ export default function DiscoverPage() {
     },
     [categorySlug, updateParams],
   );
+
+  const handleOpenDetail = useCallback((publicationId: string) => {
+    setDetailPublicationId(publicationId);
+    setDetailDialogOpen(true);
+  }, []);
 
   const handleRemixFromCard = useCallback(async (publication: GalleryPublication) => {
     if (remixInFlightRef.current) return;
@@ -316,6 +324,7 @@ export default function DiscoverPage() {
               <PublicationCard
                 key={pub.id}
                 publication={pub}
+                onOpenDetail={handleOpenDetail}
                 onRemix={() => handleRemixFromCard(pub)}
                 isRemixing={remixingPublicationId !== null}
                 isRemixActive={remixingPublicationId === pub.id}
@@ -337,6 +346,13 @@ export default function DiscoverPage() {
           </div>
         )}
       </main>
+
+      <PublicationDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        publicationId={detailPublicationId}
+        onPublicationChange={setDetailPublicationId}
+      />
     </div>
   );
 }

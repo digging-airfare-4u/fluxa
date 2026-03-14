@@ -68,7 +68,7 @@ export async function rollbackFulfillment(
         updated_at: now,
       })
       .eq('id', order.user_id)
-      .eq('membership_source_order_id', order.order_no);
+      .eq('membership_source_order_id', order.id);
 
     membershipRolledBack = !error;
   }

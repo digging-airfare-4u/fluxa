@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Eye, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,19 +11,24 @@ import { LikeButton, BookmarkButton } from '@/components/social';
 interface PublicationCardProps {
   publication: GalleryPublication;
   footerActions?: ReactNode;
+  onOpenDetail?: (publicationId: string) => void;
   onRemix?: () => void | Promise<void>;
   isRemixing?: boolean;
   isRemixActive?: boolean;
 }
 
-export function PublicationCard({ publication, footerActions, onRemix, isRemixing, isRemixActive }: PublicationCardProps) {
+export function PublicationCard({ publication, footerActions, onOpenDetail, onRemix, isRemixing, isRemixActive }: PublicationCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const t = useTranslations('common');
 
   return (
     <div className="group block mb-4 break-inside-avoid">
       <div className="rounded-xl overflow-hidden bg-white dark:bg-[#1A1028] border border-black/5 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
-        <Link href={`/app/discover/${publication.id}`} className="block">
+        <button
+          type="button"
+          onClick={() => onOpenDetail?.(publication.id)}
+          className="block w-full text-left cursor-pointer"
+        >
           <div className="relative w-full overflow-hidden">
             <Image
               src={publication.cover_image_url}
@@ -62,7 +66,7 @@ export function PublicationCard({ publication, footerActions, onRemix, isRemixin
               </span>
             </div>
           </div>
-        </Link>
+        </button>
 
         <div className="px-3 pb-3 space-y-1">
           <div className="flex items-center gap-1">

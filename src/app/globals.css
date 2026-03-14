@@ -827,17 +827,30 @@ h1, h2, h3, h4, h5, h6 {
 /* ============================================
    EDITOR COMPONENTS
    ============================================ */
+
+/* Base toolbar appearance (shared between vertical and horizontal) */
 .editor-toolbar {
-  @apply w-10 h-auto fixed top-1/2 -translate-y-1/2
-         rounded-xl
-         flex flex-col items-center py-1.5 gap-0.5;
-  left: 16px; /* Default left position, can be overridden by inline style */
+  @apply fixed rounded-xl flex items-center gap-0.5;
   background: var(--color-overlay-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
+}
+
+/* Vertical mode: left sidebar (legacy default) */
+.editor-toolbar--vertical {
+  @apply w-10 h-auto top-1/2 -translate-y-1/2
+         flex-col py-1.5;
+  left: 16px;
   transition: background 0.2s ease, border-color 0.2s ease, left 0.3s ease;
+}
+
+/* Horizontal mode: bottom-center floating bar */
+.editor-toolbar--horizontal {
+  @apply w-auto h-10 bottom-4 left-1/2 -translate-x-1/2
+         flex-row px-1.5;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .tool-button {

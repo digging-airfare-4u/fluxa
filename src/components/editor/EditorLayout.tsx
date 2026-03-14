@@ -465,13 +465,13 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
         <PointsBalanceIndicator />
       </div>
 
-      {/* Left Toolbar */}
+      {/* Bottom Toolbar - horizontal, centered */}
       <LeftToolbar
         activeTool={activeTool}
         onToolChange={handleToolChange}
         onImageUpload={handleImageUpload}
         onAIClick={handleAIClick}
-        style={{ left: isLayerPanelVisible ? LAYER_PANEL_WIDTH + 28 : 16 }}
+        direction="horizontal"
       />
 
       {/* Main content area - full width, ChatPanel floats on top */}

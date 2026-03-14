@@ -23,6 +23,8 @@ export default defineConfig([
     'supabase/functions/**',
     'supabase/.temp/**',
     '.next/**',
+    '.worktrees/**',
+    '.claude/worktrees/**',
     'out/**',
     'build/**',
     'node_modules/**',

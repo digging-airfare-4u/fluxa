@@ -16,6 +16,7 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { UserProfilePoints } from '@/components/points';
+import { PublicationDetailDialog } from '@/components/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { supabase } from '@/lib/supabase/client';
 import {
@@ -34,9 +35,15 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<'points' | 'publications' | 'bookmarks'>('points');
   const [publications, setPublications] = useState<GalleryPublication[]>([]);
   const [bookmarks, setBookmarks] = useState<GalleryPublication[]>([]);
+  const [activePublicationId, setActivePublicationId] = useState<string | null>(null);
+  const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [isRedeemingInvite, setIsRedeemingInvite] = useState(false);
+  const [inviteRedeemError, setInviteRedeemError] = useState<string | null>(null);
+  const [inviteRedeemSuccess, setInviteRedeemSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     async function getUser() {
@@ -89,6 +96,64 @@ export default function ProfilePage() {
     await reloadPublicationLists();
   };
 
+  const handleRedeemInviteCode = async () => {
+    setInviteRedeemError(null);
+    setInviteRedeemSuccess(null);
+
+    const normalizedCode = inviteCode.trim();
+    if (!normalizedCode) {
+      setInviteRedeemError('Please enter an invite code.');
+      return;
+    }
+
+    setIsRedeemingInvite(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setInviteRedeemError('Please sign in again and retry.');
+        return;
+      }
+
+      const response = await fetch('/api/invite/redeem', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ invite_code: normalizedCode }),
+      });
+
+      const payload = await response.json();
+      if (payload?.success === true) {
+        const membership_expires_at = payload?.membership_expires_at as string | null;
+        setInviteRedeemSuccess(
+          membership_expires_at
+            ? `Invite redeemed successfully. Pro valid until ${new Date(membership_expires_at).toLocaleString()}.`
+            : 'Invite redeemed successfully.'
+        );
+        setInviteCode('');
+        return;
+      }
+
+      const businessCode = payload?.error?.code as string | undefined;
+      if (businessCode === 'ALREADY_REDEEMED') {
+        setInviteRedeemError('ALREADY_REDEEMED: You already redeemed an invite reward.');
+      } else if (businessCode === 'CODE_USED') {
+        setInviteRedeemError('CODE_USED: This invite code has already been used.');
+      } else if (businessCode === 'CODE_EXPIRED') {
+        setInviteRedeemError('CODE_EXPIRED: This invite code has expired.');
+      } else if (businessCode === 'INVALID_CODE') {
+        setInviteRedeemError('INVALID_CODE: Invalid invite code.');
+      } else {
+        setInviteRedeemError('INTERNAL_ERROR: Failed to redeem invite code.');
+      }
+    } catch {
+      setInviteRedeemError('INTERNAL_ERROR: Failed to redeem invite code.');
+    } finally {
+      setIsRedeemingInvite(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0D0915]">
       {/* Header */}
@@ -123,6 +188,29 @@ export default function ProfilePage() {
           <Textarea value={bio} onChange={(e) => setBio(e.target.value.slice(0, 200))} placeholder="Bio" rows={2} />
         </div>
 
+        <div className="rounded-xl border bg-white dark:bg-[#1A1028] p-4 space-y-3">
+          <h2 className="text-sm font-semibold">Invite Code</h2>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <Input
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Enter invite code"
+              disabled={isRedeemingInvite}
+            />
+            <Button onClick={handleRedeemInviteCode} disabled={isRedeemingInvite}>
+              {isRedeemingInvite ? 'Redeeming...' : 'Redeem'}
+            </Button>
+          </div>
+          {inviteRedeemError && (
+            <p className="text-sm text-destructive">{inviteRedeemError}</p>
+          )}
+          {inviteRedeemSuccess && (
+            <p className="text-sm text-green-600 dark:text-green-400">
+              {inviteRedeemSuccess} membership_expires_at updated.
+            </p>
+          )}
+        </div>
+
         <div className="flex items-center gap-2">
           <Button variant={tab === 'points' ? 'default' : 'outline'} size="sm" onClick={() => setTab('points')}>
             <User className="size-4 mr-1" /> Points
@@ -146,10 +234,14 @@ export default function ProfilePage() {
                 <PublicationCard
                   key={pub.id}
                   publication={pub}
+                  onOpenDetail={(publicationId) => {
+                    setActivePublicationId(publicationId);
+                    setIsPublicationDialogOpen(true);
+                  }}
                   footerActions={(
                     <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-                      <Button size="sm" variant="outline" onClick={() => router.push(`/app/discover/${pub.id}`)}>
-                        Edit
+                      <Button size="sm" variant="outline" disabled>
+                        Detail in modal
                       </Button>
                       <Button size="sm" variant="secondary" onClick={() => handleHideToggle(pub)}>
                         {pub.status === 'hidden' ? 'Unhide' : 'Hide'}
@@ -171,6 +263,10 @@ export default function ProfilePage() {
                 <PublicationCard
                   key={pub.id}
                   publication={pub}
+                  onOpenDetail={(publicationId) => {
+                    setActivePublicationId(publicationId);
+                    setIsPublicationDialogOpen(true);
+                  }}
                   footerActions={(
                     <div onClick={(e) => e.preventDefault()}>
                       <Button size="sm" variant="outline" onClick={() => handleRemoveBookmark(pub.id)}>
@@ -184,6 +280,13 @@ export default function ProfilePage() {
           )
         )}
       </main>
+
+      <PublicationDetailDialog
+        open={isPublicationDialogOpen}
+        onOpenChange={setIsPublicationDialogOpen}
+        publicationId={activePublicationId}
+        onPublicationChange={setActivePublicationId}
+      />
     </div>
   );
 }

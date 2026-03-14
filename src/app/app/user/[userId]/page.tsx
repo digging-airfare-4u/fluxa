@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
 import { fetchGalleryPublications, checkUserInteractions, type GalleryPublication } from '@/lib/supabase/queries/publications';
 import { FollowButton } from '@/components/social';
+import { PublicationDetailDialog } from '@/components/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { useInteractionStore } from '@/lib/store/useInteractionStore';
 import { supabase } from '@/lib/supabase/client';
@@ -32,6 +33,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [activePublicationId, setActivePublicationId] = useState<string | null>(null);
+  const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
 
   const { setLikedIds, setBookmarkedIds } = useInteractionStore();
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -77,6 +80,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
       mounted = false;
     };
   }, [userId, router, setLikedIds, setBookmarkedIds]);
+
+  const handleOpenPublication = useCallback((publicationId: string) => {
+    setActivePublicationId(publicationId);
+    setIsPublicationDialogOpen(true);
+  }, []);
 
   const loadMore = useCallback(async () => {
     if (isFetchingMore || !hasMore || publications.length === 0) return;
@@ -194,7 +202,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
           ) : (
             <div className="columns-2 sm:columns-3 md:columns-4 gap-4">
               {publications.map((pub) => (
-                <PublicationCard key={pub.id} publication={pub} />
+                <PublicationCard key={pub.id} publication={pub} onOpenDetail={handleOpenPublication} />
               ))}
             </div>
           )}
@@ -206,6 +214,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
           )}
         </div>
       </main>
+
+      <PublicationDetailDialog
+        open={isPublicationDialogOpen}
+        onOpenChange={setIsPublicationDialogOpen}
+        publicationId={activePublicationId}
+        onPublicationChange={setActivePublicationId}
+      />
     </div>
   );
 }
