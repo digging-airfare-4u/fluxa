@@ -163,19 +163,16 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     let cancelled = false;
 
     const loadModels = async () => {
-      const [{ data: { session } }, systemModels, configuredAgentDefaultModel] = await Promise.all([
+      const [, systemModels, configuredAgentDefaultModel] = await Promise.all([
         supabase.auth.getSession(),
         fetchModels(),
         getAgentDefaultBrainModel().catch(() => null),
       ]);
 
-      let userConfigs: UserProviderConfig[] = [];
-      if (session?.access_token) {
-        userConfigs = await fetchUserProviderConfigs().catch((error) => {
-          console.error('[ChatPanel] Failed to load BYOK configs:', error);
-          return [];
-        });
-      }
+      const userConfigs: UserProviderConfig[] = await fetchUserProviderConfigs().catch((error) => {
+        console.error('[ChatPanel] Failed to load BYOK configs:', error);
+        return [];
+      });
 
       if (cancelled) {
         return;

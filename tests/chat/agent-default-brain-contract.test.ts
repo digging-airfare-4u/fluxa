@@ -11,7 +11,9 @@ describe('agent default brain contract', () => {
 
     expect(source).toContain('getAgentDefaultBrainModel');
     expect(source).toContain('configuredAgentDefaultModel');
+    expect(source).toContain('fetchUserProviderConfigs().catch');
     expect(source).toContain('setSelectedAgentModel(configuredAgentDefaultModel)');
     expect(source).toContain("model.type === 'ops'");
+    expect(source).not.toContain('if (session?.access_token)');
   });
 });
