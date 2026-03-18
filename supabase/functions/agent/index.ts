@@ -311,6 +311,7 @@ async function persistAssistantMessage(
 function createPlanner(
   runtime: ResolvedChatProvider,
   referenceImageUrl?: string,
+  conversationId?: string,
 ): (history: AgentHistoryEntry[]) => Promise<AgentPlannerResult> {
   return (history) => retryWithExponentialBackoff(() => callChatProviderJson<AgentPlannerResult>({
     provider: runtime.provider,
@@ -338,12 +339,22 @@ function createPlanner(
           : JSON.stringify({ history }),
       },
     ],
-  }));
+  }), {
+    provider: runtime.provider.name,
+    model: runtime.displayName,
+    diagnosticContext: {
+      stage: 'planner',
+      conversationId,
+      historyLength: history.length,
+      hasReferenceImage: Boolean(referenceImageUrl),
+    },
+  });
 }
 
 function createExecutor(
   runtime: ResolvedChatProvider,
   referenceImageUrl?: string,
+  conversationId?: string,
 ): (input: {
   history: AgentHistoryEntry[];
   plan: AgentPlannerResult;
@@ -380,7 +391,17 @@ function createExecutor(
           : JSON.stringify(input),
       },
     ],
-  }));
+  }), {
+    provider: runtime.provider.name,
+    model: runtime.displayName,
+    diagnosticContext: {
+      stage: 'executor',
+      conversationId,
+      historyLength: input.history.length,
+      iteration: input.iteration,
+      hasReferenceImage: Boolean(referenceImageUrl),
+    },
+  });
 }
 
 function isUserModelIdentifier(model: string): model is `user:${string}` {
@@ -536,8 +557,8 @@ Deno.serve(async (req: Request) => {
         history: userTurnHistory,
         maxIterations: MAX_ITERATIONS,
         emitEvent: (event) => sendEvent(event),
-        planner: createPlanner(runtime, body.referenceImageUrl),
-        executor: createExecutor(runtime, body.referenceImageUrl),
+        planner: createPlanner(runtime, body.referenceImageUrl, body.conversationId),
+        executor: createExecutor(runtime, body.referenceImageUrl, body.conversationId),
         runTool: async (call) => {
           return retryWithExponentialBackoff(async () => {
             if (call.tool === 'web_search') {

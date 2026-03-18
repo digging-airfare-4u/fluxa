@@ -13,6 +13,92 @@ export interface ChatProviderJsonCallOptions {
   maxTokens?: number;
 }
 
+interface RetryWithExponentialBackoffOptions {
+  maxAttempts?: number;
+  initialDelayMs?: number;
+  provider?: string;
+  model?: string;
+  diagnosticContext?: Record<string, unknown>;
+}
+
+function readDiagnosticString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readDiagnosticNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function extractRequestIdFromText(value: string): string | undefined {
+  const match = value.match(/request\s*id\s*[:=]\s*([a-zA-Z0-9._-]+)/i);
+  return match?.[1];
+}
+
+function extractRequestIdFromJson(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const directRequestId = readDiagnosticString(record.requestId) ?? readDiagnosticString(record.request_id);
+  if (directRequestId) {
+    return directRequestId;
+  }
+
+  return extractRequestIdFromJson(record.error);
+}
+
+function extractProviderStatus(error: unknown): number | undefined {
+  if (!(error instanceof ProviderError)) {
+    return undefined;
+  }
+
+  if (typeof error.httpStatus === 'number') {
+    return error.httpStatus;
+  }
+
+  const details = error.details;
+  if (!details || typeof details !== 'object') {
+    return undefined;
+  }
+
+  return readDiagnosticNumber((details as Record<string, unknown>).status);
+}
+
+function extractProviderRequestId(error: unknown): string | undefined {
+  if (!(error instanceof ProviderError)) {
+    return undefined;
+  }
+
+  const details = error.details;
+  if (details && typeof details === 'object') {
+    const requestId = extractRequestIdFromJson(details);
+    if (requestId) {
+      return requestId;
+    }
+
+    const body = (details as Record<string, unknown>).body;
+    if (typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body);
+        const parsedRequestId = extractRequestIdFromJson(parsed);
+        if (parsedRequestId) {
+          return parsedRequestId;
+        }
+      } catch {
+        // Ignore invalid JSON bodies and fall back to regex extraction.
+      }
+
+      const requestIdFromBody = extractRequestIdFromText(body);
+      if (requestIdFromBody) {
+        return requestIdFromBody;
+      }
+    }
+  }
+
+  return extractRequestIdFromText(error.message);
+}
+
 function stripThinkBlocks(content: string): string {
   return content.replace(/<think[\s\S]*?<\/think>/gi, '').trim();
 }
@@ -112,10 +198,7 @@ function supportsJsonResponseFormat(provider: ChatProvider): boolean {
 
 export async function retryWithExponentialBackoff<T>(
   operation: () => Promise<T>,
-  options?: {
-    maxAttempts?: number;
-    initialDelayMs?: number;
-  },
+  options?: RetryWithExponentialBackoffOptions,
 ): Promise<T> {
   const maxAttempts = options?.maxAttempts ?? 3;
   let delayMs = options?.initialDelayMs ?? 250;
@@ -126,6 +209,18 @@ export async function retryWithExponentialBackoff<T>(
       return await operation();
     } catch (error) {
       lastError = error;
+      const diagnosticContext = options?.diagnosticContext ?? {};
+      console.error('[chat-provider-json] provider call failed', {
+        stage: readDiagnosticString(diagnosticContext.stage),
+        conversationId: readDiagnosticString(diagnosticContext.conversationId),
+        historyLength: readDiagnosticNumber(diagnosticContext.historyLength),
+        attempt,
+        maxAttempts,
+        provider: options?.provider ?? (error instanceof ProviderError ? error.providerName : undefined),
+        model: options?.model ?? (error instanceof ProviderError ? error.modelName : undefined),
+        requestId: extractProviderRequestId(error),
+        status: extractProviderStatus(error),
+      });
       if (attempt >= maxAttempts || !isRetryableError(error)) {
         break;
       }
