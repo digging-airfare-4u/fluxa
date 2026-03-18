@@ -78,7 +78,7 @@ export function resolveSelectableModels(
     if (!config.is_enabled) continue;
     const selectableType = config.model_type === 'chat' ? 'ops' : 'image';
     result.push({
-      value: config.model_identifier,
+      value: config.model_name,
       displayName: config.display_name,
       type: selectableType,
       isByok: true,
