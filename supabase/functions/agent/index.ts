@@ -33,6 +33,7 @@ import {
   searchWeb,
 } from '../_shared/utils/agent-search.ts';
 import {
+  appendCurrentUserTurn,
   bootstrapAgentHistoryFromMessages,
   createAgentAssistantMetadata,
   runAgentLoop,
@@ -526,10 +527,10 @@ Deno.serve(async (req: Request) => {
 
     return createSseResponse(async (sendEvent) => {
       const baseHistory = await loadAgentHistory(serviceClient, body.conversationId);
-      const userTurnHistory = truncateAgentHistory([
-        ...baseHistory,
-        { role: 'user', content: body.prompt },
-      ], HISTORY_RETENTION);
+      const userTurnHistory = truncateAgentHistory(
+        appendCurrentUserTurn(baseHistory, body.prompt),
+        HISTORY_RETENTION,
+      );
 
       const loopResult = await runAgentLoop({
         history: userTurnHistory,

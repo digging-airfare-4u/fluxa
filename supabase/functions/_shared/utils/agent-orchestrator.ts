@@ -160,6 +160,23 @@ export function truncateAgentHistory(
   return [...systemEntries, ...truncatedNonSystemEntries];
 }
 
+export function appendCurrentUserTurn(
+  history: AgentHistoryEntry[],
+  prompt: string,
+): AgentHistoryEntry[] {
+  const trimmedPrompt = prompt.trim();
+  if (!trimmedPrompt) {
+    return history;
+  }
+
+  const lastEntry = history[history.length - 1];
+  if (lastEntry?.role === 'user' && lastEntry.content.trim() === trimmedPrompt) {
+    return history;
+  }
+
+  return [...history, { role: 'user', content: trimmedPrompt }];
+}
+
 function getStep(
   plan: AgentPlannerResult,
   result: AgentExecutorResult,

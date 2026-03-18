@@ -105,8 +105,8 @@ describe('agent edge function contract', () => {
     expect(source).toContain('resolveDefaultAgentRuntimeModel(serviceClient)');
     expect(source).toContain('resolveChatProvider({');
     expect(source).toContain('fallbackModel: defaultRuntimeModel');
-    expect(source).toContain('planner: createPlanner(runtime)');
-    expect(source).toContain('executor: createExecutor(runtime)');
+    expect(source).toContain('planner: createPlanner(runtime, body.referenceImageUrl)');
+    expect(source).toContain('executor: createExecutor(runtime, body.referenceImageUrl)');
     expect(source).not.toContain('GEMINI_API_KEY not configured');
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  appendCurrentUserTurn,
   bootstrapAgentHistoryFromMessages,
   createAgentAssistantMetadata,
   runAgentLoop,
@@ -42,6 +43,19 @@ describe('truncateAgentHistory', () => {
       { role: 'assistant', content: 'a2' },
       { role: 'user', content: 'u3' },
     ]);
+  });
+});
+
+describe('appendCurrentUserTurn', () => {
+  it('does not append a duplicate current user prompt when bootstrap history already ends with it', () => {
+    const history: AgentHistoryEntry[] = [
+      { role: 'system', content: 'system context' },
+      { role: 'user', content: '你好' },
+    ];
+
+    const nextHistory = appendCurrentUserTurn(history, '你好');
+
+    expect(nextHistory).toEqual(history);
   });
 });
 
