@@ -113,9 +113,9 @@ export type ChatStore = ChatState & ChatActions;
 
 const initialState: ChatState = {
   chatMode: getInitialChatMode(),
-  selectedModel: 'doubao-seedream-4-5-251128',
-  selectedAgentModel: 'doubao-seed-1-6-vision-250815',
-  selectedAgentImageModel: 'gemini-3-pro-image-preview',
+  selectedModel: '',
+  selectedAgentModel: '',
+  selectedAgentImageModel: '',
   selectedResolution: '1K',
   selectedAspectRatio: '1:1',
   models: [],

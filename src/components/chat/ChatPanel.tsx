@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { supabase } from '@/lib/supabase/client';
 import Image from 'next/image';
 import { ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -159,11 +160,27 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   // Load models on mount (system + user BYOK)
   useEffect(() => {
-    Promise.all([
-      fetchModels(),
-      fetchUserProviderConfigs().catch(() => []),
-      getAgentDefaultBrainModel().catch(() => null),
-    ]).then(([systemModels, userConfigs, configuredAgentDefaultModel]) => {
+    let cancelled = false;
+
+    const loadModels = async () => {
+      const [{ data: { session } }, systemModels, configuredAgentDefaultModel] = await Promise.all([
+        supabase.auth.getSession(),
+        fetchModels(),
+        getAgentDefaultBrainModel().catch(() => null),
+      ]);
+
+      let userConfigs = [];
+      if (session?.access_token) {
+        userConfigs = await fetchUserProviderConfigs().catch((error) => {
+          console.error('[ChatPanel] Failed to load BYOK configs:', error);
+          return [];
+        });
+      }
+
+      if (cancelled) {
+        return;
+      }
+
       const resolvedSelectableModels = resolveSelectableModels(systemModels, userConfigs);
       setModels(systemModels);
       setSelectableModels(resolvedSelectableModels);
@@ -176,7 +193,22 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       ) {
         setSelectedAgentModel(configuredAgentDefaultModel);
       }
+    };
+
+    void loadModels();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.access_token) {
+        return;
+      }
+
+      void loadModels();
     });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [setModels, setSelectableModels, setSelectedAgentModel]);
 
   // Scroll to bottom on new messages
