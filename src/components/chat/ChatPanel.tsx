@@ -26,7 +26,7 @@ import {
 } from '@/lib/store/useChatStore';
 import { useMembershipLevel } from '@/lib/store/usePointsStore';
 import { fetchModels } from '@/lib/supabase/queries/models';
-import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
+import { fetchUserProviderConfigs, type UserProviderConfig } from '@/lib/api/provider-configs';
 import { getAgentDefaultBrainModel } from '@/lib/supabase/queries/settings';
 import { resolveSelectableModels, isSelectableImageModel } from '@/lib/models/resolve-selectable-models';
 import type { Op } from '@/lib/canvas/ops.types';
@@ -169,7 +169,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         getAgentDefaultBrainModel().catch(() => null),
       ]);
 
-      let userConfigs = [];
+      let userConfigs: UserProviderConfig[] = [];
       if (session?.access_token) {
         userConfigs = await fetchUserProviderConfigs().catch((error) => {
           console.error('[ChatPanel] Failed to load BYOK configs:', error);
