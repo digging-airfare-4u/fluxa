@@ -44,3 +44,13 @@ coverage
 
 # Local git worktrees
 .worktrees
+
+# Codex
+.codex-logs
+
+# Cursor IDE
+.cursor/rules
+.cursor/mcp.json
+
+# Supabase temp
+supabase/.temp
