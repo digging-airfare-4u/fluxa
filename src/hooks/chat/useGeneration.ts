@@ -4,15 +4,30 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { generateImage, generateOps, GenerationApiError } from '@/lib/api';
+import {
+  generateAgentStream,
+  generateImage,
+  generateOps,
+  GenerationApiError,
+  type AgentSSEEvent,
+} from '@/lib/api';
 import { subscribeToJob, fetchJob, type Job } from '@/lib/realtime/subscribeJobs';
 import { pendingGenerationTracker } from '@/lib/realtime/pendingGenerationTracker';
-import { createMessage, type Message } from '@/lib/supabase/queries/messages';
+import {
+  createMessage,
+  type Message,
+} from '@/lib/supabase/queries/messages';
 import { saveOp } from '@/lib/supabase/queries/ops';
 import { useChatStore, type GenerationPhase } from '@/lib/store/useChatStore';
 import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
 import type { SelectableModel } from '@/lib/models/resolve-selectable-models';
+import {
+  buildAgentPendingMetadata,
+  createInitialAgentPendingState,
+  mergeAgentFinalMessage,
+  reduceAgentPendingState,
+} from './agent-process';
 
 const RESOLUTION_PIXELS: Record<string, number> = {
   '1K': 1024,
@@ -52,10 +67,12 @@ export interface UseGenerationOptions {
 export interface GenerationContext {
   content: string;
   model: string;
+  imageModel?: string;
   referencedImage?: { id: string; url: string; filename: string };
   pendingMessageId: string;
   userMessageId: string;
   onMessageCreated: (message: Message) => void;
+  onPendingUpdated: (id: string, updates: Partial<Message>) => void;
   onPendingReplaced: (pendingId: string, message: Message) => void;
   onCleanup: () => Promise<void>;
 }
@@ -63,6 +80,7 @@ export interface GenerationContext {
 export interface UseGenerationReturn {
   phase: GenerationPhase;
   isGenerating: boolean;
+  startAgentGeneration: (ctx: GenerationContext) => Promise<void>;
   startImageGeneration: (ctx: GenerationContext) => Promise<void>;
   startOpsGeneration: (ctx: GenerationContext) => Promise<void>;
   stop: () => void;
@@ -506,9 +524,171 @@ export function useGeneration({
     clearPhaseATimeout, handleApiError,
   ]);
 
+  const startAgentGeneration = useCallback(async (ctx: GenerationContext) => {
+    const {
+      content,
+      model,
+      imageModel,
+      referencedImage,
+      pendingMessageId,
+      onPendingUpdated,
+      onPendingReplaced,
+      onCleanup,
+    } = ctx;
+
+    abortControllerRef.current = new AbortController();
+
+    const currentModelName =
+      selectableModels.find((entry) => entry.value === model)?.displayName
+      || models.find((entry) => entry.name === model)?.display_name
+      || model;
+    let pendingState = createInitialAgentPendingState();
+
+    const targetResolution = RESOLUTION_PIXELS[selectedResolution] ?? 1024;
+    const placeholderDimensions = calculateDimensions(selectedAspectRatio, targetResolution);
+    const activePlaceholders: Array<{ id: string; x: number; y: number }> = [];
+
+    const syncPendingMessage = () => {
+      const updates: Partial<Message> = {
+        metadata: buildAgentPendingMetadata(pendingState, currentModelName),
+      };
+
+      if (pendingState.content) {
+        updates.content = pendingState.content;
+      }
+
+      onPendingUpdated(pendingMessageId, updates);
+    };
+
+    const handleAgentEvent = (event: AgentSSEEvent) => {
+      if (event.type === 'tool_start' && event.tool === 'generate_image') {
+        const placeholderId = `agent-ph-${Date.now()}`;
+        const freePosition = onGetFreePosition?.(
+          placeholderDimensions.width,
+          placeholderDimensions.height,
+        );
+        const phX = freePosition?.x ?? (100 + Math.floor(Math.random() * 200));
+        const phY = freePosition?.y ?? (100 + Math.floor(Math.random() * 200));
+        onAddPlaceholder?.(placeholderId, phX, phY, placeholderDimensions.width, placeholderDimensions.height);
+        pendingGenerationTracker.registerGeneration(phX, phY);
+        activePlaceholders.push({ id: placeholderId, x: phX, y: phY });
+      }
+
+      if (event.type === 'tool_result' && event.tool === 'generate_image' && event.imageUrl) {
+        const placeholder = activePlaceholders.shift();
+        if (placeholder) {
+          const finalPosition = onGetPlaceholderPosition?.(placeholder.id);
+          const layerId = `agent-img-${Date.now()}`;
+          pendingGenerationTracker.registerLayerId(layerId);
+          const addImageOp: AddImageOp = {
+            type: 'addImage',
+            payload: {
+              id: layerId,
+              src: event.imageUrl,
+              x: finalPosition?.x ?? placeholder.x,
+              y: finalPosition?.y ?? placeholder.y,
+              width: placeholderDimensions.width,
+              height: placeholderDimensions.height,
+              fadeIn: true,
+            },
+          };
+          onOpsGenerated?.([addImageOp]);
+          pendingGenerationTracker.unregisterLayerId(layerId);
+          pendingGenerationTracker.unregisterGeneration(placeholder.x, placeholder.y);
+          saveOp({ documentId, op: { ...addImageOp, payload: { ...addImageOp.payload, fadeIn: undefined } } as Op }).catch((err) => {
+            console.error('[useGeneration] Failed to save agent addImage op:', err);
+          });
+          setTimeout(() => onRemovePlaceholder?.(placeholder.id), 400);
+        }
+      }
+
+      pendingState = reduceAgentPendingState(pendingState, event);
+
+      if (event.type !== 'done') {
+        syncPendingMessage();
+      }
+    };
+
+    phaseATimeoutRef.current = setTimeout(() => {
+      setGenerationPhase('phase-b');
+    }, 150);
+
+    try {
+      const doneEvent = await generateAgentStream(
+        {
+          projectId,
+          documentId,
+          conversationId,
+          prompt: content,
+          model,
+          imageModel,
+          aspectRatio: selectedAspectRatio,
+          resolution: selectedResolution,
+          referenceImageUrl: referencedImage?.url,
+        },
+        {
+          signal: abortControllerRef.current?.signal,
+          onEvent: handleAgentEvent,
+        },
+      );
+
+      clearPhaseATimeout();
+
+      for (const ph of activePlaceholders) {
+        pendingGenerationTracker.unregisterGeneration(ph.x, ph.y);
+        onRemovePlaceholder?.(ph.id);
+      }
+
+      if (!doneEvent?.message) {
+        throw new Error('Agent stream ended without a final message');
+      }
+
+      onPendingReplaced(
+        pendingMessageId,
+        mergeAgentFinalMessage(doneEvent.message, pendingState, currentModelName),
+      );
+      completeGeneration();
+      onGeneratingChange?.(false);
+    } catch (err) {
+      clearPhaseATimeout();
+
+      for (const ph of activePlaceholders) {
+        pendingGenerationTracker.unregisterGeneration(ph.x, ph.y);
+        onRemovePlaceholder?.(ph.id);
+      }
+
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+
+      if (!handleApiError(err, currentModelName, onCleanup)) {
+        throw err;
+      }
+    }
+  }, [
+    projectId,
+    documentId,
+    conversationId,
+    models,
+    selectableModels,
+    selectedResolution,
+    selectedAspectRatio,
+    onOpsGenerated,
+    onGeneratingChange,
+    onAddPlaceholder,
+    onRemovePlaceholder,
+    onGetPlaceholderPosition,
+    onGetFreePosition,
+    setGenerationPhase,
+    completeGeneration,
+    clearPhaseATimeout,
+    handleApiError,
+  ]);
+
   return {
     phase: generationPhase,
     isGenerating,
+    startAgentGeneration,
     startImageGeneration,
     startOpsGeneration,
     stop,

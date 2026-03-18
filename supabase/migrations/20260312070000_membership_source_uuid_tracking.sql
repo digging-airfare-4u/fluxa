@@ -180,7 +180,7 @@ EXCEPTION
 END;
 $$;
 
-DO $$
+DO $payment_wrapper$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -375,6 +375,6 @@ $$;
 $payment$;
   END IF;
 END;
-$$;
+$payment_wrapper$;
 
 COMMIT;

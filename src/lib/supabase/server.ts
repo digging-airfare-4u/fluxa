@@ -43,6 +43,28 @@ export function createServiceClient(): SupabaseClient {
 }
 
 /**
+ * Read admin capability flags for a user from user_profiles.
+ */
+export async function getUserAdminFlags(
+  userId: string,
+): Promise<{ isSuperAdmin: boolean }> {
+  const serviceClient = getServiceClient();
+  const { data, error } = await serviceClient
+    .from('user_profiles')
+    .select('is_super_admin')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    isSuperAdmin: data?.is_super_admin === true,
+  };
+}
+
+/**
  * Extract authenticated user from Authorization header.
  */
 export async function getUserFromAuthHeader(

@@ -1,12 +1,17 @@
 /**
  * AI Generation API Client
  * Unified API layer for image and ops generation
- * Uses Supabase Edge Functions directly via supabase.functions.invoke
+ * Uses Supabase Edge Functions directly via Supabase invoke and fetch-based SSE.
  * Requirements: 12.1-12.7 - AI design generation
  */
 
-import { supabase } from '@/lib/supabase/client';
 import type { Op } from '@/lib/canvas/ops.types';
+import type {
+  AgentProcessDecision,
+  AgentProcessStep,
+  Message,
+  MessageCitation,
+} from '@/lib/supabase/queries/messages';
 
 // ============================================================================
 // Types
@@ -39,6 +44,18 @@ export interface GenerateOpsParams {
   conversationId: string;
   prompt: string;
   model?: string;
+}
+
+export interface GenerateAgentParams {
+  projectId: string;
+  documentId: string;
+  conversationId: string;
+  prompt: string;
+  model?: string;
+  imageModel?: string;
+  aspectRatio?: string;
+  resolution?: string;
+  referenceImageUrl?: string;
 }
 
 /**
@@ -88,6 +105,85 @@ export interface ImageToolResult {
   remainingPoints?: number;
   modelUsed?: string;
 }
+
+export type AgentToolName = 'generate_image' | 'web_search' | 'fetch_url' | 'image_search';
+
+export interface AgentPhaseEvent {
+  type: 'phase';
+  phase: string;
+  label: string;
+}
+
+export interface AgentPlanEvent {
+  type: 'plan';
+  steps: AgentProcessStep[];
+}
+
+export interface AgentDecisionEvent {
+  type: 'decision';
+  key: AgentProcessDecision['key'];
+  value: boolean;
+  reason?: string;
+}
+
+export interface AgentStepStartEvent {
+  type: 'step_start';
+  stepId: string;
+  title: string;
+}
+
+export interface AgentStepDoneEvent {
+  type: 'step_done';
+  stepId: string;
+  summary?: string;
+}
+
+export interface AgentToolStartEvent {
+  type: 'tool_start';
+  tool: AgentToolName;
+  inputSummary?: string;
+}
+
+export interface AgentToolResultEvent {
+  type: 'tool_result';
+  tool: AgentToolName;
+  resultSummary?: string;
+  imageUrl?: string;
+  assetId?: string;
+}
+
+export interface AgentCitationEvent {
+  type: 'citation';
+  citations: MessageCitation[];
+}
+
+export interface AgentTextEvent {
+  type: 'text';
+  content: string;
+}
+
+export interface AgentErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+export interface AgentDoneEvent {
+  type: 'done';
+  message: Message;
+}
+
+export type AgentSSEEvent =
+  | AgentPhaseEvent
+  | AgentPlanEvent
+  | AgentDecisionEvent
+  | AgentStepStartEvent
+  | AgentStepDoneEvent
+  | AgentToolStartEvent
+  | AgentToolResultEvent
+  | AgentCitationEvent
+  | AgentTextEvent
+  | AgentErrorEvent
+  | AgentDoneEvent;
 
 
 /**
@@ -156,6 +252,224 @@ export class GenerationApiError extends Error {
   }
 }
 
+interface AgentStreamOptions {
+  onEvent?: (event: AgentSSEEvent) => void;
+}
+
+interface GenerateAgentStreamOptions extends AgentStreamOptions {
+  signal?: AbortSignal;
+}
+
+type SupabaseClientModule = typeof import('@/lib/supabase/client');
+type SupabaseClientInstance = SupabaseClientModule['supabase'];
+
+let supabaseClientPromise: Promise<SupabaseClientInstance> | null = null;
+
+async function getSupabaseClient(): Promise<SupabaseClientInstance> {
+  supabaseClientPromise ??= import('@/lib/supabase/client').then((module) => module.supabase);
+  return supabaseClientPromise;
+}
+
+async function getAccessToken(): Promise<string> {
+  const supabase = await getSupabaseClient();
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      throw new GenerationApiError(
+        'Authentication required',
+        'AUTH_REQUIRED',
+        401,
+      );
+    }
+  }
+
+  const { data: { session: currentSession } } = await supabase.auth.getSession();
+  const accessToken = currentSession?.access_token;
+  if (!accessToken) {
+    throw new GenerationApiError(
+      'No access token available',
+      'AUTH_REQUIRED',
+      401,
+    );
+  }
+
+  return accessToken;
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.auth.refreshSession();
+  const accessToken = data.session?.access_token;
+
+  if (error || !accessToken) {
+    throw new GenerationApiError(
+      'Authentication required',
+      'AUTH_REQUIRED',
+      401,
+    );
+  }
+
+  return accessToken;
+}
+
+function parseAgentEvent(rawChunk: string): AgentSSEEvent | null {
+  const lines = rawChunk
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const dataLines = lines
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim())
+    .filter(Boolean);
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(dataLines.join('\n')) as AgentSSEEvent;
+  } catch {
+    return null;
+  }
+}
+
+export async function readAgentEventStream(
+  response: Response,
+  options: AgentStreamOptions = {},
+): Promise<AgentDoneEvent | null> {
+  if (!response.body) {
+    throw new GenerationApiError(
+      'Agent stream response is empty',
+      'EMPTY_STREAM',
+      response.status || 500,
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let doneEvent: AgentDoneEvent | null = null;
+  let streamErrorMessage: string | null = null;
+
+  const flushBuffer = () => {
+    let separatorIndex = buffer.indexOf('\n\n');
+    while (separatorIndex !== -1) {
+      const rawEvent = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+      const event = parseAgentEvent(rawEvent);
+      if (event) {
+        options.onEvent?.(event);
+        if (event.type === 'error') {
+          streamErrorMessage = event.message;
+        }
+        if (event.type === 'done') {
+          doneEvent = event;
+        }
+      }
+      separatorIndex = buffer.indexOf('\n\n');
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      buffer += decoder.decode();
+      flushBuffer();
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    flushBuffer();
+  }
+
+  if (streamErrorMessage && !doneEvent) {
+    throw new GenerationApiError(
+      streamErrorMessage,
+      'AGENT_STREAM_ERROR',
+      response.status || 500,
+    );
+  }
+
+  return doneEvent;
+}
+
+export async function generateAgentStream(
+  params: GenerateAgentParams,
+  options: GenerateAgentStreamOptions = {},
+): Promise<AgentDoneEvent | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl) {
+    throw new GenerationApiError(
+      'Missing NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL_MISSING',
+      500,
+    );
+  }
+
+  if (!supabaseAnonKey) {
+    throw new GenerationApiError(
+      'Missing NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'SUPABASE_ANON_KEY_MISSING',
+      500,
+    );
+  }
+
+  const functionUrl = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/agent`;
+  const requestBody = JSON.stringify({
+    projectId: params.projectId,
+    documentId: params.documentId,
+    conversationId: params.conversationId,
+    prompt: params.prompt,
+    model: params.model,
+    imageModel: params.imageModel,
+    aspectRatio: params.aspectRatio,
+    resolution: params.resolution,
+    referenceImageUrl: params.referenceImageUrl,
+  });
+
+  const executeRequest = async (accessToken: string) => fetch(functionUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: requestBody,
+    signal: options.signal,
+  });
+
+  let response = await executeRequest(await getAccessToken());
+
+  if (response.status === 401) {
+    response = await executeRequest(await refreshAccessToken());
+  }
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    let parsedError: { error?: ApiError } | null = null;
+
+    try {
+      parsedError = JSON.parse(responseText) as { error?: ApiError };
+    } catch {
+      parsedError = null;
+    }
+
+    throw new GenerationApiError(
+      parsedError?.error?.message || responseText || 'Agent generation failed',
+      parsedError?.error?.code || 'AGENT_GENERATION_FAILED',
+      response.status,
+      parsedError?.error,
+    );
+  }
+
+  return readAgentEventStream(response, { onEvent: options.onEvent });
+}
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -174,33 +488,8 @@ export async function generateImage(
   _accessToken?: string,
   signal?: AbortSignal
 ): Promise<GenerateImageResult> {
-  // Ensure we have a fresh session before calling the Edge Function
-  // This handles cases where the token might be expired
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
-    // Try to refresh the session
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData.session) {
-      console.error('[generateImage] Failed to refresh session:', refreshError);
-      throw new GenerationApiError(
-        'Authentication required',
-        'AUTH_REQUIRED',
-        401
-      );
-    }
-  }
-
-  // Get the current access token to pass explicitly
-  const { data: { session: currentSession } } = await supabase.auth.getSession();
-  const accessToken = currentSession?.access_token;
-
-  if (!accessToken) {
-    throw new GenerationApiError(
-      'No access token available',
-      'AUTH_REQUIRED',
-      401
-    );
-  }
+  const supabase = await getSupabaseClient();
+  const accessToken = await getAccessToken();
 
   const requestBody = {
     projectId: params.projectId,
@@ -291,29 +580,8 @@ export async function runImageTool(
   _accessToken?: string,
   signal?: AbortSignal
 ): Promise<ImageToolResult> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData.session) {
-      console.error('[runImageTool] Failed to refresh session:', refreshError);
-      throw new GenerationApiError(
-        'Authentication required',
-        'AUTH_REQUIRED',
-        401
-      );
-    }
-  }
-
-  const { data: { session: currentSession } } = await supabase.auth.getSession();
-  const accessToken = currentSession?.access_token;
-
-  if (!accessToken) {
-    throw new GenerationApiError(
-      'No access token available',
-      'AUTH_REQUIRED',
-      401
-    );
-  }
+  const supabase = await getSupabaseClient();
+  const accessToken = await getAccessToken();
 
   const requestBody = {
     projectId: params.projectId,
@@ -379,33 +647,8 @@ export async function generateOps(
   _accessToken?: string,
   signal?: AbortSignal
 ): Promise<GenerateOpsResult> {
-  // Ensure we have a fresh session before calling the Edge Function
-  // This handles cases where the token might be expired
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
-    // Try to refresh the session
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData.session) {
-      console.error('[generateOps] Failed to refresh session:', refreshError);
-      throw new GenerationApiError(
-        'Authentication required',
-        'AUTH_REQUIRED',
-        401
-      );
-    }
-  }
-
-  // Get the current access token to pass explicitly
-  const { data: { session: currentSession } } = await supabase.auth.getSession();
-  const accessToken = currentSession?.access_token;
-
-  if (!accessToken) {
-    throw new GenerationApiError(
-      'No access token available',
-      'AUTH_REQUIRED',
-      401
-    );
-  }
+  const supabase = await getSupabaseClient();
+  const accessToken = await getAccessToken();
 
   const requestBody = {
     projectId: params.projectId,

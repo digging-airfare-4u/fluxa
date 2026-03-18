@@ -18,8 +18,6 @@ import { JobService } from '../_shared/services/job.ts';
 import { AssetService } from '../_shared/services/asset.ts';
 import { PointsService } from '../_shared/services/points.ts';
 import { createRegistry } from '../_shared/providers/registry-setup.ts';
-import { calculateDimensions } from '../_shared/providers/gemini.ts';
-import { fetchReferenceImageForGemini } from '../_shared/utils/reference-image.ts';
 import { UserProviderService } from '../_shared/services/user-provider.ts';
 import { UserConfiguredImageProvider } from '../_shared/providers/user-configured-provider.ts';
 import { OpenAICompatibleClient } from '../_shared/providers/openai-client.ts';
@@ -27,6 +25,11 @@ import { validateProviderHostAsync, sanitizeErrorMessage } from '../_shared/secu
 import { createLogger } from '../_shared/observability/logger.ts';
 import { trackMetric } from '../_shared/observability/metrics.ts';
 import { isModelConfigEnabled } from '../_shared/observability/feature-flags.ts';
+import {
+  executeSharedImageGeneration,
+  resolveSystemImageGenerationProvider,
+} from '../_shared/utils/image-generation-core.ts';
+import { validateTrustedProjectReferenceImageUrl } from '../_shared/utils/trusted-reference-image.ts';
 import type { ImageGenerateRequest, ImageGenerateResponse, ResolutionPreset, AspectRatio } from '../_shared/types/index.ts';
 import type { ImageProvider } from '../_shared/providers/types.ts';
 
@@ -97,23 +100,6 @@ function validateRequest(body: unknown): { valid: true; data: ImageGenerateReque
       resolution: typeof b.resolution === 'string' ? b.resolution as ResolutionPreset : undefined,
     },
   };
-}
-
-/**
- * Fetch reference image and convert to base64
- */
-function arrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
-  // Avoid spreading large Uint8Arrays into fromCharCode (argument limit / stack overflow).
-  const bytes = new Uint8Array(arrayBuffer);
-  const chunkSize = 0x8000;
-  let binary = '';
-
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
 }
 
 function getIntEnv(name: string, fallback: number): number {
@@ -196,6 +182,12 @@ Deno.serve(async (req: Request) => {
       throw new AuthError('Project not found or access denied', 'PROJECT_ACCESS_DENIED', 403);
     }
 
+    await validateTrustedProjectReferenceImageUrl(
+      supabaseService,
+      request.projectId,
+      request.imageUrl,
+    );
+
     // Initialize services
     const jobService = new JobService(supabaseService);
     const assetService = new AssetService(supabaseService, supabaseUrl);
@@ -247,7 +239,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const userProviderService = new UserProviderService(supabaseService, encryptionSecret);
-      const config = await userProviderService.getConfigById(user.id, configId);
+      const config = await userProviderService.getConfigById(user.id, configId, 'image');
 
       if (!config) {
         // Write failed job for audit, then return structured error (NO auto-fallback)
@@ -354,12 +346,15 @@ Deno.serve(async (req: Request) => {
 
       // Resolve from system registry
       const registry = createRegistry(supabaseService);
-      let resolvedModel = selectedModel;
-      if (!registry.isSupported(selectedModel)) {
+      const resolved = resolveSystemImageGenerationProvider({
+        selectedModel,
+        defaultModel: DEFAULT_MODEL,
+        registry,
+      });
+      if (resolved.fallbackApplied) {
         log.info('Model not registered, falling back', { model_name: selectedModel, fallback: DEFAULT_MODEL, request_id: requestId });
-        resolvedModel = DEFAULT_MODEL;
       }
-      provider = registry.getImageProvider(resolvedModel);
+      provider = resolved.provider;
     }
 
     log.info('Using provider', { provider: provider.name, request_id: requestId });
@@ -399,95 +394,43 @@ Deno.serve(async (req: Request) => {
         has_image_url: !!request.imageUrl,
       });
       
-      // Fetch and optionally compress reference image if provided
-      let referenceImage: { base64: string; mimeType: string; sizeBytes: number; strategy: string } | null = null;
-      if (request.imageUrl) {
-        const compressThresholdBytes = getIntEnv(
+      const aspectRatio = request.aspectRatio || '1:1';
+      const sharedResult = await executeSharedImageGeneration({
+        provider,
+        prompt: request.prompt,
+        selectedModel,
+        resolution,
+        aspectRatio: aspectRatio as AspectRatio,
+        userId: user.id,
+        projectId: request.projectId,
+        assetService,
+        imageUrl: request.imageUrl,
+        placeholderX: request.placeholderX,
+        placeholderY: request.placeholderY,
+        compressThresholdBytes: getIntEnv(
           'GEMINI_REFERENCE_COMPRESS_THRESHOLD_BYTES',
           DEFAULT_REFERENCE_COMPRESS_THRESHOLD_BYTES
-        );
-        log.info('Fetching reference image', { request_id: requestId });
-        const preparedReference = await fetchReferenceImageForGemini(request.imageUrl, {
-          compressThresholdBytes,
-        });
-
-        if (preparedReference) {
-          const base64 = arrayBufferToBase64(preparedReference.arrayBuffer);
-          referenceImage = {
-            base64,
-            mimeType: preparedReference.mimeType,
-            sizeBytes: preparedReference.sizeBytes,
-            strategy: preparedReference.strategy,
-          };
-          log.info('Reference image ready', {
-            request_id: requestId,
-            mime: referenceImage.mimeType,
-            size_bytes: referenceImage.sizeBytes,
-            strategy: referenceImage.strategy,
-          });
-        } else {
-          log.warn('Failed to fetch reference image', { request_id: requestId });
-        }
-      }
-
-      // Use the provider resolved above (system or user-configured)
-      const aspectRatio = request.aspectRatio || '1:1';
-
-      const imageResult = await provider.generate({
-        prompt: request.prompt,
-        aspectRatio,
-        resolution,
-        referenceImageBase64: referenceImage?.base64,
-        referenceImageMimeType: referenceImage?.mimeType,
+        ),
       });
 
-      const providerTextResponse =
-        typeof imageResult.metadata?.textResponse === 'string'
-          ? imageResult.metadata.textResponse
-          : undefined;
-      const providerThoughtSummary =
-        typeof imageResult.metadata?.thoughtSummary === 'string'
-          ? imageResult.metadata.thoughtSummary
-          : undefined;
+      if (sharedResult.kind === 'text-only') {
+        await jobService.updateStatus(job.id, 'done', sharedResult.output);
+        console.log(`[generate-image] Job completed with text-only response: ${job.id}`);
 
-      console.log(`[generate-image] ========== GENERATION SUCCESS ==========`);
-      console.log(`[generate-image] Image size: ${imageResult.imageData.byteLength} bytes`);
-      console.log(`[generate-image] MIME type: ${imageResult.mimeType}`);
-      console.log(`[generate-image] Dimensions: ${imageResult.width}x${imageResult.height}`);
-      console.log(`[generate-image] Metadata:`, JSON.stringify(imageResult.metadata, null, 2));
+        const response: ImageGenerateResponse = {
+          jobId: job.id,
+          pointsDeducted,
+          remainingPoints,
+          modelUsed: selectedModel,
+        };
 
-      // Upload image to storage
-      const asset = await assetService.uploadImage(
-        user.id,
-        request.projectId,
-        imageResult.imageData,
-        imageResult.mimeType,
-        {
-          model: selectedModel,
-          prompt: request.prompt,
-          resolution,
-          aspectRatio,
-        }
-      );
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
-      console.log(`[generate-image] Asset created: ${asset.id}`);
-
-      // Calculate dimensions for canvas op
-      const dimensions = calculateDimensions(resolution as ResolutionPreset, aspectRatio as AspectRatio);
-      const layerId = `layer-${crypto.randomUUID().slice(0, 8)}`;
-
-      // Build the addImage op
-      const addImageOp = {
-        type: 'addImage',
-        payload: {
-          id: layerId,
-          src: asset.publicUrl,
-          x: request.placeholderX || 100,
-          y: request.placeholderY || 100,
-          width: imageResult.width || dimensions.width,
-          height: imageResult.height || dimensions.height,
-        },
-      };
+      console.log(`[generate-image] Asset created: ${sharedResult.asset.id}`);
 
       // NOTE: We intentionally do NOT save the op here.
       // The op is included in job output and will be:
@@ -495,22 +438,7 @@ Deno.serve(async (req: Request) => {
       // 2. Saved to ops table by the client if position changed (user dragged placeholder)
       // This prevents duplicate execution via Realtime subscription.
 
-      // Build job output (include op for client-side execution via job subscription)
-      const jobOutput = {
-        assetId: asset.id,
-        storagePath: asset.storagePath,
-        publicUrl: asset.publicUrl,
-        layerId,
-        op: addImageOp,
-        model: selectedModel,
-        resolution,
-        aspectRatio,
-        textResponse: providerTextResponse,
-        thoughtSummary: providerThoughtSummary,
-      };
-
-      // Update job to done
-      await jobService.updateStatus(job.id, 'done', jobOutput);
+      await jobService.updateStatus(job.id, 'done', sharedResult.jobOutput);
       if (isUserModel && userConfigId) {
         trackMetric({
           event: 'byok_generation_success',
@@ -546,42 +474,6 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Gemini native mode can legitimately return text-only output (no image bytes).
-      // Treat this as a completed text response so the chat can render it.
-      if (providerError instanceof ProviderError && providerError.providerCode === 'TEXT_ONLY_RESPONSE') {
-        const details = (providerError.details as Record<string, unknown> | undefined) || {};
-        const textResponse = typeof details.textResponse === 'string'
-          ? details.textResponse
-          : providerError.message;
-        const thoughtSummary = typeof details.thoughtSummary === 'string'
-          ? details.thoughtSummary
-          : undefined;
-
-        const textOnlyOutput = {
-          model: selectedModel,
-          resolution,
-          aspectRatio: request.aspectRatio || '1:1',
-          textResponse,
-          thoughtSummary,
-          providerCode: providerError.providerCode,
-        };
-
-        await jobService.updateStatus(job.id, 'done', textOnlyOutput);
-        console.log(`[generate-image] Job completed with text-only response: ${job.id}`);
-
-        const response: ImageGenerateResponse = {
-          jobId: job.id,
-          pointsDeducted,
-          remainingPoints,
-          modelUsed: selectedModel,
-        };
-
-        return new Response(JSON.stringify(response), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
       // Update job to failed — sanitize error message for user providers
       // Requirements: 5.5, 8.1
       const rawMessage = providerError instanceof Error ? providerError.message : 'Image generation failed';

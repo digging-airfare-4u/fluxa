@@ -1,6 +1,6 @@
 /**
  * Provider Configs API Client
- * Frontend service layer for user provider configuration CRUD
+ * Frontend service layer for shared provider configuration CRUD
  * Requirements: 2.4-2.6, 6.5
  */
 
@@ -16,6 +16,7 @@ export type ModelValue = string | UserModelIdentifier;
 
 /** Provider types supported for user configuration */
 export type ProviderType = 'volcengine' | 'openai-compatible';
+export type ProviderModelType = 'image' | 'chat';
 
 /** Input for creating or updating a provider config */
 export interface ProviderConfigInput {
@@ -24,6 +25,7 @@ export interface ProviderConfigInput {
   apiUrl: string;
   modelName: string;
   displayName: string;
+  modelType?: ProviderModelType;
 }
 
 /** User provider config as returned by the API (masked key, no plaintext) */
@@ -34,11 +36,17 @@ export interface UserProviderConfig {
   api_url: string;
   model_name: string;
   display_name: string;
+  model_type?: ProviderModelType;
   is_enabled: boolean;
   api_key_masked: string;
   model_identifier: UserModelIdentifier;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProviderConfigsContext {
+  data: UserProviderConfig[];
+  canManage: boolean;
 }
 
 /** Test provider request params */
@@ -146,14 +154,26 @@ async function authorizedFetch(
 // ============================================================================
 
 /**
- * Fetch all provider configs for the current user (masked keys).
+ * Fetch provider configs plus current user's management capability.
  * Requirements: 2.4
  */
-export async function fetchUserProviderConfigs(): Promise<UserProviderConfig[]> {
+export async function fetchProviderConfigsContext(): Promise<ProviderConfigsContext> {
   const res = await authorizedFetch('/api/provider-configs', { method: 'GET' });
   if (!res.ok) throw await parseErrorResponse(res);
   const body = await res.json();
-  return body.data as UserProviderConfig[];
+  return {
+    data: body.data as UserProviderConfig[],
+    canManage: body.canManage === true,
+  };
+}
+
+/**
+ * Fetch the provider configs visible to the current user (masked keys).
+ * Requirements: 2.4
+ */
+export async function fetchUserProviderConfigs(): Promise<UserProviderConfig[]> {
+  const context = await fetchProviderConfigsContext();
+  return context.data;
 }
 
 /**
@@ -172,6 +192,7 @@ export async function createProviderConfig(
       apiUrl: input.apiUrl,
       modelName: input.modelName,
       displayName: input.displayName,
+      modelType: input.modelType,
     }),
   });
   if (!res.ok) throw await parseErrorResponse(res);
@@ -195,6 +216,7 @@ export async function updateProviderConfig(
       apiUrl: input.apiUrl,
       modelName: input.modelName,
       displayName: input.displayName,
+      modelType: input.modelType,
     }),
   });
   if (!res.ok) throw await parseErrorResponse(res);

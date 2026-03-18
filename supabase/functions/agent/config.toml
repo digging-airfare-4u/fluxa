@@ -1,0 +1,4 @@
+# Edge Function Configuration
+# Disable gateway JWT verification so the function can validate the forwarded
+# Authorization header itself via AuthService, consistent with generate-ops.
+verify_jwt = false

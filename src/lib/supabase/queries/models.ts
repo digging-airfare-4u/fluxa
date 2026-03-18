@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '../client';
+import { isClassicSelectableModel } from '@/lib/models/classic-model-filter';
 
 export interface AIModel {
   id: string;
@@ -16,6 +17,10 @@ export interface AIModel {
   sort_order: number;
   points_cost: number;
   supports_image_tool?: boolean;
+  usage_scope?: 'classic' | 'agent' | 'all';
+  is_visible_in_selector?: boolean;
+  agent_role?: 'planner' | 'executor' | null;
+  supports_tool_calling?: boolean;
 }
 
 /**
@@ -33,7 +38,7 @@ export async function fetchModels(): Promise<AIModel[]> {
     return [];
   }
 
-  return data as AIModel[];
+  return (data as AIModel[]).filter(isClassicSelectableModel);
 }
 
 /**
@@ -52,5 +57,5 @@ export async function fetchImageModels(): Promise<AIModel[]> {
     return [];
   }
 
-  return data as AIModel[];
+  return (data as AIModel[]).filter(isClassicSelectableModel);
 }

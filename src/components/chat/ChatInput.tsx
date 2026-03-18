@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
-import { AtSign, ArrowUp } from 'lucide-react';
+import { AtSign, ArrowUp, MessageSquare, Bot } from 'lucide-react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,8 @@ export interface ReferencedImage {
   filename: string;
 }
 
+export type ChatMode = 'classic' | 'agent';
+
 interface ChatInputProps {
   onSend: (message: string, model?: string, referencedImage?: ReferencedImage) => void;
   onAttach?: () => void;
@@ -37,14 +39,21 @@ interface ChatInputProps {
   isLoading?: boolean;
   isBusy?: boolean;
   placeholder?: string;
+  chatMode?: 'classic' | 'agent';
+  onChatModeChange?: (mode: ChatMode) => void;
   selectedModel?: string;
+  selectedAgentModel?: string;
+  selectedAgentImageModel?: string;
   onModelChange?: (model: string) => void;
+  onAgentModelChange?: (model: string) => void;
+  onAgentImageModelChange?: (model: string) => void;
   selectedResolution?: Resolution;
   onResolutionChange?: (resolution: Resolution) => void;
   selectedAspectRatio?: AspectRatio;
   onAspectRatioChange?: (ratio: AspectRatio) => void;
   membershipLevel?: 'free' | 'pro' | 'team';
   projectId?: string;
+  resolutionModelName?: string;
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatInput({
@@ -54,14 +63,21 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   isLoading = false,
   isBusy = false,
   placeholder,
+  chatMode = 'classic',
+  onChatModeChange,
   selectedModel = 'gpt-4o-mini',
+  selectedAgentModel = 'doubao-seed-1-6-vision-250815',
+  selectedAgentImageModel = 'gemini-3-pro-image-preview',
   onModelChange,
+  onAgentModelChange,
+  onAgentImageModelChange,
   selectedResolution = '1K',
   onResolutionChange,
   selectedAspectRatio = '1:1',
   onAspectRatioChange,
   membershipLevel = 'free',
   projectId,
+  resolutionModelName,
 }, ref) {
   const t = useTranslations('chat');
   const tCommon = useTranslations('common');
@@ -71,6 +87,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [referencedImage, setReferencedImage] = useState<ReferencedImage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const chatModes: ChatMode[] = ['classic', 'agent'];
   
   // Use provided placeholder or default from translations
   const inputPlaceholder = placeholder || t('input.placeholder');
@@ -121,14 +138,17 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   const handleSend = useCallback(() => {
     const trimmed = message.trim();
     if (trimmed && !disabled && !isLoading && !isBusy) {
-      onSend(trimmed, selectedModel, referencedImage || undefined);
+      const modelForSend = chatMode === 'agent'
+        ? selectedAgentModel || undefined
+        : selectedModel || undefined;
+      onSend(trimmed, modelForSend, referencedImage || undefined);
       setMessage('');
       setReferencedImage(null);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }
-  }, [message, disabled, isLoading, isBusy, onSend, selectedModel, referencedImage]);
+  }, [message, disabled, isLoading, isBusy, onSend, chatMode, selectedModel, selectedAgentModel, referencedImage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle mention menu navigation
@@ -347,20 +367,61 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
 
         {/* Bottom toolbar - inside the box */}
         <div className="flex items-center justify-between px-3 pb-2.5">
-          {/* Left: Model selector + attachment buttons */}
+          {/* Left: Mode toggle + Model selector + attachment buttons */}
           <div className="flex items-center gap-0.5">
-            <ModelSelector
-              selectedModel={selectedModel}
-              onModelChange={onModelChange || (() => {})}
-              disabled={isInputDisabled}
-            />
+            <div className="inline-flex items-center rounded-full border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] p-[2px] mr-0.5">
+              {chatModes.map((mode) => {
+                const isActive = mode === chatMode;
+                return (
+                  <Tooltip key={mode}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onChatModeChange?.(mode)}
+                        disabled={isInputDisabled}
+                        className={cn(
+                          "rounded-full p-1 transition-colors",
+                          isActive
+                            ? "bg-[#1A1A1A] text-white dark:bg-white dark:text-black"
+                            : "text-[#888] hover:text-[#1A1A1A] dark:hover:text-white",
+                        )}
+                      >
+                        {mode === 'classic'
+                          ? <MessageSquare className="size-3" />
+                          : <Bot className="size-3" />
+                        }
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {mode === 'classic' ? t('modes.classic') : t('modes.agent')}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+            {chatMode === 'classic' ? (
+              <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={onModelChange || (() => {})}
+                disabled={isInputDisabled}
+              />
+            ) : (
+              <ModelSelector
+                selectedModel={selectedAgentImageModel}
+                onModelChange={onAgentImageModelChange || (() => {})}
+                disabled={isInputDisabled}
+                allowedTypes={['image']}
+                showPricing={false}
+                tooltipLabel={t('model_selector.agent_image_model')}
+              />
+            )}
             {onResolutionChange && onAspectRatioChange && (
               <div className="flex items-center gap-0.5">
                 <ResolutionSelector
                   selectedResolution={selectedResolution}
                   onResolutionChange={onResolutionChange}
                   membershipLevel={membershipLevel}
-                  modelName={selectedModel}
+                  modelName={resolutionModelName || selectedModel}
                   disabled={isInputDisabled}
                 />
                 <AspectRatioSelector

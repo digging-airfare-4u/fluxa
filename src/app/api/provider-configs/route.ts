@@ -1,12 +1,17 @@
 /**
  * API Route: Provider Configs
- * GET  - List current user's provider configs (masked keys)
- * POST - Create a new provider config
+ * GET  - List visible shared provider configs (masked keys)
+ * POST - Create a new shared provider config (super admin only)
  * Requirements: 2.4, 2.6, 6.2
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedClient, createServiceClient, ApiAuthError } from '@/lib/supabase/server';
+import {
+  createAuthenticatedClient,
+  createServiceClient,
+  getUserAdminFlags,
+  ApiAuthError,
+} from '@/lib/supabase/server';
 import { encryptApiKey, getApiKeyLast4 } from '@/lib/security/encryption';
 import { createLogger } from '@/lib/observability/logger';
 import { trackMetric } from '@/lib/observability/metrics';
@@ -15,20 +20,51 @@ import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-reva
 const log = createLogger('API:provider-configs');
 
 const VALID_PROVIDERS = ['volcengine', 'openai-compatible'] as const;
+const VALID_MODEL_TYPES = ['image', 'chat'] as const;
 
 /**
  * GET /api/provider-configs
- * Returns the authenticated user's provider configs with masked API keys.
+ * Returns the shared provider configs visible to the authenticated user.
  */
 export async function GET(request: NextRequest) {
   try {
-    const { client, user } = await createAuthenticatedClient(request);
+    const { user } = await createAuthenticatedClient(request);
+    const serviceClient = createServiceClient();
+    const { isSuperAdmin } = await getUserAdminFlags(user.id);
 
-    const { data, error } = await client
+    let query = serviceClient
       .from('user_provider_configs_safe')
       .select('*')
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
+
+    if (isSuperAdmin) {
+      query = query.eq('user_id', user.id);
+    } else {
+      const { data: adminProfiles, error: adminProfilesError } = await serviceClient
+        .from('user_profiles')
+        .select('id')
+        .eq('is_super_admin', true);
+
+      if (adminProfilesError) {
+        log.error('GET failed to load super admins', {
+          user_id: user.id,
+          reason: adminProfilesError.message,
+        });
+        return NextResponse.json(
+          { error: { code: 'DB_ERROR', message: 'Failed to fetch provider configs' } },
+          { status: 500 }
+        );
+      }
+
+      const adminIds = (adminProfiles || []).map((profile) => profile.id);
+      if (adminIds.length === 0) {
+        return NextResponse.json({ data: [], canManage: false });
+      }
+
+      query = query.in('user_id', adminIds).eq('is_enabled', true);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       log.error('GET failed', { user_id: user.id, reason: error.message });
@@ -44,7 +80,7 @@ export async function GET(request: NextRequest) {
       model_identifier: `user:${row.id}`,
     }));
 
-    return NextResponse.json({ data: configs });
+    return NextResponse.json({ data: configs, canManage: isSuperAdmin });
   } catch (err) {
     if (err instanceof ApiAuthError) {
       return NextResponse.json(
@@ -62,14 +98,22 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/provider-configs
- * Create a new provider config. Always inserts (no upsert by provider).
+ * Create a new shared provider config. Always inserts (no upsert by provider).
  */
 export async function POST(request: NextRequest) {
   try {
     const { client, user } = await createAuthenticatedClient(request);
+    const { isSuperAdmin } = await getUserAdminFlags(user.id);
     const body = await request.json();
 
-    const { provider, apiKey, apiUrl, modelName, displayName } = body;
+    const { provider, apiKey, apiUrl, modelName, displayName, modelType } = body;
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Only super admins can manage shared provider configs' } },
+        { status: 403 }
+      );
+    }
 
     // Validate required fields
     if (!provider || !apiKey || !apiUrl || !modelName || !displayName) {
@@ -83,6 +127,13 @@ export async function POST(request: NextRequest) {
     if (!VALID_PROVIDERS.includes(provider)) {
       return NextResponse.json(
         { error: { code: 'INVALID_PROVIDER', message: `Provider must be one of: ${VALID_PROVIDERS.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    if (modelType !== undefined && !VALID_MODEL_TYPES.includes(modelType)) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_MODEL_TYPE', message: `modelType must be one of: ${VALID_MODEL_TYPES.join(', ')}` } },
         { status: 400 }
       );
     }
@@ -152,16 +203,17 @@ export async function POST(request: NextRequest) {
         api_url: apiUrl.trim(),
         model_name: modelName.trim(),
         display_name: displayName.trim(),
+        model_type: modelType === 'chat' ? 'chat' : 'image',
         is_enabled: true,
       })
-      .select('id, user_id, provider, api_url, model_name, display_name, is_enabled, created_at, updated_at, api_key_last4')
+      .select('id, user_id, provider, api_url, model_name, display_name, model_type, is_enabled, created_at, updated_at, api_key_last4')
       .single();
 
     if (error) {
       log.error('POST DB error', { user_id: user.id, provider, reason: error.message });
       trackMetric({ event: 'config_save_failure', user_id: user.id, provider, reason: error.message });
 
-      // Handle unique constraint violation (user_id, model_name)
+      // Handle unique constraint violation (user_id, model_name, model_type)
       if (error.code === '23505') {
         return NextResponse.json(
           { error: { code: 'DUPLICATE_MODEL', message: 'A config with this model name already exists' } },

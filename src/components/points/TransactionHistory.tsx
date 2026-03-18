@@ -40,6 +40,18 @@ interface TransactionHistoryProps {
 
 type FilterType = TransactionType | 'all';
 
+function getTransactionModelDisplayName(modelName?: string | null): string | null {
+  if (!modelName) {
+    return null;
+  }
+
+  if (modelName === 'fluxa-agent' || modelName === 'gemini-2.5-flash-agent') {
+    return 'Fluxa Agent';
+  }
+
+  return modelName;
+}
+
 /**
  * Get icon for transaction source
  */
@@ -78,12 +90,14 @@ export function TransactionHistory({
    * Get display name for transaction source
    */
   const getSourceName = useCallback((source: TransactionSource, modelName?: string | null): string => {
-    if (modelName) {
+    const displayModelName = getTransactionModelDisplayName(modelName);
+
+    if (displayModelName) {
       if (source === 'generate_ops') {
-        return t('transaction.source.generate_ops_with_model', { modelName });
+        return t('transaction.source.generate_ops_with_model', { modelName: displayModelName });
       }
       if (source === 'generate_image') {
-        return t('transaction.source.generate_image_with_model', { modelName });
+        return t('transaction.source.generate_image_with_model', { modelName: displayModelName });
       }
     }
     return t(`transaction.source.${source}`);

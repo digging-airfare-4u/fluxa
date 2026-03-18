@@ -17,6 +17,10 @@ export interface AIModel {
   sort_order: number;
   points_cost: number;
   supports_image_tool?: boolean;
+  usage_scope?: 'classic' | 'agent' | 'all';
+  is_visible_in_selector?: boolean;
+  agent_role?: 'planner' | 'executor' | null;
+  supports_tool_calling?: boolean;
   created_at: string;
 }
 

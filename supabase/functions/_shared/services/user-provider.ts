@@ -1,6 +1,6 @@
 /**
  * User Provider Service
- * Fetches and decrypts user provider configurations from the database.
+ * Fetches and decrypts shared/user provider configurations from the database.
  * Requirements: 5.1, 5.2
  */
 
@@ -18,6 +18,7 @@ export interface UserProviderRecord {
   api_url: string;
   model_name: string;
   display_name: string;
+  model_type: 'image' | 'chat';
   is_enabled: boolean;
 }
 
@@ -81,20 +82,23 @@ export class UserProviderService {
   ) {}
 
   /**
-   * Fetch a user provider config by ID with user ownership check.
-   * Returns null if not found, not owned by user, or disabled.
+   * Fetch a provider config by ID.
+   * Returns null if not found, disabled, mismatched, or not visible to the requester.
+   * Visibility rules:
+   *   1. the requester owns the config, or
+   *   2. the config owner is marked as super admin.
    * The returned record contains the decrypted API key.
    * Requirements: 5.1, 5.2
    */
   async getConfigById(
     userId: string,
-    configId: string
+    configId: string,
+    expectedModelType?: UserProviderRecord['model_type'],
   ): Promise<UserProviderRecord | null> {
     const { data, error } = await this.supabase
       .from('user_provider_configs')
-      .select('id, user_id, provider, api_key_encrypted, api_url, model_name, display_name, is_enabled')
+      .select('id, user_id, provider, api_key_encrypted, api_url, model_name, display_name, model_type, is_enabled')
       .eq('id', configId)
-      .eq('user_id', userId)
       .single();
 
     if (error || !data) {
@@ -110,6 +114,30 @@ export class UserProviderService {
         `[UserProviderService] Config disabled: configId=${configId}, userId=${userId}`
       );
       return null;
+    }
+
+    const modelType = data.model_type === 'chat' ? 'chat' : 'image';
+    if (expectedModelType && modelType !== expectedModelType) {
+      console.warn(
+        `[UserProviderService] Config type mismatch: configId=${configId}, userId=${userId}, expected=${expectedModelType}, actual=${modelType}`
+      );
+      return null;
+    }
+
+    if (data.user_id !== userId) {
+      const { data: ownerProfile, error: ownerError } = await this.supabase
+        .from('user_profiles')
+        .select('is_super_admin')
+        .eq('id', data.user_id)
+        .maybeSingle();
+
+      if (ownerError || ownerProfile?.is_super_admin !== true) {
+        console.warn(
+          `[UserProviderService] Config not visible to requester: configId=${configId}, userId=${userId}, ownerId=${data.user_id}`,
+          ownerError?.message
+        );
+        return null;
+      }
     }
 
     // Decrypt the API key
@@ -132,6 +160,7 @@ export class UserProviderService {
       api_url: data.api_url,
       model_name: data.model_name,
       display_name: data.display_name,
+      model_type: modelType,
       is_enabled: data.is_enabled,
     };
   }

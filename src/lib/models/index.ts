@@ -2,6 +2,7 @@ export { isUserModelIdentifier, toUserModelIdentifier, parseUserModelConfigId } 
 export {
   resolveSelectableModels,
   getDefaultModelValue,
+  getDefaultModelValueByType,
   isSelectableImageModel,
   type SelectableModel,
 } from './resolve-selectable-models';

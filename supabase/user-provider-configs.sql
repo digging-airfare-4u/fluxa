@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS user_provider_configs (
   api_url TEXT NOT NULL,
   model_name TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  model_type TEXT NOT NULL DEFAULT 'image' CHECK (model_type IN ('image', 'chat')),
   is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -38,6 +39,16 @@ ALTER TABLE user_provider_configs
 ALTER TABLE user_provider_configs
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+ALTER TABLE user_provider_configs
+  ADD COLUMN IF NOT EXISTS model_type TEXT NOT NULL DEFAULT 'image';
+
+ALTER TABLE user_provider_configs
+  DROP CONSTRAINT IF EXISTS user_provider_configs_model_type_check;
+
+ALTER TABLE user_provider_configs
+  ADD CONSTRAINT user_provider_configs_model_type_check
+  CHECK (model_type IN ('image', 'chat'));
+
 -- ============================================================================
 -- Indexes
 -- ============================================================================
@@ -51,8 +62,10 @@ CREATE INDEX IF NOT EXISTS idx_user_provider_configs_user_provider
 CREATE INDEX IF NOT EXISTS idx_user_provider_configs_user_enabled
   ON user_provider_configs(user_id, is_enabled);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_user_provider_configs_user_model_unique
-  ON user_provider_configs(user_id, model_name);
+DROP INDEX IF EXISTS idx_user_provider_configs_user_model_unique;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_provider_configs_user_model_type_unique
+  ON user_provider_configs(user_id, model_name, model_type);
 
 -- ============================================================================
 -- updated_at trigger
@@ -90,25 +103,83 @@ CREATE TRIGGER update_user_provider_configs_updated_at
 ALTER TABLE user_provider_configs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view own provider configs" ON user_provider_configs;
-CREATE POLICY "Users can view own provider configs"
-  ON user_provider_configs FOR SELECT
-  USING (user_id = auth.uid());
-
 DROP POLICY IF EXISTS "Users can create own provider configs" ON user_provider_configs;
-CREATE POLICY "Users can create own provider configs"
-  ON user_provider_configs FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
 DROP POLICY IF EXISTS "Users can update own provider configs" ON user_provider_configs;
-CREATE POLICY "Users can update own provider configs"
-  ON user_provider_configs FOR UPDATE
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
 DROP POLICY IF EXISTS "Users can delete own provider configs" ON user_provider_configs;
-CREATE POLICY "Users can delete own provider configs"
+DROP POLICY IF EXISTS "Authenticated users can view enabled shared provider configs" ON user_provider_configs;
+DROP POLICY IF EXISTS "Super admins can view own provider configs" ON user_provider_configs;
+DROP POLICY IF EXISTS "Super admins can create own provider configs" ON user_provider_configs;
+DROP POLICY IF EXISTS "Super admins can update own provider configs" ON user_provider_configs;
+DROP POLICY IF EXISTS "Super admins can delete own provider configs" ON user_provider_configs;
+
+CREATE POLICY "Authenticated users can view enabled shared provider configs"
+  ON user_provider_configs FOR SELECT
+  USING (
+    is_enabled = TRUE
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = user_provider_configs.user_id
+        AND up.is_super_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Super admins can view own provider configs"
+  ON user_provider_configs FOR SELECT
+  USING (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+        AND up.is_super_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Super admins can create own provider configs"
+  ON user_provider_configs FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+        AND up.is_super_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Super admins can update own provider configs"
+  ON user_provider_configs FOR UPDATE
+  USING (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+        AND up.is_super_admin = TRUE
+    )
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+        AND up.is_super_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Super admins can delete own provider configs"
   ON user_provider_configs FOR DELETE
-  USING (user_id = auth.uid());
+  USING (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1
+      FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+        AND up.is_super_admin = TRUE
+    )
+  );
 
 -- ============================================================================
 -- Safe View: user_provider_configs_safe
@@ -123,6 +194,7 @@ SELECT
   api_url,
   model_name,
   display_name,
+  model_type,
   is_enabled,
   created_at,
   updated_at,

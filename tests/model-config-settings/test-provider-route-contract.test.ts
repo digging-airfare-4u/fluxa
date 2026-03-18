@@ -7,7 +7,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/test-provider/route';
-import { createAuthenticatedClient, createServiceClient } from '@/lib/supabase/server';
+import {
+  createAuthenticatedClient,
+  createServiceClient,
+  getUserAdminFlags,
+} from '@/lib/supabase/server';
 import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-revalidation';
 import { trackMetric } from '@/lib/observability/metrics';
 
@@ -16,6 +20,7 @@ vi.mock('@/lib/supabase/server', () => {
   return {
     createAuthenticatedClient: vi.fn(),
     createServiceClient: vi.fn(),
+    getUserAdminFlags: vi.fn(),
     ApiAuthError: MockApiAuthError,
   };
 });
@@ -38,6 +43,7 @@ vi.mock('@/lib/observability/metrics', () => ({
 
 const createAuthenticatedClientMock = vi.mocked(createAuthenticatedClient);
 const createServiceClientMock = vi.mocked(createServiceClient);
+const getUserAdminFlagsMock = vi.mocked(getUserAdminFlags);
 const revalidateProviderConfigBeforeSaveMock = vi.mocked(revalidateProviderConfigBeforeSave);
 const trackMetricMock = vi.mocked(trackMetric);
 
@@ -60,6 +66,28 @@ describe('POST /api/test-provider contract', () => {
       user: { id: 'user-1' } as never,
     });
     createServiceClientMock.mockReturnValue({} as never);
+    getUserAdminFlagsMock.mockResolvedValue({ isSuperAdmin: true });
+  });
+
+  it('should reject non-admin users before attempting validation', async () => {
+    getUserAdminFlagsMock.mockResolvedValue({ isSuperAdmin: false });
+    const request = buildRequest({
+      apiUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test-12345678',
+      modelName: 'my-model',
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only super admins can test shared provider configs',
+      },
+    });
+    expect(revalidateProviderConfigBeforeSaveMock).not.toHaveBeenCalled();
   });
 
   it('should return CONFIG_ID_REQUIRED when apiKey is omitted', async () => {

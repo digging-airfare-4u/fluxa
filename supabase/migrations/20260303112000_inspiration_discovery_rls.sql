@@ -2,6 +2,49 @@
 
 BEGIN;
 
+DO $$
+DECLARE
+  v_viewer_id_type TEXT;
+BEGIN
+  SELECT data_type
+  INTO v_viewer_id_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'publication_views'
+    AND column_name = 'viewer_id';
+
+  IF v_viewer_id_type IS NOT NULL AND v_viewer_id_type <> 'uuid' THEN
+    ALTER TABLE publication_views
+      ALTER COLUMN viewer_id TYPE UUID
+      USING viewer_id::uuid;
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'publication_views_publication_id_fkey'
+      AND conrelid = 'publication_views'::regclass
+  ) THEN
+    ALTER TABLE publication_views
+      ADD CONSTRAINT publication_views_publication_id_fkey
+      FOREIGN KEY (publication_id) REFERENCES publications(id) ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'publication_views_viewer_id_fkey'
+      AND conrelid = 'publication_views'::regclass
+  ) THEN
+    ALTER TABLE publication_views
+      ADD CONSTRAINT publication_views_viewer_id_fkey
+      FOREIGN KEY (viewer_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END;
+$$;
+
 ALTER TABLE publication_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE publications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE publication_snapshots ENABLE ROW LEVEL SECURITY;

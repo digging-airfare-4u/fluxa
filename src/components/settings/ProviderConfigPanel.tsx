@@ -2,7 +2,7 @@
 
 /**
  * ProviderConfigPanel Component
- * Dialog panel for managing image provider configurations.
+ * Dialog panel for managing image and chat provider configurations.
  * Shows Gemini (built-in), Volcengine, and Custom OpenAI-Compatible sections.
  * Requirements: 1.1-1.7
  */
@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import {
-  fetchUserProviderConfigs,
+  fetchProviderConfigsContext,
   createProviderConfig,
   updateProviderConfig,
   updateProviderEnabled,
@@ -86,26 +86,31 @@ function ConfigItem({
   config,
   onEdit,
   onToggle,
+  readOnly = false,
 }: {
   config: UserProviderConfig;
   onEdit: () => void;
   onToggle: (enabled: boolean) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div
       className={cn(
         'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors',
-        'hover:bg-muted/50 cursor-pointer',
+        readOnly ? 'cursor-default' : 'hover:bg-muted/50 cursor-pointer',
         !config.is_enabled && 'opacity-60',
       )}
-      onClick={onEdit}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEdit(); }}
+      onClick={readOnly ? undefined : onEdit}
+      role={readOnly ? undefined : 'button'}
+      tabIndex={readOnly ? undefined : 0}
+      onKeyDown={readOnly ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') onEdit(); }}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{config.display_name}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {config.model_type === 'chat' ? '聊天' : '图像'}
+          </Badge>
           <ConfigStatusBadge config={config} />
         </div>
         <div className="flex items-center gap-2 mt-0.5">
@@ -116,6 +121,7 @@ function ConfigItem({
       </div>
       <Switch
         checked={config.is_enabled}
+        disabled={readOnly}
         onCheckedChange={(checked) => {
           // Stop propagation so clicking the switch doesn't trigger edit
           onToggle(checked);
@@ -193,16 +199,19 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
   const [isLoading, setIsLoading] = useState(false);
   const [editing, setEditing] = useState<EditingState>({ type: 'none' });
   const [error, setError] = useState<string | null>(null);
+  const [canManage, setCanManage] = useState(false);
 
   // ---- Load configs ----
   const loadConfigs = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchUserProviderConfigs();
-      setConfigs(data);
+      const context = await fetchProviderConfigsContext();
+      setConfigs(context.data);
+      setCanManage(context.canManage);
     } catch (err) {
       console.error('[Settings] Failed to load provider configs:', err);
+      setCanManage(false);
       setError('加载配置失败');
     } finally {
       setIsLoading(false);
@@ -289,6 +298,12 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
             </div>
           )}
 
+          {!isLoading && !canManage && (
+            <div className="p-3 rounded-lg text-sm text-muted-foreground bg-muted/40 border">
+              当前账号没有 Provider 管理权限。下面展示的是平台已开放的共享配置，只有超级管理员可以新增、编辑、启用或删除。
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -322,6 +337,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                         apiUrl: editing.config.api_url,
                         modelName: editing.config.model_name,
                         displayName: editing.config.display_name,
+                        modelType: editing.config.model_type ?? 'image',
                       }
                     : undefined
                 }
@@ -364,9 +380,9 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
               {/* Volcengine section */}
               <ProviderSection
                 title="Volcengine / 豆包"
-                description="可添加多个自定义配置"
+                description={canManage ? '可添加多个共享配置' : '平台开放的共享配置'}
                 icon={<Cloud className="size-4" />}
-                action={
+                action={canManage ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -375,7 +391,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     <Plus className="size-3.5" />
                     新增
                   </Button>
-                }
+                ) : undefined}
               >
                 {volcengineConfigs.map((config) => (
                   <ConfigItem
@@ -383,6 +399,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     config={config}
                     onEdit={() => setEditing({ type: 'edit', config })}
                     onToggle={(enabled) => handleToggle(config.id, enabled)}
+                    readOnly={!canManage}
                   />
                 ))}
                 {volcengineConfigs.length === 0 && (
@@ -393,9 +410,9 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
               {/* Custom OpenAI-Compatible section */}
               <ProviderSection
                 title="OpenAI-Compatible"
-                description="兼容 OpenAI 接口的自定义服务"
+                description={canManage ? '兼容 OpenAI 接口的共享服务' : '平台开放的共享配置'}
                 icon={<KeyRound className="size-4" />}
-                action={
+                action={canManage ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -404,7 +421,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     <Plus className="size-3.5" />
                     新增
                   </Button>
-                }
+                ) : undefined}
               >
                 {openaiCompatibleConfigs.map((config) => (
                   <ConfigItem
@@ -412,6 +429,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     config={config}
                     onEdit={() => setEditing({ type: 'edit', config })}
                     onToggle={(enabled) => handleToggle(config.id, enabled)}
+                    readOnly={!canManage}
                   />
                 ))}
                 {openaiCompatibleConfigs.length === 0 && (

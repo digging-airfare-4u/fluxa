@@ -30,12 +30,18 @@ interface ModelSelectorProps {
   selectedModel: string;
   onModelChange: (modelValue: string) => void;
   disabled?: boolean;
+  allowedTypes?: Array<SelectableModel['type']>;
+  showPricing?: boolean;
+  tooltipLabel?: string;
 }
 
 export function ModelSelector({
   selectedModel,
   onModelChange,
   disabled = false,
+  allowedTypes,
+  showPricing = true,
+  tooltipLabel,
 }: ModelSelectorProps) {
   const [models, setModels] = useState<SelectableModel[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -56,12 +62,16 @@ export function ModelSelector({
     loadModels();
   }, [loadModels]);
 
-  const currentModel = models.find((m) => m.value === selectedModel) || models[0];
+  const filteredModels = allowedTypes?.length
+    ? models.filter((model) => allowedTypes.includes(model.type))
+    : models;
+  const currentModel = filteredModels.find((m) => m.value === selectedModel) || filteredModels[0];
   const currentIsImageModel = currentModel?.type === 'image';
+  const tooltipText = currentModel?.displayName || '选择模型';
 
   // Group models
-  const imageModels = models.filter((m) => m.type === 'image');
-  const opsModels = models.filter((m) => m.type === 'ops');
+  const imageModels = filteredModels.filter((m) => m.type === 'image');
+  const opsModels = filteredModels.filter((m) => m.type === 'ops');
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -72,6 +82,7 @@ export function ModelSelector({
               variant="ghost"
               size="icon"
               disabled={disabled}
+              aria-label={tooltipLabel || tooltipText}
               className="size-6 rounded-full text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-black/10 dark:border-white/10"
             >
               {currentIsImageModel ? (
@@ -84,8 +95,8 @@ export function ModelSelector({
         </TooltipTrigger>
         <TooltipContent>
           <div className="flex items-center gap-1.5">
-            <span>{currentModel?.displayName || '选择模型'}</span>
-            {currentModel && !currentModel.isByok && (
+            <span>{tooltipLabel ? `${tooltipLabel}: ${tooltipText}` : tooltipText}</span>
+            {showPricing && currentModel && !currentModel.isByok && (
               <span className="flex items-center gap-0.5 text-amber-500">
                 <Zap className="size-3" />
                 {currentModel.pointsCost}
@@ -130,14 +141,17 @@ export function ModelSelector({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {model.isByok ? (
+                  {showPricing && model.isByok ? (
                     <span className="text-xs text-emerald-500 font-medium">免费</span>
-                  ) : (
+                  ) : showPricing ? (
                     <span className="flex items-center gap-0.5 text-xs text-amber-500">
                       <Zap className="size-3" />
                       {model.pointsCost}
                     </span>
-                  )}
+                  ) : null}
+                  {!showPricing && model.isByok ? (
+                    <span className="text-[10px] text-muted-foreground">BYOK</span>
+                  ) : null}
                   {selectedModel === model.value && (
                     <Check className="size-3.5 text-primary" />
                   )}
@@ -169,10 +183,15 @@ export function ModelSelector({
                   <span className="text-sm truncate">{model.displayName}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="flex items-center gap-0.5 text-xs text-amber-500">
-                    <Zap className="size-3" />
-                    {model.pointsCost}
-                  </span>
+                  {showPricing && !model.isByok ? (
+                    <span className="flex items-center gap-0.5 text-xs text-amber-500">
+                      <Zap className="size-3" />
+                      {model.pointsCost}
+                    </span>
+                  ) : null}
+                  {!showPricing && model.isByok ? (
+                    <span className="text-[10px] text-muted-foreground">BYOK</span>
+                  ) : null}
                   {selectedModel === model.value && (
                     <Check className="size-3.5 text-primary" />
                   )}

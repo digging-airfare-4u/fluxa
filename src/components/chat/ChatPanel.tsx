@@ -26,13 +26,13 @@ import {
 import { useMembershipLevel } from '@/lib/store/usePointsStore';
 import { fetchModels } from '@/lib/supabase/queries/models';
 import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
+import { getAgentDefaultBrainModel } from '@/lib/supabase/queries/settings';
 import { resolveSelectableModels, isSelectableImageModel } from '@/lib/models/resolve-selectable-models';
 import type { Op } from '@/lib/canvas/ops.types';
 import { InsufficientPointsDialog } from '@/components/points/InsufficientPointsDialog';
 import { InvalidProviderConfigDialog } from '@/components/points/InvalidProviderConfigDialog';
 import { ShareDialog } from '@/components/share';
 import type { MessageMetadata } from '@/lib/supabase/queries/messages';
-
 
 export interface ChatPanelRef {
   focusInput: () => void;
@@ -88,6 +88,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     isLoading,
     error: chatError,
     addMessage,
+    updateMessage,
     removeMessage,
     replaceMessage,
     createUserMessage,
@@ -98,6 +99,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   // Use store for shared state
   const {
     selectedModel,
+    selectedAgentModel,
+    selectedAgentImageModel,
+    chatMode,
     selectedResolution,
     selectedAspectRatio,
     models,
@@ -110,12 +114,15 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     setSelectedAspectRatio,
     setModels,
     setSelectableModels,
-    setError,
     clearError,
     clearInsufficientPointsError,
     userProviderConfigError,
     clearUserProviderConfigError,
     startGeneration,
+    failGeneration,
+    setChatMode,
+    setSelectedAgentModel,
+    setSelectedAgentImageModel,
   } = useChatStore();
 
   const isGenerating = useIsGenerating();
@@ -123,6 +130,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   // Use generation hook
   const {
+    startAgentGeneration,
     startImageGeneration,
     startOpsGeneration,
     stop: stopGeneration,
@@ -154,11 +162,22 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     Promise.all([
       fetchModels(),
       fetchUserProviderConfigs().catch(() => []),
-    ]).then(([systemModels, userConfigs]) => {
+      getAgentDefaultBrainModel().catch(() => null),
+    ]).then(([systemModels, userConfigs, configuredAgentDefaultModel]) => {
+      const resolvedSelectableModels = resolveSelectableModels(systemModels, userConfigs);
       setModels(systemModels);
-      setSelectableModels(resolveSelectableModels(systemModels, userConfigs));
+      setSelectableModels(resolvedSelectableModels);
+
+      if (
+        configuredAgentDefaultModel
+        && resolvedSelectableModels.some((model) => (
+          model.value === configuredAgentDefaultModel && model.type === 'ops'
+        ))
+      ) {
+        setSelectedAgentModel(configuredAgentDefaultModel);
+      }
     });
-  }, [setModels, setSelectableModels]);
+  }, [setModels, setSelectableModels, setSelectedAgentModel]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -210,8 +229,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       
       // Add pending message
       const pendingMessageId = `pending-${Date.now()}`;
-      const currentModel = model || selectedModel;
-      const currentModelName = selectableModels.find(m => m.value === currentModel)?.displayName
+      const currentModel = model || (chatMode === 'agent' ? selectedAgentModel : selectedModel);
+      const currentModelName =
+        selectableModels.find(m => m.value === currentModel)?.displayName
         || models.find(m => m.name === currentModel)?.display_name
         || currentModel;
       
@@ -221,7 +241,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         role: 'assistant',
         content: t('status.generating'),
         created_at: new Date().toISOString(),
-        metadata: { isPending: true, modelName: currentModelName },
+        metadata: { isPending: true, modelName: currentModelName, mode: chatMode },
       });
 
       // Notify canvas about generation start
@@ -237,20 +257,26 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         }
       };
 
-      // Determine model type and start appropriate generation
-      // user:{configId} models are always image models; system models check by type/name
+      // Determine model type and start appropriate generation from the unified model list.
       const isImageModel = isSelectableImageModel(currentModel, selectableModels);
       
       const ctx = {
         content,
         model: currentModel,
+        imageModel: chatMode === 'agent' ? selectedAgentImageModel : undefined,
         referencedImage,
         pendingMessageId,
         userMessageId,
         onMessageCreated: addMessage,
+        onPendingUpdated: updateMessage,
         onPendingReplaced: replaceMessage,
         onCleanup: cleanup,
       };
+
+      if (chatMode === 'agent') {
+        await startAgentGeneration(ctx);
+        return;
+      }
 
       if (isImageModel) {
         await startImageGeneration(ctx);
@@ -262,15 +288,15 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         clearPendingMessages();
         return;
       }
-      
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+
+      failGeneration(err instanceof Error ? err.message : 'Failed to send message');
       onGeneratingChange?.(false);
       clearPendingMessages();
     }
   }, [
-    conversationId, selectedModel, models, selectableModels, t,
-    createUserMessage, addMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
-    startGeneration, startImageGeneration, startOpsGeneration, clearError, setError, onGeneratingChange,
+    conversationId, selectedModel, selectedAgentModel, selectedAgentImageModel, models, selectableModels, t, chatMode,
+    createUserMessage, addMessage, updateMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
+    startGeneration, startAgentGeneration, startImageGeneration, startOpsGeneration, clearError, failGeneration, onGeneratingChange,
   ]);
 
   // Auto-send initial prompt if provided (must be after handleSendMessage definition)
@@ -385,9 +411,11 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         ) : (
           <>
             {messages.map((message) => {
-              const isPending = (message.metadata as MessageMetadata | undefined)?.isPending;
+              const metadata = message.metadata as MessageMetadata | undefined;
+              const isPending = metadata?.isPending;
+              const isAgentPending = metadata?.mode === 'agent';
               
-              if (isPending && (generationPhase === 'phase-a' || generationPhase === 'phase-b')) {
+              if (isPending && !isAgentPending && (generationPhase === 'phase-a' || generationPhase === 'phase-b')) {
                 return (
                   <div key={message.id} className="mb-4">
                     <GeneratingPlaceholderBox className="mb-3" />
@@ -433,14 +461,21 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         disabled={isLoading}
         isLoading={isGenerating}
         isBusy={isGenerating}
+        chatMode={chatMode}
+        onChatModeChange={setChatMode}
         selectedModel={selectedModel}
+        selectedAgentModel={selectedAgentModel}
+        selectedAgentImageModel={selectedAgentImageModel}
         onModelChange={setSelectedModel}
+        onAgentModelChange={setSelectedAgentModel}
+        onAgentImageModelChange={setSelectedAgentImageModel}
         selectedResolution={selectedResolution}
         onResolutionChange={setSelectedResolution}
         selectedAspectRatio={selectedAspectRatio}
         onAspectRatioChange={setSelectedAspectRatio}
         membershipLevel={membershipLevel}
         projectId={projectId}
+        resolutionModelName={chatMode === 'agent' ? selectedAgentImageModel : selectedModel}
       />
 
       <ShareDialog

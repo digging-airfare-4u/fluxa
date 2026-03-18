@@ -6,13 +6,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedClient, createServiceClient, ApiAuthError } from '@/lib/supabase/server';
+import {
+  createAuthenticatedClient,
+  createServiceClient,
+  getUserAdminFlags,
+  ApiAuthError,
+} from '@/lib/supabase/server';
 import { encryptApiKey, getApiKeyLast4 } from '@/lib/security/encryption';
 import { createLogger } from '@/lib/observability/logger';
 import { trackMetric } from '@/lib/observability/metrics';
 import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-revalidation';
 
 const log = createLogger('API:provider-configs/[id]');
+const VALID_MODEL_TYPES = ['image', 'chat'] as const;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -24,9 +30,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const { client, user } = await createAuthenticatedClient(request);
+    const { isSuperAdmin } = await getUserAdminFlags(user.id);
     const body = await request.json();
 
-    const { apiKey, apiUrl, modelName, displayName, isEnabled } = body;
+    const { apiKey, apiUrl, modelName, displayName, modelType, isEnabled } = body;
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Only super admins can manage shared provider configs' } },
+        { status: 403 }
+      );
+    }
 
     const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : undefined;
     const requiresRevalidation =
@@ -68,6 +82,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
       updates.display_name = displayName.trim();
     }
+    if (modelType !== undefined) {
+      if (!VALID_MODEL_TYPES.includes(modelType)) {
+        return NextResponse.json(
+          { error: { code: 'INVALID_MODEL_TYPE', message: `modelType must be one of: ${VALID_MODEL_TYPES.join(', ')}` } },
+          { status: 400 }
+        );
+      }
+      updates.model_type = modelType;
+    }
     if (isEnabled !== undefined) {
       updates.is_enabled = Boolean(isEnabled);
     }
@@ -84,7 +107,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (requiresRevalidation) {
       const { data: existing, error: existingError } = await client
         .from('user_provider_configs')
-        .select('api_url, model_name')
+        .select('api_url, model_name, model_type')
         .eq('id', id)
         .eq('user_id', user.id)
         .single();
@@ -156,7 +179,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .update(updates)
       .eq('id', id)
       .eq('user_id', user.id)
-      .select('id, user_id, provider, api_url, model_name, display_name, is_enabled, created_at, updated_at, api_key_last4')
+      .select('id, user_id, provider, api_url, model_name, display_name, model_type, is_enabled, created_at, updated_at, api_key_last4')
       .single();
 
     if (error) {
@@ -214,6 +237,14 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const { client, user } = await createAuthenticatedClient(request);
+    const { isSuperAdmin } = await getUserAdminFlags(user.id);
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Only super admins can manage shared provider configs' } },
+        { status: 403 }
+      );
+    }
 
     // RLS ensures user can only delete own records
     const { error, count } = await client

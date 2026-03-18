@@ -207,6 +207,7 @@ describe('resolveSelectableModels', () => {
         api_url: 'https://api.example.com',
         model_name: 'custom-model',
         display_name: 'My Custom Model',
+        model_type: 'image' as const,
         is_enabled: true,
         api_key_masked: '****abcd',
         model_identifier: 'user:cfg-1' as const,
@@ -220,6 +221,7 @@ describe('resolveSelectableModels', () => {
         api_url: 'https://api.volcengine.com',
         model_name: 'disabled-model',
         display_name: 'Disabled Model',
+        model_type: 'chat' as const,
         is_enabled: false,
         api_key_masked: '****efgh',
         model_identifier: 'user:cfg-2' as const,
@@ -260,6 +262,36 @@ describe('resolveSelectableModels', () => {
 
     const models = resolveSelectableModels([], []);
     expect(models).toHaveLength(0);
+  });
+
+  it('should map chat BYOK configs into ops/text models', async () => {
+    const { resolveSelectableModels } = await import(
+      '@/lib/models/resolve-selectable-models'
+    );
+
+    const models = resolveSelectableModels([], [
+      {
+        id: 'cfg-chat',
+        user_id: 'user-1',
+        provider: 'openai-compatible',
+        api_url: 'https://api.example.com/v1',
+        model_name: 'gpt-4o-mini',
+        display_name: 'My Brain',
+        model_type: 'chat' as const,
+        is_enabled: true,
+        api_key_masked: '****abcd',
+        model_identifier: 'user:cfg-chat' as const,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ] as any);
+
+    expect(models[0]).toMatchObject({
+      value: 'user:cfg-chat',
+      type: 'ops',
+      isByok: true,
+      displayName: 'My Brain',
+    });
   });
 });
 
@@ -328,12 +360,22 @@ describe('getDefaultModelValue', () => {
 });
 
 describe('isSelectableImageModel', () => {
-  it('should return true for user: prefixed models', async () => {
+  it('should return true for user configs that resolve to image models', async () => {
     const { isSelectableImageModel } = await import(
       '@/lib/models/resolve-selectable-models'
     );
 
-    expect(isSelectableImageModel('user:some-config-id', [])).toBe(true);
+    expect(isSelectableImageModel('user:some-config-id', [
+      {
+        value: 'user:some-config-id',
+        displayName: 'BYOK Image',
+        type: 'image',
+        isByok: true,
+        pointsCost: 0,
+        isDefault: false,
+        provider: 'openai-compatible',
+      },
+    ])).toBe(true);
   });
 
   it('should return true for system image models', async () => {
@@ -374,6 +416,24 @@ describe('isSelectableImageModel', () => {
     ];
 
     expect(isSelectableImageModel('gpt-4', models)).toBe(false);
+  });
+
+  it('should return false for chat BYOK configs', async () => {
+    const { isSelectableImageModel } = await import(
+      '@/lib/models/resolve-selectable-models'
+    );
+
+    expect(isSelectableImageModel('user:brain-config', [
+      {
+        value: 'user:brain-config',
+        displayName: 'BYOK Brain',
+        type: 'ops',
+        isByok: true,
+        pointsCost: 0,
+        isDefault: false,
+        provider: 'openai-compatible',
+      },
+    ])).toBe(false);
   });
 });
 

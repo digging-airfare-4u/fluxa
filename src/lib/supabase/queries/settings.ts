@@ -102,6 +102,22 @@ export async function getSystemSetting(key: string): Promise<SystemSetting | nul
   return data;
 }
 
+export async function getAgentDefaultBrainModel(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'agent_default_brain_model')
+    .single();
+
+  if (error) {
+    console.error('[Settings] Failed to fetch agent_default_brain_model:', error);
+    return null;
+  }
+
+  const model = (data?.value as { model?: unknown } | null)?.model;
+  return typeof model === 'string' && model.trim() ? model.trim() : null;
+}
+
 /**
  * Get the Gemini API host URL
  * Returns the configured host or the default Google API endpoint

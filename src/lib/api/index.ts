@@ -3,11 +3,16 @@
  */
 
 export {
+  generateAgentStream,
   generateImage,
   generateOps,
+  readAgentEventStream,
   runImageTool,
   GenerationApiError,
+  type AgentDoneEvent,
+  type AgentSSEEvent,
   type GenerateImageParams,
+  type GenerateAgentParams,
   type GenerateOpsParams,
   type ImageToolParams,
   type GenerateImageResult,
@@ -17,6 +22,7 @@ export {
 } from './generate';
 
 export {
+  fetchProviderConfigsContext,
   fetchUserProviderConfigs,
   createProviderConfig,
   updateProviderConfig,
@@ -27,7 +33,9 @@ export {
   type UserModelIdentifier,
   type ModelValue,
   type ProviderType,
+  type ProviderModelType,
   type ProviderConfigInput,
+  type ProviderConfigsContext,
   type UserProviderConfig,
   type TestProviderParams,
   type ProviderConfigApiError,

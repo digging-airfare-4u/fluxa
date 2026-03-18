@@ -36,6 +36,13 @@ CREATE TABLE IF NOT EXISTS payment_orders (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_provider_txn_unique
   ON payment_orders(provider, provider_transaction_id)
   WHERE provider_transaction_id IS NOT NULL;
@@ -73,6 +80,8 @@ CREATE TABLE IF NOT EXISTS payment_webhook_events (
   UNIQUE(provider, provider_event_id)
 );
 
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS order_no TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_payment_webhook_events_order_no ON payment_webhook_events(order_no);
 
 CREATE TABLE IF NOT EXISTS payment_refunds (
@@ -87,6 +96,66 @@ CREATE TABLE IF NOT EXISTS payment_refunds (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS kind TEXT;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS target_level TEXT;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS duration_days INTEGER;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS points_grant INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS amount_fen BIGINT;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'CNY';
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS is_self_serve BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS display_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE payment_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS order_no TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS product_id UUID;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS amount_fen BIGINT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'CNY';
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider_order_id TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS order_id UUID;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS attempt_no INTEGER;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS provider_request_id TEXT;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS request_payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS response_payload JSONB;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS error_code TEXT;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS error_message TEXT;
+ALTER TABLE payment_attempts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS provider_event_id TEXT;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS order_no TEXT;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS signature TEXT;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS processed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS error_message TEXT;
+ALTER TABLE payment_webhook_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS order_id UUID;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS refund_no TEXT;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS provider_refund_id TEXT;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS amount_fen BIGINT;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE payment_refunds ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS membership_expires_at TIMESTAMPTZ;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS membership_source_order_id TEXT;

@@ -787,6 +787,18 @@ h1, h2, h3, h4, h5, h6 {
   @apply size-3.5;
 }
 
+.agent-status-glow {
+  background: linear-gradient(90deg, var(--color-muted), rgba(124, 58, 237, 0.06), var(--color-muted));
+  background-size: 200% 100%;
+  animation: agent-shimmer 3s ease-in-out infinite;
+}
+
+@keyframes agent-shimmer {
+  0% { background-position: 100% 0; }
+  50% { background-position: 0 0; }
+  100% { background-position: 100% 0; }
+}
+
 /* Image card in chat */
 .chat-image-card {
   @apply rounded-xl overflow-hidden;

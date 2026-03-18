@@ -11,12 +11,14 @@ CREATE TABLE user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   membership_level TEXT NOT NULL DEFAULT 'free' CHECK (membership_level IN ('free', 'pro', 'team')),
   points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0),
+  is_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Index for membership level queries
 CREATE INDEX idx_user_profiles_membership_level ON user_profiles(membership_level);
+CREATE INDEX idx_user_profiles_is_super_admin ON user_profiles(is_super_admin);
 
 -- Trigger for updated_at timestamp
 CREATE TRIGGER update_user_profiles_updated_at

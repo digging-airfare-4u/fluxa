@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
-import type { ProviderType } from '@/lib/api/provider-configs';
+import type { ProviderType, ProviderModelType } from '@/lib/api/provider-configs';
 import { getProviderConfigFormMeta } from './provider-config-form-meta';
 
 // ============================================================================
@@ -57,6 +57,7 @@ export interface ProviderConfigFormValues {
   apiUrl: string;
   modelName: string;
   displayName: string;
+  modelType: ProviderModelType;
 }
 
 export interface ProviderConfigFormProps {
@@ -114,10 +115,11 @@ export function ProviderConfigForm({
   onCancel,
 }: ProviderConfigFormProps) {
   const isEditing = !!configId;
-  const meta = getProviderConfigFormMeta(provider);
   const ProviderIcon = provider === 'volcengine' ? Cloud : KeyRound;
 
   // Form state
+  const [modelType, setModelType] = useState<ProviderModelType>(initialValues?.modelType ?? 'image');
+  const meta = getProviderConfigFormMeta(provider, modelType);
   const [apiKey, setApiKey] = useState(initialValues?.apiKey ?? '');
   const [apiUrl, setApiUrl] = useState(initialValues?.apiUrl ?? '');
   const [modelName, setModelName] = useState(initialValues?.modelName ?? '');
@@ -186,6 +188,7 @@ export function ProviderConfigForm({
         apiUrl: apiUrl.trim(),
         modelName: modelName.trim(),
         displayName: displayName.trim(),
+        modelType,
       });
     } catch (err) {
       console.error('[Settings] ProviderConfigForm save error:', err);
@@ -194,7 +197,7 @@ export function ProviderConfigForm({
     } finally {
       setIsSaving(false);
     }
-  }, [validate, onTest, onSave, apiUrl, apiKey, modelName, displayName, configId, provider]);
+  }, [validate, onTest, onSave, apiUrl, apiKey, modelName, displayName, configId, provider, modelType]);
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
@@ -251,10 +254,30 @@ export function ProviderConfigForm({
             <CardTitle className="text-sm">连接信息</CardTitle>
           </div>
           <CardDescription>
-            先验证 API Key、Endpoint 和模型名，再保存到当前账号。
+            先验证 API Key、Endpoint 和模型名，再保存为平台共享配置。
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-0 space-y-4">
+          <div className="space-y-2">
+            <Label>用途</Label>
+            <div className="inline-flex rounded-lg border bg-muted/20 p-1">
+              {(['image', 'chat'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setModelType(value)}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                    modelType === value
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {value === 'image' ? '图像生成' : '聊天 / Agent Brain'}
+                </button>
+              ))}
+            </div>
+          </div>
           {isEditing && onToggleEnabled && (
             <>
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">

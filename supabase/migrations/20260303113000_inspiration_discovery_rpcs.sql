@@ -2,6 +2,13 @@
 
 BEGIN;
 
+DROP FUNCTION IF EXISTS publish_conversation(UUID, TEXT, TEXT, TEXT, UUID, TEXT[]);
+DROP FUNCTION IF EXISTS update_publication_snapshot(UUID);
+DROP FUNCTION IF EXISTS increment_view_count(UUID, UUID);
+DROP FUNCTION IF EXISTS toggle_like(UUID);
+DROP FUNCTION IF EXISTS toggle_bookmark(UUID);
+DROP FUNCTION IF EXISTS get_gallery_publications(TEXT, TEXT, TEXT, TIMESTAMPTZ, UUID, INTEGER);
+
 CREATE OR REPLACE FUNCTION publish_conversation(
   p_conversation_id UUID,
   p_title TEXT,

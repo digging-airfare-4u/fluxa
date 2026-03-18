@@ -6,6 +6,7 @@
  */
 
 import type { AIModel } from '@/lib/supabase/queries/models';
+import { isClassicSelectableModel } from '@/lib/models/classic-model-filter';
 import type { UserProviderConfig } from '@/lib/api/provider-configs';
 
 /** A selectable model entry for the UI */
@@ -56,6 +57,10 @@ export function resolveSelectableModels(
 
   // System models
   for (const model of systemModels) {
+    if (!isClassicSelectableModel(model)) {
+      continue;
+    }
+
     result.push({
       value: model.name,
       displayName: model.display_name,
@@ -71,10 +76,11 @@ export function resolveSelectableModels(
   // User-configured models (only enabled ones)
   for (const config of userConfigs) {
     if (!config.is_enabled) continue;
+    const selectableType = config.model_type === 'chat' ? 'ops' : 'image';
     result.push({
       value: config.model_identifier,
       displayName: config.display_name,
-      type: 'image', // user configs are always image providers
+      type: selectableType,
       isByok: true,
       pointsCost: 0,
       description: null,
@@ -95,16 +101,23 @@ export function getDefaultModelValue(models: SelectableModel[]): string | undefi
   return defaultModel?.value ?? models[0]?.value;
 }
 
+export function getDefaultModelValueByType(
+  models: SelectableModel[],
+  type: SelectableModel['type'],
+): string | undefined {
+  const typedModels = models.filter((model) => model.type === type);
+  const defaultModel = typedModels.find((model) => model.isDefault);
+  return defaultModel?.value ?? typedModels[0]?.value;
+}
+
 /**
  * Check if a selectable model value represents an image model.
- * Works for both system models (by lookup) and user models (always image).
+ * Works for both system models and user-configured models.
  */
 export function isSelectableImageModel(
   value: string,
   models: SelectableModel[],
 ): boolean {
-  // user:{configId} is always an image model
-  if (value.startsWith('user:')) return true;
   const found = models.find((m) => m.value === value);
   return found?.type === 'image';
 }

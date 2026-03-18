@@ -7,9 +7,12 @@
  * Generates canvas operations from user prompts using LLM.
  */
 
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.89.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { createRegistry } from '../_shared/providers/registry-setup.ts';
 import type { ChatMessage, ChatCompletionOptions } from '../_shared/providers/chat-types.ts';
+import { errorToResponse, ProviderError, UserProviderConfigInvalidError } from '../_shared/errors/index.ts';
+import { callChatProviderJson } from '../_shared/utils/chat-provider-json.ts';
+import { resolveChatProvider, type ResolvedChatProvider } from '../_shared/utils/resolve-chat-provider.ts';
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -80,6 +83,10 @@ interface InsufficientPointsError {
   current_balance: number;
   required_points: number;
   model_name: string;
+}
+
+interface CurrentBalanceRow {
+  points: number;
 }
 
 /**
@@ -338,23 +345,33 @@ async function deductPoints(
   };
 }
 
+async function getCurrentPointsBalance(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('points')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('Failed to fetch current points balance:', error);
+    return 0;
+  }
+
+  return (data as CurrentBalanceRow | null)?.points ?? 0;
+}
+
 /**
  * Call the AI provider (OpenAI compatible)
  * Requirements: 12.3, 12.4, 17.3
  */
 async function callAIProvider(
   prompt: string,
-  modelName?: string,
+  runtime: ResolvedChatProvider,
   assetsContext?: RequestBody['assetsContext']
 ): Promise<GenerateOpsResponse> {
-  // Determine which model to use
-  const defaultModel = Deno.env.get('DEFAULT_AI_MODEL') || 'doubao-seed-1-6-vision-250815';
-  const selectedModel = modelName || defaultModel;
-
-  // Resolve chat provider from registry
-  const registry = createRegistry(null as unknown as SupabaseClient);
-  const provider = registry.getChatProvider(selectedModel);
-
   // Build user message with assets context if provided
   let userMessage = prompt;
   if (assetsContext && assetsContext.length > 0) {
@@ -377,30 +394,26 @@ async function callAIProvider(
     temperature: 0.4,
     maxTokens: 2000,
   };
-  if (provider.name === 'openai') {
-    options.responseFormat = { type: 'json_object' };
-  }
-
   // Call the unified chat provider interface
-  const result = await provider.chatCompletion(messages, options);
-  const content = result.content;
-
-  // Parse JSON response
   let parsed: unknown;
   try {
-    // Try to extract JSON from the response (in case there's extra text)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
-    } else {
-      parsed = JSON.parse(content);
+    parsed = await callChatProviderJson({
+      provider: runtime.provider,
+      messages,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    });
+  } catch (error) {
+    if (
+      error instanceof ProviderError
+      && (error.providerCode === 'PARSE_ERROR' || error.providerCode === 'EMPTY_RESPONSE')
+    ) {
+      return {
+        plan: 'unable to comply: AI returned invalid JSON response',
+        ops: [],
+      };
     }
-  } catch {
-    // Requirement 17.4: Return rejection response for invalid output
-    return {
-      plan: 'unable to comply: AI returned invalid JSON response',
-      ops: [],
-    };
+    throw error;
   }
 
   // Validate response structure
@@ -583,47 +596,59 @@ Deno.serve(async (req: Request) => {
     // Determine the model name for points calculation
     const defaultModel = Deno.env.get('DEFAULT_AI_MODEL') || 'doubao-seed-1-6-vision-250815';
     const selectedModel = model || defaultModel;
+    const registry = createRegistry(supabaseService);
+    const runtime = await resolveChatProvider({
+      serviceClient: supabaseService,
+      registry,
+      userId: user.id,
+      selectedModel,
+      fallbackModel: defaultModel,
+    });
     
-    // Get points cost for the selected model
-    const pointsCost = await getModelPointsCost(supabaseService, selectedModel);
-    
-    // Attempt to deduct points before processing
-    const deductionResult = await deductPoints(
-      supabaseService,
-      user.id,
-      pointsCost,
-      'generate_ops',
-      null, // reference_id - could be set to message_id after creation
-      selectedModel
-    );
-    
-    // If points deduction failed due to insufficient balance, return error
-    if (!deductionResult.success) {
-      // Get display name for better UX
-      const displayName = await getModelDisplayName(supabaseService, selectedModel);
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: ERROR_CODES.INSUFFICIENT_POINTS,
-            message: `点数不足，当前余额 ${deductionResult.error.current_balance}，需要 ${deductionResult.error.required_points} 点`,
-            current_balance: deductionResult.error.current_balance,
-            required_points: deductionResult.error.required_points,
-            model_name: displayName,
-          },
-        }),
-        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    let pointsDeducted = 0;
+    let remainingPoints = 0;
+
+    if (runtime.isByok) {
+      remainingPoints = await getCurrentPointsBalance(supabaseService, user.id);
+    } else {
+      const pointsCost = await getModelPointsCost(supabaseService, selectedModel);
+      const deductionResult = await deductPoints(
+        supabaseService,
+        user.id,
+        pointsCost,
+        'generate_ops',
+        null,
+        selectedModel
       );
+
+      if (!deductionResult.success) {
+        const displayName = await getModelDisplayName(supabaseService, selectedModel);
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: ERROR_CODES.INSUFFICIENT_POINTS,
+              message: `点数不足，当前余额 ${deductionResult.error.current_balance}，需要 ${deductionResult.error.required_points} 点`,
+              current_balance: deductionResult.error.current_balance,
+              required_points: deductionResult.error.required_points,
+              model_name: displayName,
+            },
+          }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      pointsDeducted = deductionResult.result.points_deducted;
+      remainingPoints = deductionResult.result.balance_after;
     }
-    
-    // Points deducted successfully, store the result for response
-    const pointsDeducted = deductionResult.result.points_deducted;
-    const remainingPoints = deductionResult.result.balance_after;
     
     // Call AI provider
     let result: GenerateOpsResponse;
     try {
-      result = await callAIProvider(prompt, model, assetsContext);
+      result = await callAIProvider(prompt, runtime, assetsContext);
     } catch (error) {
+      if (error instanceof UserProviderConfigInvalidError) {
+        return errorToResponse(error, corsHeaders);
+      }
       console.error('AI provider error:', error);
       return new Response(
         JSON.stringify({
@@ -674,15 +699,6 @@ Deno.serve(async (req: Request) => {
     );
     
   } catch (error) {
-    console.error('Unexpected error:', error);
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: ERROR_CODES.INTERNAL_ERROR,
-          message: 'Internal server error',
-        },
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorToResponse(error, corsHeaders);
   }
 });

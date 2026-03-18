@@ -9,7 +9,7 @@ import { getProviderConfigFormMeta } from '@/components/settings/provider-config
 
 describe('Provider config form metadata', () => {
   it('should return volcengine-specific labels and placeholders', () => {
-    expect(getProviderConfigFormMeta('volcengine')).toEqual({
+    expect(getProviderConfigFormMeta('volcengine', 'image')).toEqual({
       title: 'Volcengine / 豆包',
       description: '适用于火山引擎或豆包图像模型接入。',
       apiUrlPlaceholder: 'https://ark.cn-beijing.volces.com/api/v3',
@@ -18,13 +18,13 @@ describe('Provider config form metadata', () => {
     });
   });
 
-  it('should return openai-compatible-specific labels and placeholders', () => {
-    expect(getProviderConfigFormMeta('openai-compatible')).toEqual({
+  it('should return openai-compatible chat labels and placeholders when used as a brain provider', () => {
+    expect(getProviderConfigFormMeta('openai-compatible', 'chat')).toEqual({
       title: 'OpenAI-Compatible',
-      description: '适用于兼容 OpenAI 接口协议的图像服务。',
+      description: '适用于兼容 OpenAI 接口协议的聊天/推理服务。',
       apiUrlPlaceholder: 'https://api.example.com/v1',
-      modelNamePlaceholder: 'gpt-image-1',
-      displayNamePlaceholder: '例如：自定义图像服务',
+      modelNamePlaceholder: 'gpt-4o-mini',
+      displayNamePlaceholder: '例如：自定义 Brain 服务',
     });
   });
 });

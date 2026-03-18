@@ -5,7 +5,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAuthenticatedClient, createServiceClient, ApiAuthError } from '@/lib/supabase/server';
+import {
+  createAuthenticatedClient,
+  createServiceClient,
+  getUserAdminFlags,
+  ApiAuthError,
+} from '@/lib/supabase/server';
 import { createLogger } from '@/lib/observability/logger';
 import { trackMetric } from '@/lib/observability/metrics';
 import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-revalidation';
@@ -25,9 +30,17 @@ const log = createLogger('API:test-provider');
 export async function POST(request: NextRequest) {
   try {
     const { client, user } = await createAuthenticatedClient(request);
+    const { isSuperAdmin } = await getUserAdminFlags(user.id);
     const body = await request.json();
 
     const { apiUrl, apiKey, modelName, configId } = body;
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Only super admins can test shared provider configs' } },
+        { status: 403 }
+      );
+    }
 
     // Validate required fields
     if (!apiUrl || !modelName) {

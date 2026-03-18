@@ -10,11 +10,55 @@ import type { Op } from '@/lib/canvas/ops.types';
  * Message role types
  */
 export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageMode = 'classic' | 'agent';
+
+export interface MessageCitation {
+  title: string;
+  url: string;
+  domain: string;
+}
+
+export interface MessageGeneratedImage {
+  imageUrl: string;
+  assetId?: string;
+  prompt: string;
+}
+
+export interface AgentProcessStep {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  summary?: string;
+}
+
+export interface AgentProcessDecision {
+  key: 'needs_search' | 'needs_image_search';
+  value: boolean;
+  reason?: string;
+}
+
+export interface AgentToolActivity {
+  tool: 'generate_image' | 'web_search' | 'fetch_url' | 'image_search';
+  status: 'running' | 'completed';
+  inputSummary?: string;
+  resultSummary?: string;
+  imageUrl?: string;
+  assetId?: string;
+}
+
+export interface AgentProcessTimeline {
+  phase?: string;
+  label?: string;
+  steps?: AgentProcessStep[];
+  decisions?: AgentProcessDecision[];
+  tools?: AgentToolActivity[];
+}
 
 /**
  * Message metadata structure
  */
 export interface MessageMetadata {
+  mode?: MessageMode;
   plan?: string;
   ops?: Op[];
   imageUrl?: string;
@@ -28,6 +72,16 @@ export interface MessageMetadata {
   jobId?: string;
   /** Single op from image generation */
   op?: Op;
+  /** Agent process summary for reload/realtime display */
+  processSummary?: string;
+  /** Agent search summary for reload/realtime display */
+  searchSummary?: string;
+  /** Verified citations emitted by Agent mode */
+  citations?: MessageCitation[];
+  /** Generated or ingested images emitted by Agent mode */
+  generatedImages?: MessageGeneratedImage[];
+  /** Client-side timeline state for pending Agent turns */
+  agentProcess?: AgentProcessTimeline;
   /** Referenced image for image-to-image generation */
   referencedImage?: {
     id: string;
