@@ -50,8 +50,10 @@ export function ChatMessage({
   const isAI = message.role === 'assistant';
   const metadata = message.metadata as MessageMetadata | undefined;
   const isPending = metadata?.isPending === true;
-  const displayModelName = modelName || metadata?.modelName || 'AI Assistant';
   const isAgentMessage = metadata?.mode === 'agent';
+  const displayModelName = isAgentMessage
+    ? 'Fluxa Agent'
+    : (modelName || metadata?.modelName || 'AI Assistant');
   const agentProcess = metadata?.agentProcess;
   const generatedImages = metadata?.generatedImages || [];
   const citations = metadata?.citations || [];

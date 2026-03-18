@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialAgentPendingState, mergeAgentFinalMessage, reduceAgentPendingState } from '@/hooks/chat/agent-process';
 import type { AgentSSEEvent } from '@/lib/api';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('agent process state', () => {
+  it('keeps agent UI labels separate from backend brain model metadata', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/chat/ChatMessage.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("const isAgentMessage = metadata?.mode === 'agent';");
+    expect(source).not.toContain("const displayModelName = modelName || metadata?.modelName || 'AI Assistant';");
+  });
+
   it('reduces timeline events into structured pending metadata state', () => {
     const events: AgentSSEEvent[] = [
       { type: 'phase', phase: 'executing', label: 'Executing' },
