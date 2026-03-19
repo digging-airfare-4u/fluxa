@@ -291,7 +291,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
       
       const ctx = {
         content,
-        model: currentModel,
+        model: chatMode === 'agent' ? undefined : currentModel,
         imageModel: chatMode === 'agent' ? selectedAgentImageModel : undefined,
         referencedImage,
         pendingMessageId,

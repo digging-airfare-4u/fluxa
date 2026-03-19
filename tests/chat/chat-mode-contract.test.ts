@@ -33,6 +33,15 @@ describe('chat mode contract', () => {
     expect(source).toContain('onPendingUpdated: updateMessage');
   });
 
+  it('does not forward the hidden agent brain selection in agent mode requests', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/chat/ChatPanel.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("model: chatMode === 'agent' ? undefined : currentModel");
+  });
+
   it('exits loading state when agent or classic generation hits a generic transport error', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/chat/ChatPanel.tsx'),
