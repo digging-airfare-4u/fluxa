@@ -22,6 +22,7 @@ import {
 import { fetchModels } from '@/lib/supabase/queries/models';
 import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
 import {
+  getClassicSelectableModels,
   resolveSelectableModels,
   type SelectableModel,
 } from '@/lib/models/resolve-selectable-models';
@@ -64,7 +65,7 @@ export function ModelSelector({
 
   const filteredModels = allowedTypes?.length
     ? models.filter((model) => allowedTypes.includes(model.type))
-    : models;
+    : getClassicSelectableModels(models);
   const currentModel = filteredModels.find((m) => m.value === selectedModel) || filteredModels[0];
   const currentIsImageModel = currentModel?.type === 'image';
   const tooltipText = currentModel?.displayName || '选择模型';

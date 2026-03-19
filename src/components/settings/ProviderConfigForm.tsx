@@ -79,6 +79,7 @@ export interface ProviderConfigFormProps {
   onToggleEnabled?: (enabled: boolean) => Promise<void>;
   /** Called to test provider connectivity */
   onTest: (params: {
+    provider: ProviderType;
     apiUrl: string;
     apiKey?: string;
     modelName: string;
@@ -116,10 +117,12 @@ export function ProviderConfigForm({
 }: ProviderConfigFormProps) {
   const isEditing = !!configId;
   const ProviderIcon = provider === 'volcengine' ? Cloud : KeyRound;
+  const isAnthropicCompatible = provider === 'anthropic-compatible';
 
   // Form state
-  const [modelType, setModelType] = useState<ProviderModelType>(initialValues?.modelType ?? 'image');
-  const meta = getProviderConfigFormMeta(provider, modelType);
+  const [modelType, setModelType] = useState<ProviderModelType>(initialValues?.modelType ?? (isAnthropicCompatible ? 'chat' : 'image'));
+  const resolvedModelType = isAnthropicCompatible ? 'chat' : modelType;
+  const meta = getProviderConfigFormMeta(provider, resolvedModelType);
   const [apiKey, setApiKey] = useState(initialValues?.apiKey ?? '');
   const [apiUrl, setApiUrl] = useState(initialValues?.apiUrl ?? '');
   const [modelName, setModelName] = useState(initialValues?.modelName ?? '');
@@ -166,6 +169,7 @@ export function ProviderConfigForm({
 
     try {
       const result = await onTest({
+        provider,
         apiUrl: apiUrl.trim(),
         apiKey: apiKey.trim() || undefined,
         modelName: modelName.trim(),
@@ -188,7 +192,7 @@ export function ProviderConfigForm({
         apiUrl: apiUrl.trim(),
         modelName: modelName.trim(),
         displayName: displayName.trim(),
-        modelType,
+        modelType: resolvedModelType,
       });
     } catch (err) {
       console.error('[Settings] ProviderConfigForm save error:', err);
@@ -197,7 +201,7 @@ export function ProviderConfigForm({
     } finally {
       setIsSaving(false);
     }
-  }, [validate, onTest, onSave, apiUrl, apiKey, modelName, displayName, configId, provider, modelType]);
+  }, [validate, onTest, onSave, apiUrl, apiKey, modelName, displayName, configId, provider, modelType, resolvedModelType]);
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
@@ -258,26 +262,28 @@ export function ProviderConfigForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-0 space-y-4">
-          <div className="space-y-2">
-            <Label>用途</Label>
-            <div className="inline-flex rounded-lg border bg-muted/20 p-1">
-              {(['image', 'chat'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setModelType(value)}
-                  className={cn(
-                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                    modelType === value
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {value === 'image' ? '图像生成' : '聊天 / Agent Brain'}
-                </button>
-              ))}
+          {!isAnthropicCompatible && (
+            <div className="space-y-2">
+              <Label>用途</Label>
+              <div className="inline-flex rounded-lg border bg-muted/20 p-1">
+                {(['image', 'chat'] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setModelType(value)}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                      modelType === value
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {value === 'image' ? '图像生成' : '聊天 / Agent Brain'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           {isEditing && onToggleEnabled && (
             <>
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">

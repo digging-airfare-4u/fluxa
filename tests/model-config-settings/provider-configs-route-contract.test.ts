@@ -13,6 +13,7 @@ import {
   getUserAdminFlags,
 } from '@/lib/supabase/server';
 import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-revalidation';
+import { encryptApiKey, getApiKeyLast4 } from '@/lib/security/encryption';
 
 vi.mock('@/lib/supabase/server', () => {
   class MockApiAuthError extends Error {}
@@ -26,6 +27,11 @@ vi.mock('@/lib/supabase/server', () => {
 
 vi.mock('@/lib/security/provider-revalidation', () => ({
   revalidateProviderConfigBeforeSave: vi.fn(),
+}));
+
+vi.mock('@/lib/security/encryption', () => ({
+  encryptApiKey: vi.fn(),
+  getApiKeyLast4: vi.fn(),
 }));
 
 vi.mock('@/lib/observability/logger', () => ({
@@ -44,6 +50,8 @@ const createAuthenticatedClientMock = vi.mocked(createAuthenticatedClient);
 const createServiceClientMock = vi.mocked(createServiceClient);
 const getUserAdminFlagsMock = vi.mocked(getUserAdminFlags);
 const revalidateProviderConfigBeforeSaveMock = vi.mocked(revalidateProviderConfigBeforeSave);
+const encryptApiKeyMock = vi.mocked(encryptApiKey);
+const getApiKeyLast4Mock = vi.mocked(getApiKeyLast4);
 
 function buildRequest(method: 'GET' | 'POST', body?: Record<string, unknown>): NextRequest {
   return new NextRequest('http://localhost/api/provider-configs', {
@@ -77,6 +85,9 @@ describe('provider-config routes contract', () => {
       client: {} as never,
       user: { id: 'user-1' } as never,
     });
+    getUserAdminFlagsMock.mockResolvedValue({ isSuperAdmin: true });
+    encryptApiKeyMock.mockResolvedValue('encrypted-test-key');
+    getApiKeyLast4Mock.mockReturnValue('1234');
   });
 
   it('GET should return enabled shared configs to non-admin users', async () => {
@@ -157,5 +168,126 @@ describe('provider-config routes contract', () => {
       },
     });
     expect(revalidateProviderConfigBeforeSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('POST should reject anthropic-compatible image configs', async () => {
+    const response = await POST(
+      buildRequest('POST', {
+        provider: 'anthropic-compatible',
+        apiKey: 'sk-test-123',
+        apiUrl: 'https://api.minimaxi.com/anthropic',
+        modelName: 'MiniMax-M2.7',
+        displayName: 'MiniMax Brain',
+        modelType: 'image',
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: {
+        code: 'INVALID_MODEL_TYPE',
+        message: 'Anthropic-compatible provider only supports chat modelType',
+      },
+    });
+    expect(revalidateProviderConfigBeforeSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('POST should create anthropic-compatible shared configs via the authenticated client after revalidation succeeds', async () => {
+    revalidateProviderConfigBeforeSaveMock.mockResolvedValue({ success: true });
+
+    const singleMock = vi.fn(() =>
+      Promise.resolve({
+        data: {
+          id: 'config-2',
+          user_id: 'user-1',
+          provider: 'anthropic-compatible',
+          api_url: 'https://api.minimaxi.com/anthropic',
+          model_name: 'MiniMax-M2.7',
+          display_name: 'MiniMax Brain',
+          model_type: 'chat',
+          is_enabled: true,
+          api_key_last4: '1234',
+          created_at: '2026-03-19T00:00:00.000Z',
+          updated_at: '2026-03-19T00:00:00.000Z',
+        },
+        error: null,
+      }),
+    );
+    const selectMock = vi.fn(() => ({ single: singleMock }));
+    const insertMock = vi.fn(() => ({ select: selectMock }));
+    const authenticatedFromMock = vi.fn((table: string) => {
+      if (table === 'user_provider_configs') {
+        return {
+          insert: insertMock,
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    createAuthenticatedClientMock.mockResolvedValue({
+      client: {
+        from: authenticatedFromMock,
+      } as never,
+      user: { id: 'user-1' } as never,
+    });
+    createServiceClientMock.mockReturnValue({ from: vi.fn() } as never);
+
+    const request = buildRequest('POST', {
+      provider: 'anthropic-compatible',
+      apiKey: 'sk-test-1234',
+      apiUrl: 'https://api.minimaxi.com/anthropic',
+      modelName: 'MiniMax-M2.7',
+      displayName: 'MiniMax Brain',
+      modelType: 'chat',
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body).toEqual({
+      data: {
+        id: 'config-2',
+        user_id: 'user-1',
+        provider: 'anthropic-compatible',
+        api_url: 'https://api.minimaxi.com/anthropic',
+        model_name: 'MiniMax-M2.7',
+        display_name: 'MiniMax Brain',
+        model_type: 'chat',
+        is_enabled: true,
+        api_key_masked: '****1234',
+        created_at: '2026-03-19T00:00:00.000Z',
+        updated_at: '2026-03-19T00:00:00.000Z',
+        model_identifier: 'user:config-2',
+      },
+    });
+    expect(revalidateProviderConfigBeforeSaveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userClient: expect.objectContaining({ from: authenticatedFromMock }),
+        serviceClient: expect.any(Object),
+        userId: 'user-1',
+        provider: 'anthropic-compatible',
+        apiUrl: 'https://api.minimaxi.com/anthropic',
+        modelName: 'MiniMax-M2.7',
+        apiKey: 'sk-test-1234',
+      }),
+    );
+    expect(createServiceClientMock).toHaveBeenCalledTimes(1);
+    expect(authenticatedFromMock).toHaveBeenCalledWith('user_provider_configs');
+    expect(insertMock).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      provider: 'anthropic-compatible',
+      api_key_encrypted: 'encrypted-test-key',
+      api_key_last4: '1234',
+      api_url: 'https://api.minimaxi.com/anthropic',
+      model_name: 'MiniMax-M2.7',
+      display_name: 'MiniMax Brain',
+      model_type: 'chat',
+      is_enabled: true,
+    });
+    expect(encryptApiKeyMock).toHaveBeenCalledWith('sk-test-1234');
+    expect(getApiKeyLast4Mock).toHaveBeenCalledWith('sk-test-1234');
   });
 });

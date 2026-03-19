@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type { UserProviderConfig } from '@/lib/api/provider-configs';
 
 // ============================================================================
 // Host Allowlist Unit Tests
@@ -269,7 +270,7 @@ describe('resolveSelectableModels', () => {
       '@/lib/models/resolve-selectable-models'
     );
 
-    const models = resolveSelectableModels([], [
+    const userConfigs: UserProviderConfig[] = [
       {
         id: 'cfg-chat',
         user_id: 'user-1',
@@ -277,14 +278,16 @@ describe('resolveSelectableModels', () => {
         api_url: 'https://api.example.com/v1',
         model_name: 'gpt-4o-mini',
         display_name: 'My Brain',
-        model_type: 'chat' as const,
+        model_type: 'chat',
         is_enabled: true,
         api_key_masked: '****abcd',
-        model_identifier: 'user:cfg-chat' as const,
+        model_identifier: 'user:cfg-chat',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-    ] as any);
+    ];
+
+    const models = resolveSelectableModels([], userConfigs);
 
     expect(models[0]).toMatchObject({
       value: 'user:cfg-chat',
@@ -292,6 +295,52 @@ describe('resolveSelectableModels', () => {
       isByok: true,
       displayName: 'My Brain',
     });
+  });
+
+  it('should keep anthropic-compatible chat configs in the unified list but hide them from classic selections', async () => {
+    const { resolveSelectableModels, getClassicSelectableModels } = await import(
+      '@/lib/models/resolve-selectable-models'
+    );
+
+    const userConfigs: UserProviderConfig[] = [
+      {
+        id: 'cfg-brain',
+        user_id: 'user-1',
+        provider: 'anthropic-compatible',
+        api_url: 'https://api.minimaxi.com/anthropic',
+        model_name: 'MiniMax-M2.7',
+        display_name: 'MiniMax Brain',
+        model_type: 'chat',
+        is_enabled: true,
+        api_key_masked: '****abcd',
+        model_identifier: 'user:cfg-brain',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ];
+
+    const models = resolveSelectableModels([
+      {
+        id: 'classic-image',
+        name: 'gemini-3-pro-image-preview',
+        display_name: 'Gemini Image',
+        provider: 'gemini',
+        description: null,
+        type: 'image',
+        is_default: true,
+        is_enabled: true,
+        sort_order: 1,
+        points_cost: 10,
+      },
+    ], userConfigs);
+
+    expect(models.map((model) => model.value)).toEqual([
+      'gemini-3-pro-image-preview',
+      'user:cfg-brain',
+    ]);
+    expect(getClassicSelectableModels(models).map((model) => model.value)).toEqual([
+      'gemini-3-pro-image-preview',
+    ]);
   });
 });
 

@@ -6,6 +6,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { ProviderError, UserProviderConfigInvalidError } from '../errors/index.ts';
 import type { ProviderRegistry } from '../providers/registry.ts';
 import type { ChatProvider } from '../providers/chat-types.ts';
+import { AnthropicCompatibleClient } from '../providers/anthropic-compatible-client.ts';
 import { OpenAICompatibleClient } from '../providers/openai-client.ts';
 import { UserConfiguredChatProvider } from '../providers/user-configured-chat-provider.ts';
 import { UserProviderService } from '../services/user-provider.ts';
@@ -112,12 +113,20 @@ export async function resolveChatProvider(
     );
   }
 
-  const provider = new UserConfiguredChatProvider(
-    new OpenAICompatibleClient({
+  const client = config.provider === 'anthropic-compatible'
+    ? new AnthropicCompatibleClient({
       apiUrl: config.api_url,
       apiKey: config.api_key,
       providerName: `user-configured:${config.provider}`,
-    }),
+    })
+    : new OpenAICompatibleClient({
+      apiUrl: config.api_url,
+      apiKey: config.api_key,
+      providerName: `user-configured:${config.provider}`,
+    });
+
+  const provider = new UserConfiguredChatProvider(
+    client,
     config,
   );
 

@@ -29,6 +29,10 @@ export interface SelectableModel {
   provider: string;
 }
 
+function isClassicSelectableEntry(model: SelectableModel): boolean {
+  return !(model.isByok && model.provider === 'anthropic-compatible' && model.type === 'ops');
+}
+
 /**
  * Check if a system model is an image generation model.
  */
@@ -99,6 +103,10 @@ export function resolveSelectableModels(
 export function getDefaultModelValue(models: SelectableModel[]): string | undefined {
   const defaultModel = models.find((m) => m.isDefault);
   return defaultModel?.value ?? models[0]?.value;
+}
+
+export function getClassicSelectableModels(models: SelectableModel[]): SelectableModel[] {
+  return models.filter(isClassicSelectableEntry);
 }
 
 export function getDefaultModelValueByType(

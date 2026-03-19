@@ -16,6 +16,7 @@ import { trackMetric } from '@/lib/observability/metrics';
 import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-revalidation';
 
 const log = createLogger('API:test-provider');
+const VALID_PROVIDERS = ['volcengine', 'openai-compatible', 'anthropic-compatible'] as const;
 
 /**
  * POST /api/test-provider
@@ -33,12 +34,26 @@ export async function POST(request: NextRequest) {
     const { isSuperAdmin } = await getUserAdminFlags(user.id);
     const body = await request.json();
 
-    const { apiUrl, apiKey, modelName, configId } = body;
+    const { provider, apiUrl, apiKey, modelName, configId } = body;
 
     if (!isSuperAdmin) {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN', message: 'Only super admins can test shared provider configs' } },
         { status: 403 }
+      );
+    }
+
+    if (!provider) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_PROVIDER', message: 'provider is required' } },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_PROVIDER', message: `Provider must be one of: ${VALID_PROVIDERS.join(', ')}` } },
+        { status: 400 }
       );
     }
 
@@ -67,6 +82,7 @@ export async function POST(request: NextRequest) {
       userClient: client,
       serviceClient,
       userId: user.id,
+      provider,
       apiUrl: trimmedUrl,
       modelName: trimmedModel,
       apiKey: trimmedKey,

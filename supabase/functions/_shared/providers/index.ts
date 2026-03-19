@@ -47,11 +47,13 @@ export type {
 // ============================================================================
 
 export { OpenAICompatibleClient } from './openai-client.ts';
+export { AnthropicCompatibleClient } from './anthropic-compatible-client.ts';
 export type {
   OpenAIClientConfig,
   ImageGenerationRequest,
   ImageGenerationResponse,
 } from './openai-client.ts';
+export type { AnthropicCompatibleClientConfig } from './anthropic-compatible-client.ts';
 
 // ============================================================================
 // Chat Providers

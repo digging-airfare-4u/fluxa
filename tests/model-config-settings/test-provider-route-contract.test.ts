@@ -72,6 +72,7 @@ describe('POST /api/test-provider contract', () => {
   it('should reject non-admin users before attempting validation', async () => {
     getUserAdminFlagsMock.mockResolvedValue({ isSuperAdmin: false });
     const request = buildRequest({
+      provider: 'openai-compatible',
       apiUrl: 'https://api.example.com/v1',
       apiKey: 'sk-test-12345678',
       modelName: 'my-model',
@@ -92,6 +93,7 @@ describe('POST /api/test-provider contract', () => {
 
   it('should return CONFIG_ID_REQUIRED when apiKey is omitted', async () => {
     const request = buildRequest({
+      provider: 'openai-compatible',
       apiUrl: 'https://api.example.com/v1',
       apiKey: '   ',
       modelName: 'my-model',
@@ -119,6 +121,7 @@ describe('POST /api/test-provider contract', () => {
     });
 
     const request = buildRequest({
+      provider: 'openai-compatible',
       apiUrl: 'https://api.example.com/v1',
       apiKey: 'sk-test-12345678',
       modelName: 'my-model',
@@ -139,6 +142,50 @@ describe('POST /api/test-provider contract', () => {
       expect.objectContaining({
         event: 'allowlist_fail_closed',
         user_id: 'user-1',
+      }),
+    );
+  });
+
+  it('should reject missing provider before revalidation', async () => {
+    const request = buildRequest({
+      apiUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test-12345678',
+      modelName: 'my-model',
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: {
+        code: 'INVALID_PROVIDER',
+        message: 'provider is required',
+      },
+    });
+    expect(revalidateProviderConfigBeforeSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('should thread anthropic-compatible provider into revalidation', async () => {
+    revalidateProviderConfigBeforeSaveMock.mockResolvedValue({ success: true });
+
+    const request = buildRequest({
+      provider: 'anthropic-compatible',
+      apiUrl: 'https://api.minimaxi.com/anthropic',
+      apiKey: 'test-key',
+      modelName: 'MiniMax-M2.7',
+      displayName: 'MiniMax Brain',
+      modelType: 'chat',
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ success: true });
+    expect(revalidateProviderConfigBeforeSaveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'anthropic-compatible',
       }),
     );
   });

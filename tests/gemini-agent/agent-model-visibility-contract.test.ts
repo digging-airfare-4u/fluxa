@@ -96,6 +96,16 @@ describe('agent model visibility contract', () => {
     expect(models.map((model) => model.value)).toEqual(['gpt-4o-mini', 'user:cfg-1']);
   });
 
+  it('filters agent-only anthropic-compatible BYOK models out of the classic selector UI', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/chat/ModelSelector.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain('getClassicSelectableModels');
+    expect(source).toContain(': getClassicSelectableModels(models)');
+  });
+
   it('records migration contract for agent sessions and agent-only model metadata', () => {
     const baseMigrationPath = resolve(
       process.cwd(),

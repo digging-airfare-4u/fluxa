@@ -15,7 +15,7 @@ export type UserModelIdentifier = `user:${string}`;
 export type ModelValue = string | UserModelIdentifier;
 
 /** Provider types supported for user configuration */
-export type ProviderType = 'volcengine' | 'openai-compatible';
+export type ProviderType = 'volcengine' | 'openai-compatible' | 'anthropic-compatible';
 export type ProviderModelType = 'image' | 'chat';
 
 /** Input for creating or updating a provider config */
@@ -51,6 +51,7 @@ export interface ProviderConfigsContext {
 
 /** Test provider request params */
 export interface TestProviderParams {
+  provider: ProviderType;
   apiUrl: string;
   apiKey?: string;
   modelName: string;
@@ -262,6 +263,7 @@ export async function testProviderConnection(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      provider: params.provider,
       apiUrl: params.apiUrl,
       apiKey: params.apiKey,
       modelName: params.modelName,
@@ -273,4 +275,21 @@ export async function testProviderConnection(
     success: body.success === true,
     error: body.error as ProviderConfigApiError | undefined,
   };
+}
+
+export interface UpdateAgentDefaultBrainInput {
+  model: ModelValue;
+}
+
+export async function updateAgentDefaultBrain(
+  input: UpdateAgentDefaultBrainInput,
+): Promise<void> {
+  const res = await authorizedFetch('/api/system-settings/agent-default-brain', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: input.model,
+    }),
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
 }

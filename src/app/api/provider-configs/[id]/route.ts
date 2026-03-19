@@ -107,7 +107,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (requiresRevalidation) {
       const { data: existing, error: existingError } = await client
         .from('user_provider_configs')
-        .select('api_url, model_name, model_type')
+        .select('provider, api_url, model_name, model_type')
         .eq('id', id)
         .eq('user_id', user.id)
         .single();
@@ -127,12 +127,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         typeof updates.model_name === 'string'
           ? updates.model_name
           : existing.model_name;
+      const targetProvider = existing.provider as 'volcengine' | 'openai-compatible' | 'anthropic-compatible';
+      const targetModelType =
+        typeof updates.model_type === 'string'
+          ? updates.model_type
+          : existing.model_type;
+
+      if (targetProvider === 'anthropic-compatible' && targetModelType !== 'chat') {
+        return NextResponse.json(
+          { error: { code: 'INVALID_MODEL_TYPE', message: 'Anthropic-compatible provider only supports chat modelType' } },
+          { status: 400 }
+        );
+      }
 
       const serviceClient = createServiceClient();
       const revalidation = await revalidateProviderConfigBeforeSave({
         userClient: client,
         serviceClient,
         userId: user.id,
+        provider: targetProvider,
         apiUrl: targetApiUrl,
         modelName: targetModelName,
         apiKey: trimmedApiKey,

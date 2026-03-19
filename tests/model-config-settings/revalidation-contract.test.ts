@@ -30,6 +30,15 @@ function createMockClient(): SupabaseClient {
 }
 
 describe('Provider save-time revalidation contract', () => {
+  const baseParams = {
+    userClient: createMockClient(),
+    serviceClient: createMockClient(),
+    userId: 'user-1',
+    apiUrl: 'https://api.example.com/v1',
+    modelName: 'my-model',
+    apiKey: 'sk-test-12345678',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -131,6 +140,7 @@ describe('Provider save-time revalidation contract', () => {
       userClient: createMockClient(),
       serviceClient: createMockClient(),
       userId: 'user-1',
+      provider: 'openai-compatible',
       apiUrl: '  https://api.example.com/v1  ',
       modelName: '  my-model  ',
       apiKey: '  sk-test-12345678  ',
@@ -138,11 +148,30 @@ describe('Provider save-time revalidation contract', () => {
 
     expect(result).toEqual({ success: true });
     expect(testProviderConnectivityWithTimeoutMock).toHaveBeenCalledTimes(1);
-    const [apiUrl, apiKey, modelName, timeoutMs] = testProviderConnectivityWithTimeoutMock.mock.calls[0];
-    expect(apiUrl).toBe('https://api.example.com/v1');
-    expect(apiKey).toBe('sk-test-12345678');
-    expect(modelName).toBe('my-model');
-    expect(typeof timeoutMs).toBe('number');
-    expect(timeoutMs).toBeGreaterThan(0);
+    expect(testProviderConnectivityWithTimeoutMock).toHaveBeenCalledWith({
+      provider: 'openai-compatible',
+      apiUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test-12345678',
+      modelName: 'my-model',
+      timeoutMs: expect.any(Number),
+    });
+  });
+
+  it('should dispatch anthropic-compatible provider into connectivity revalidation', async () => {
+    validateProviderHostAsyncMock.mockResolvedValue({
+      valid: true,
+      hostPort: 'api.minimaxi.com:443',
+      source: 'env',
+    });
+    testProviderConnectivityWithTimeoutMock.mockResolvedValue({ success: true });
+
+    await revalidateProviderConfigBeforeSave({
+      provider: 'anthropic-compatible',
+      ...baseParams,
+    });
+
+    expect(testProviderConnectivityWithTimeoutMock).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'anthropic-compatible' }),
+    );
   });
 });

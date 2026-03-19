@@ -1,9 +1,8 @@
 /**
  * User-Configured Chat Provider
- * Wraps OpenAICompatibleClient for BYOK chat/runtime usage.
+ * Wraps a provider-specific BYOK chat client for runtime usage.
  */
 
-import { OpenAICompatibleClient } from './openai-client.ts';
 import type {
   ChatProvider,
   ChatMessage,
@@ -12,11 +11,15 @@ import type {
 } from './chat-types.ts';
 import type { UserProviderRecord } from '../services/user-provider.ts';
 
+export interface UserConfiguredChatClient {
+  chatCompletion(model: string, messages: ChatMessage[], options?: ChatCompletionOptions): Promise<ChatCompletionResult>;
+}
+
 export class UserConfiguredChatProvider implements ChatProvider {
   readonly name: string;
 
   constructor(
-    private readonly client: OpenAICompatibleClient,
+    private readonly client: UserConfiguredChatClient,
     private readonly config: UserProviderRecord,
   ) {
     this.name = `user-configured:${config.provider}`;

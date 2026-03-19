@@ -4,6 +4,8 @@
  * Requirements: 4.9, 4.12, 4.13
  */
 
+import type { ProviderType } from '@/lib/api/provider-configs';
+
 export interface ProviderConnectivityResult {
   success: boolean;
   message?: string;
@@ -13,25 +15,31 @@ export interface ProviderConnectivityWithTimeoutResult extends ProviderConnectiv
   timedOut?: boolean;
 }
 
+export interface TestProviderConnectivityParams {
+  provider: ProviderType;
+  apiUrl: string;
+  apiKey: string;
+  modelName: string;
+}
+
+export interface TestProviderConnectivityWithTimeoutParams extends TestProviderConnectivityParams {
+  timeoutMs: number;
+}
+
 const MODELS_TIMEOUT_MS = 10_000;
 const CHAT_TIMEOUT_MS = 15_000;
 
-/**
- * Test provider connectivity using:
- * 1) GET /models
- * 2) GET /v1/models
- * 3) POST /chat/completions and /v1/chat/completions fallback
- *
- * Never calls image-generation endpoints.
- */
 export async function testProviderConnectivity(
-  apiUrl: string,
-  apiKey: string,
-  modelName: string,
+  params: TestProviderConnectivityParams,
 ): Promise<ProviderConnectivityResult> {
-  const baseUrl = apiUrl.replace(/\/+$/, '');
+  const baseUrl = params.apiUrl.replace(/\/+$/, '');
+
+  if (params.provider === 'anthropic-compatible') {
+    return tryAnthropicMessages(baseUrl, params.apiKey, params.modelName);
+  }
+
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${params.apiKey}`,
     'Content-Type': 'application/json',
   };
 
@@ -41,7 +49,7 @@ export async function testProviderConnectivity(
   const v1ModelsResult = await tryListModels(`${baseUrl}/v1/models`, headers);
   if (v1ModelsResult.success) return { success: true };
 
-  const chatResult = await tryChatCompletion(baseUrl, headers, modelName);
+  const chatResult = await tryChatCompletion(baseUrl, headers, params.modelName);
   if (chatResult.success) return { success: true };
 
   return {
@@ -50,14 +58,8 @@ export async function testProviderConnectivity(
   };
 }
 
-/**
- * Save-time final revalidation wrapper with fail-fast timeout.
- */
 export async function testProviderConnectivityWithTimeout(
-  apiUrl: string,
-  apiKey: string,
-  modelName: string,
-  timeoutMs: number,
+  params: TestProviderConnectivityWithTimeoutParams,
 ): Promise<ProviderConnectivityWithTimeoutResult> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -65,13 +67,13 @@ export async function testProviderConnectivityWithTimeout(
       timeoutId = setTimeout(() => {
         resolve({
           success: false,
-          message: `Validation timeout after ${timeoutMs}ms`,
+          message: `Validation timeout after ${params.timeoutMs}ms`,
         });
-      }, timeoutMs);
+      }, params.timeoutMs);
     });
 
     const result = await Promise.race([
-      testProviderConnectivity(apiUrl, apiKey, modelName),
+      testProviderConnectivity(params),
       timeoutPromise,
     ]);
 
@@ -167,4 +169,49 @@ async function tryChatCompletion(
   }
 
   return { success: false, message: 'No compatible endpoint found' };
+}
+
+async function tryAnthropicMessages(
+  baseUrl: string,
+  apiKey: string,
+  modelName: string,
+): Promise<ProviderConnectivityResult> {
+  try {
+    const response = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: modelName,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'test' }],
+      }),
+      signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
+    });
+
+    if (response.ok) {
+      return { success: true };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return { success: false, message: `Authentication failed (${response.status})` };
+    }
+
+    try {
+      const errorBody = await response.json();
+      const message =
+        errorBody?.error?.message ||
+        errorBody?.message ||
+        `Status ${response.status}`;
+      return { success: false, message: `Anthropic messages failed: ${message}` };
+    } catch {
+      return { success: false, message: `Anthropic messages returned ${response.status}` };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return { success: false, message: `Failed to reach messages endpoint: ${message}` };
+  }
 }

@@ -5,7 +5,12 @@
 
 import { create } from 'zustand';
 import type { AIModel } from '@/lib/supabase/queries/models';
-import { getDefaultModelValueByType, type SelectableModel } from '@/lib/models/resolve-selectable-models';
+import {
+  getClassicSelectableModels,
+  getDefaultModelValue,
+  getDefaultModelValueByType,
+  type SelectableModel,
+} from '@/lib/models/resolve-selectable-models';
 
 /**
  * Generation phase states for three-phase feedback
@@ -149,7 +154,8 @@ export const useChatStore = create<ChatStore>((set) => ({
     });
   },
   setSelectableModels: (selectableModels) => {
-    const defaultModel = selectableModels.find(m => m.isDefault) || selectableModels[0];
+    const classicSelectableModels = getClassicSelectableModels(selectableModels);
+    const defaultModel = getDefaultModelValue(classicSelectableModels);
     const defaultAgentModel = getDefaultModelValueByType(selectableModels, 'ops');
     const defaultAgentImageModel = getDefaultModelValueByType(selectableModels, 'image');
     set((state) => ({
@@ -157,8 +163,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       // Keep classic image/text selection stable when possible.
       selectedModel:
         state.selectedModel === initialState.selectedModel ||
-        !selectableModels.some(m => m.value === state.selectedModel)
-          ? (defaultModel?.value || state.selectedModel)
+        !classicSelectableModels.some((m) => m.value === state.selectedModel)
+          ? (defaultModel || state.selectedModel)
           : state.selectedModel,
       selectedAgentModel:
         state.selectedAgentModel === initialState.selectedAgentModel ||

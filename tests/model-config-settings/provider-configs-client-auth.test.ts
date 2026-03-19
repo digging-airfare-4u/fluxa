@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createProviderConfig,
   fetchUserProviderConfigs,
+  updateAgentDefaultBrain,
 } from '@/lib/api/provider-configs';
 import { supabase } from '@/lib/supabase/client';
 
@@ -54,7 +55,7 @@ describe('Provider configs API client auth contract', () => {
     expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer token-123');
   });
 
-  it('should refresh the session and keep json headers when creating a provider config', async () => {
+  it('should refresh the session and send anthropic-compatible json when creating a provider config', async () => {
     getSessionMock.mockResolvedValue({
       data: {
         session: null,
@@ -75,10 +76,11 @@ describe('Provider configs API client auth contract', () => {
           data: {
             id: 'config-1',
             user_id: 'user-1',
-            provider: 'openai-compatible',
-            api_url: 'https://api.example.com/v1',
-            model_name: 'gpt-image-1',
-            display_name: 'My Config',
+            provider: 'anthropic-compatible',
+            api_url: 'https://api.minimaxi.com/anthropic',
+            model_name: 'MiniMax-M2.7',
+            display_name: 'MiniMax Brain',
+            model_type: 'chat',
             is_enabled: true,
             api_key_masked: '****1234',
             model_identifier: 'user:config-1',
@@ -94,17 +96,57 @@ describe('Provider configs API client auth contract', () => {
     );
 
     await createProviderConfig({
-      provider: 'openai-compatible',
+      provider: 'anthropic-compatible',
       apiKey: 'sk-test',
-      apiUrl: 'https://api.example.com/v1',
-      modelName: 'gpt-image-1',
-      displayName: 'My Config',
+      apiUrl: 'https://api.minimaxi.com/anthropic',
+      modelName: 'MiniMax-M2.7',
+      displayName: 'MiniMax Brain',
+      modelType: 'chat',
     });
 
     expect(refreshSessionMock).toHaveBeenCalledTimes(1);
-    const [, init] = vi.mocked(global.fetch).mock.calls[0]!;
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0]!;
     const headers = new Headers(init?.headers);
+    expect(url).toBe('/api/provider-configs');
     expect(headers.get('Authorization')).toBe('Bearer token-refreshed');
     expect(headers.get('Content-Type')).toBe('application/json');
+    expect(init?.body).toBe(
+      JSON.stringify({
+        provider: 'anthropic-compatible',
+        apiKey: 'sk-test',
+        apiUrl: 'https://api.minimaxi.com/anthropic',
+        modelName: 'MiniMax-M2.7',
+        displayName: 'MiniMax Brain',
+        modelType: 'chat',
+      }),
+    );
+  });
+
+  it('should send authenticated json when updating the default agent brain model', async () => {
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-789',
+        },
+      },
+      error: null,
+    } as never);
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await updateAgentDefaultBrain({ model: 'user:config-1' } as never);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = new Headers(init?.headers);
+    expect(url).toBe('/api/system-settings/agent-default-brain');
+    expect(init?.method).toBe('POST');
+    expect(headers.get('Authorization')).toBe('Bearer token-789');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(init?.body).toBe(JSON.stringify({ model: 'user:config-1' }));
   });
 });

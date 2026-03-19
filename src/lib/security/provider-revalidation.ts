@@ -5,6 +5,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ProviderType } from '@/lib/api/provider-configs';
 import { decryptApiKey } from '@/lib/security/encryption';
 import { validateProviderHostAsync } from '@/lib/security/provider-host-allowlist';
 import { testProviderConnectivityWithTimeout } from '@/lib/security/provider-connectivity';
@@ -15,6 +16,7 @@ export interface RevalidateProviderConfigParams {
   userClient: SupabaseClient;
   serviceClient: SupabaseClient;
   userId: string;
+  provider: ProviderType;
   apiUrl: string;
   modelName: string;
   apiKey?: string;
@@ -130,12 +132,13 @@ export async function revalidateProviderConfigBeforeSave(
   }
 
   const timeoutMs = getRevalidationTimeoutMs();
-  const connectivity = await testProviderConnectivityWithTimeout(
-    trimmedApiUrl,
-    resolvedApiKey,
-    trimmedModelName,
+  const connectivity = await testProviderConnectivityWithTimeout({
+    provider: params.provider,
+    apiUrl: trimmedApiUrl,
+    apiKey: resolvedApiKey,
+    modelName: trimmedModelName,
     timeoutMs,
-  );
+  });
 
   if (!connectivity.success && connectivity.timedOut) {
     return {

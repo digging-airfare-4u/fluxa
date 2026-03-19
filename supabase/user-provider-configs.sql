@@ -10,7 +10,7 @@
 CREATE TABLE IF NOT EXISTS user_provider_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL CHECK (provider IN ('volcengine', 'openai-compatible')),
+  provider TEXT NOT NULL CHECK (provider IN ('volcengine', 'openai-compatible', 'anthropic-compatible')),
   api_key_encrypted TEXT NOT NULL,
   api_key_last4 TEXT NOT NULL DEFAULT '',
   api_url TEXT NOT NULL,

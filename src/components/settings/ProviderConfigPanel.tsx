@@ -48,6 +48,7 @@ import {
   updateProviderEnabled,
   deleteProviderConfig,
   testProviderConnection,
+  updateAgentDefaultBrain,
   type UserProviderConfig,
   type ProviderType,
 } from '@/lib/api/provider-configs';
@@ -68,6 +69,12 @@ type EditingState =
   | { type: 'none' }
   | { type: 'new'; provider: ProviderType }
   | { type: 'edit'; config: UserProviderConfig };
+
+function getProviderLabel(provider: ProviderType): string {
+  if (provider === 'volcengine') return 'Volcengine';
+  if (provider === 'anthropic-compatible') return 'Anthropic-Compatible';
+  return 'OpenAI-Compatible';
+}
 
 // ============================================================================
 // Sub-components
@@ -228,6 +235,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
   // ---- Grouped configs ----
   const volcengineConfigs = configs.filter((c) => c.provider === 'volcengine');
   const openaiCompatibleConfigs = configs.filter((c) => c.provider === 'openai-compatible');
+  const anthropicCompatibleConfigs = configs.filter((c) => c.provider === 'anthropic-compatible');
 
   // ---- Handlers ----
   const handleToggle = useCallback(async (id: string, enabled: boolean) => {
@@ -243,15 +251,28 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
 
   const handleSave = useCallback(
     async (values: ProviderConfigFormValues) => {
+      let savedConfig: UserProviderConfig;
+
       if (editing.type === 'new') {
         const created = await createProviderConfig(values);
+        savedConfig = created;
         setConfigs((prev) => [...prev, created]);
       } else if (editing.type === 'edit') {
         const updated = await updateProviderConfig(editing.config.id, values);
+        savedConfig = updated;
         setConfigs((prev) =>
           prev.map((c) => (c.id === updated.id ? updated : c)),
         );
+      } else {
+        return;
       }
+
+      if (savedConfig.provider === 'anthropic-compatible') {
+        await updateAgentDefaultBrain({
+          model: savedConfig.model_identifier,
+        });
+      }
+
       setEditing({ type: 'none' });
       onConfigsChange?.();
     },
@@ -270,7 +291,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
   );
 
   const handleTest = useCallback(
-    async (params: { apiUrl: string; apiKey?: string; modelName: string; configId?: string }) => {
+    async (params: { provider: ProviderType; apiUrl: string; apiKey?: string; modelName: string; configId?: string }) => {
       return testProviderConnection(params);
     },
     [],
@@ -323,7 +344,7 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                 </Button>
                 <span className="text-sm font-medium">
                   {editing.type === 'new'
-                    ? `新增 ${editing.provider === 'volcengine' ? 'Volcengine' : 'OpenAI-Compatible'} 配置`
+                    ? `新增 ${getProviderLabel(editing.provider)} 配置`
                     : `编辑 ${editing.type === 'edit' ? editing.config.display_name : ''}`}
                 </span>
               </div>
@@ -433,6 +454,36 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                   />
                 ))}
                 {openaiCompatibleConfigs.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-1">暂无配置</p>
+                )}
+              </ProviderSection>
+
+              {/* Anthropic-Compatible section */}
+              <ProviderSection
+                title="Anthropic-Compatible"
+                description={canManage ? 'Agent Brain 专用的 Anthropic Messages 兼容共享服务' : '平台开放的 Agent Brain 专用共享配置'}
+                icon={<KeyRound className="size-4" />}
+                action={canManage ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing({ type: 'new', provider: 'anthropic-compatible' })}
+                  >
+                    <Plus className="size-3.5" />
+                    新增
+                  </Button>
+                ) : undefined}
+              >
+                {anthropicCompatibleConfigs.map((config) => (
+                  <ConfigItem
+                    key={config.id}
+                    config={config}
+                    onEdit={() => setEditing({ type: 'edit', config })}
+                    onToggle={(enabled) => handleToggle(config.id, enabled)}
+                    readOnly={!canManage}
+                  />
+                ))}
+                {anthropicCompatibleConfigs.length === 0 && (
                   <p className="text-xs text-muted-foreground py-1">暂无配置</p>
                 )}
               </ProviderSection>

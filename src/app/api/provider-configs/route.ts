@@ -19,7 +19,7 @@ import { revalidateProviderConfigBeforeSave } from '@/lib/security/provider-reva
 
 const log = createLogger('API:provider-configs');
 
-const VALID_PROVIDERS = ['volcengine', 'openai-compatible'] as const;
+const VALID_PROVIDERS = ['volcengine', 'openai-compatible', 'anthropic-compatible'] as const;
 const VALID_MODEL_TYPES = ['image', 'chat'] as const;
 
 /**
@@ -138,6 +138,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (provider === 'anthropic-compatible' && modelType !== 'chat') {
+      return NextResponse.json(
+        { error: { code: 'INVALID_MODEL_TYPE', message: 'Anthropic-compatible provider only supports chat modelType' } },
+        { status: 400 }
+      );
+    }
+
     // Validate trimmed values
     if (!apiKey.trim() || !apiUrl.trim() || !modelName.trim() || !displayName.trim()) {
       return NextResponse.json(
@@ -151,6 +158,7 @@ export async function POST(request: NextRequest) {
       userClient: client,
       serviceClient,
       userId: user.id,
+      provider,
       apiUrl: apiUrl.trim(),
       modelName: modelName.trim(),
       apiKey: apiKey.trim(),
@@ -203,7 +211,7 @@ export async function POST(request: NextRequest) {
         api_url: apiUrl.trim(),
         model_name: modelName.trim(),
         display_name: displayName.trim(),
-        model_type: modelType === 'chat' ? 'chat' : 'image',
+        model_type: provider === 'anthropic-compatible' ? 'chat' : modelType === 'chat' ? 'chat' : 'image',
         is_enabled: true,
       })
       .select('id, user_id, provider, api_url, model_name, display_name, model_type, is_enabled, created_at, updated_at, api_key_last4')

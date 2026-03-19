@@ -68,4 +68,34 @@ describe('chat mode store', () => {
     expect(useChatStore.getState().selectedAgentModel).toBe('gpt-4o-mini');
     expect(useChatStore.getState().selectedAgentImageModel).toBe('gemini-3-pro-image-preview');
   });
+
+  it('keeps agent-only anthropic-compatible configs available for agent brain while resetting classic selection to a classic-safe model', async () => {
+    const { useChatStore } = await import('@/lib/store/useChatStore');
+
+    useChatStore.getState().reset();
+    useChatStore.getState().setSelectedModel('user:cfg-brain');
+    useChatStore.getState().setSelectableModels([
+      {
+        value: 'user:cfg-brain',
+        displayName: 'MiniMax Brain',
+        type: 'ops',
+        isByok: true,
+        pointsCost: 0,
+        isDefault: false,
+        provider: 'anthropic-compatible',
+      },
+      {
+        value: 'gemini-3-pro-image-preview',
+        displayName: 'Nano Banana Pro',
+        type: 'image',
+        isByok: false,
+        pointsCost: 40,
+        isDefault: true,
+        provider: 'google',
+      },
+    ]);
+
+    expect(useChatStore.getState().selectedModel).toBe('gemini-3-pro-image-preview');
+    expect(useChatStore.getState().selectedAgentModel).toBe('user:cfg-brain');
+  });
 });

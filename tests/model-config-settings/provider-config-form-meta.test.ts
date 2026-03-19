@@ -27,4 +27,14 @@ describe('Provider config form metadata', () => {
       displayNamePlaceholder: '例如：自定义 Brain 服务',
     });
   });
+
+  it('should return anthropic-compatible chat labels and MiniMax placeholders', () => {
+    expect(getProviderConfigFormMeta('anthropic-compatible', 'chat')).toEqual({
+      title: 'Anthropic-Compatible',
+      description: '适用于兼容 Anthropic Messages 接口协议的 Agent Brain 服务。',
+      apiUrlPlaceholder: 'https://api.minimaxi.com/anthropic',
+      modelNamePlaceholder: 'MiniMax-M2.7',
+      displayNamePlaceholder: '例如：MiniMax Brain',
+    });
+  });
 });

@@ -33,6 +33,16 @@ export function getProviderConfigFormMeta(
     };
   }
 
+  if (provider === 'anthropic-compatible') {
+    return {
+      title: 'Anthropic-Compatible',
+      description: '适用于兼容 Anthropic Messages 接口协议的 Agent Brain 服务。',
+      apiUrlPlaceholder: 'https://api.minimaxi.com/anthropic',
+      modelNamePlaceholder: 'MiniMax-M2.7',
+      displayNamePlaceholder: '例如：MiniMax Brain',
+    };
+  }
+
   return {
     title: 'OpenAI-Compatible',
     description: modelType === 'chat'
