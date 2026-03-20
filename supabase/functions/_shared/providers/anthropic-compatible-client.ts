@@ -113,10 +113,13 @@ export class AnthropicCompatibleClient {
       );
     }
 
-    const content = data.content as Array<{ type: string; text?: string }> | undefined;
-    if (!Array.isArray(content) || content.length === 0 || !content[0]?.text) {
+    const contentBlocks = data.content as Array<{ type: string; text?: string }> | undefined;
+    const textBlock = Array.isArray(contentBlocks)
+      ? contentBlocks.find((b) => b.type === 'text' && b.text)
+      : undefined;
+    if (!textBlock?.text) {
       throw new ProviderError(
-        'Invalid anthropic-compatible response: missing content[0].text',
+        'Invalid anthropic-compatible response: no text content block found',
         'INVALID_RESPONSE',
         { rawResponse: JSON.stringify(data) },
         this.providerName,
@@ -125,7 +128,7 @@ export class AnthropicCompatibleClient {
     }
 
     const result: ChatCompletionResult = {
-      content: content[0].text,
+      content: textBlock.text,
       finishReason: typeof data.stop_reason === 'string' ? data.stop_reason : undefined,
     };
 
