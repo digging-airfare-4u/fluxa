@@ -11,9 +11,9 @@ import { OpenAIChatProvider } from './openai-chat-provider.ts';
 import { AnthropicChatAdapter } from './anthropic-chat-adapter.ts';
 import { VolcengineChatProvider } from './volcengine-chat-provider.ts';
 import { GeminiProvider } from './gemini.ts';
-import type { GeminiApiMode } from './gemini.ts';
 import type { GeminiModelName } from './types.ts';
 import { VolcengineProvider } from './volcengine.ts';
+import { DEFAULT_CHAT_MODEL, DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
 
 /**
  * Create a fully configured ProviderRegistry with all current models registered.
@@ -37,14 +37,12 @@ export function createRegistry(supabase: SupabaseClient): ProviderRegistry {
 
   // --- Chat providers (Volcengine) ---
   registry.registerChatModel(
-    'doubao-seed-1-6-vision-250815',
-    () => new VolcengineChatProvider('doubao-seed-1-6-vision-250815')
+    DEFAULT_CHAT_MODEL,
+    () => new VolcengineChatProvider(DEFAULT_CHAT_MODEL)
   );
 
   // --- Image providers (Gemini) ---
-  const geminiMode: GeminiApiMode =
-    (typeof Deno !== 'undefined' && Deno.env?.get('GEMINI_IMAGE_API_MODE') as GeminiApiMode) || 'native';
-
+  // Mode is resolved internally by GeminiProvider.resolveMode() (defaults to 'native')
   const geminiImageModels: GeminiModelName[] = [
     'gemini-2.5-flash-image',
     'gemini-3-pro-image-preview',
@@ -52,14 +50,14 @@ export function createRegistry(supabase: SupabaseClient): ProviderRegistry {
   for (const model of geminiImageModels) {
     registry.registerImageModel(
       model,
-      () => new GeminiProvider({ supabase, modelName: model, mode: geminiMode })
+      () => new GeminiProvider({ supabase, modelName: model })
     );
   }
 
   // --- Image providers (Volcengine) ---
   registry.registerImageModel(
-    'doubao-seedream-4-5-251128',
-    () => new VolcengineProvider('doubao-seedream-4-5-251128')
+    DEFAULT_VOLCENGINE_IMAGE_MODEL,
+    () => new VolcengineProvider(DEFAULT_VOLCENGINE_IMAGE_MODEL)
   );
 
   return registry;

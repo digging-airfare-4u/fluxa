@@ -143,15 +143,11 @@ export class GeminiProvider implements ImageProvider {
   }
 
   /**
-   * Resolve API mode from environment variable.
-   * Defaults to 'openai' if not set or invalid.
+   * Resolve API mode.
+   * Defaults to 'native' (direct Gemini generateContent API).
    */
   private resolveMode(): GeminiApiMode {
-    const envMode = typeof Deno !== 'undefined' && Deno.env
-      ? Deno.env.get('GEMINI_IMAGE_API_MODE')
-      : undefined;
-    if (envMode === 'native') return 'native';
-    return 'openai';
+    return 'native';
   }
   
   /**

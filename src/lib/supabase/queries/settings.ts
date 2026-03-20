@@ -102,6 +102,46 @@ export async function getSystemSetting(key: string): Promise<SystemSetting | nul
   return data;
 }
 
+/**
+ * Get the configured default chat model from system_settings.
+ * Returns null when no override is stored (= use hardcoded constant).
+ */
+export async function getDefaultChatModel(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'default_chat_model')
+    .single();
+
+  if (error) {
+    console.error('[Settings] Failed to fetch default_chat_model:', error);
+    return null;
+  }
+
+  const model = (data?.value as { model?: unknown } | null)?.model;
+  return typeof model === 'string' && model.trim() ? model.trim() : null;
+}
+
+/**
+ * Get the configured default image model from system_settings.
+ * Returns null when no override is stored (= use hardcoded constant).
+ */
+export async function getDefaultImageModel(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'default_image_model')
+    .single();
+
+  if (error) {
+    console.error('[Settings] Failed to fetch default_image_model:', error);
+    return null;
+  }
+
+  const model = (data?.value as { model?: unknown } | null)?.model;
+  return typeof model === 'string' && model.trim() ? model.trim() : null;
+}
+
 export async function getAgentDefaultBrainModel(): Promise<string | null> {
   const { data, error } = await supabase
     .from('system_settings')

@@ -32,6 +32,8 @@ import {
 import { validateTrustedProjectReferenceImageUrl } from '../_shared/utils/trusted-reference-image.ts';
 import type { ImageGenerateRequest, ImageGenerateResponse, ResolutionPreset, AspectRatio } from '../_shared/types/index.ts';
 import type { ImageProvider } from '../_shared/providers/types.ts';
+import { resolveDefaultModel } from '../_shared/utils/resolve-default-model.ts';
+import { DEFAULT_IMAGE_MODEL } from '../_shared/defaults.ts';
 
 const log = createLogger('generate-image');
 
@@ -40,9 +42,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Default model
-const DEFAULT_MODEL = 'gemini-2.5-flash-image';
 const DEFAULT_REFERENCE_COMPRESS_THRESHOLD_BYTES = 2 * 1024 * 1024; // 2MB
 
 // ============================================================================
@@ -145,10 +144,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const request = validation.data;
-    const selectedModel = request.model || DEFAULT_MODEL;
     const requestId = crypto.randomUUID();
-
-    log.info('Starting generation', { request_id: requestId, model_name: selectedModel });
 
     // Initialize Supabase clients
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -164,6 +160,12 @@ Deno.serve(async (req: Request) => {
 
     // Service client for bypassing RLS (points, assets)
     const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Resolve default image model from system_settings → hardcoded constant
+    const resolvedDefault = await resolveDefaultModel(supabaseService, 'default_image_model', DEFAULT_IMAGE_MODEL);
+    const selectedModel = request.model || resolvedDefault!;
+
+    log.info('Starting generation', { request_id: requestId, model_name: selectedModel });
 
     // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -348,11 +350,11 @@ Deno.serve(async (req: Request) => {
       const registry = createRegistry(supabaseService);
       const resolved = resolveSystemImageGenerationProvider({
         selectedModel,
-        defaultModel: DEFAULT_MODEL,
+        defaultModel: DEFAULT_IMAGE_MODEL,
         registry,
       });
       if (resolved.fallbackApplied) {
-        log.info('Model not registered, falling back', { model_name: selectedModel, fallback: DEFAULT_MODEL, request_id: requestId });
+        log.info('Model not registered, falling back', { model_name: selectedModel, fallback: DEFAULT_IMAGE_MODEL, request_id: requestId });
       }
       provider = resolved.provider;
     }

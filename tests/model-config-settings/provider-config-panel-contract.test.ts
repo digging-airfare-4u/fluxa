@@ -25,14 +25,19 @@ describe('provider config panel contract', () => {
     expect(source).toContain('return testProviderConnection(params);');
   });
 
-  it('writes the hidden agent default brain when saving anthropic-compatible configs', () => {
+  it('renders a model defaults section for super-admins', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/settings/ProviderConfigPanel.tsx'),
       'utf8',
     );
 
-    expect(source).toContain('updateAgentDefaultBrain');
-    expect(source).toContain("savedConfig.provider === 'anthropic-compatible'");
-    expect(source).toContain('model: savedConfig.model_identifier');
+    expect(source).toContain('fetchModelDefaults');
+    expect(source).toContain('updateModelDefaults');
+    expect(source).toContain('title="默认模型"');
+    expect(source).toContain('default_chat_model');
+    expect(source).toContain('default_image_model');
+    expect(source).toContain('agent_default_brain_model');
+    // No longer auto-updates brain on anthropic-compatible save
+    expect(source).not.toContain('updateAgentDefaultBrain');
   });
 });

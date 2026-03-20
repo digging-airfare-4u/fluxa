@@ -12,6 +12,7 @@ import {
   isValidAspectRatio,
   isValidResolution,
 } from '../types/index.ts';
+import { DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
 
 // ============================================================================
 // Validated Request Types
@@ -73,7 +74,7 @@ export interface RequestValidationResult {
  */
 export class RequestValidator {
   /** Default model when not specified */
-  private static readonly DEFAULT_MODEL = 'doubao-seedream-4-5-251128';
+  private static readonly DEFAULT_MODEL = DEFAULT_VOLCENGINE_IMAGE_MODEL;
   /** Default width when not specified */
   private static readonly DEFAULT_WIDTH = 1024;
   /** Default height when not specified */

@@ -48,9 +48,12 @@ import {
   updateProviderEnabled,
   deleteProviderConfig,
   testProviderConnection,
-  updateAgentDefaultBrain,
+  fetchModelDefaults,
+  updateModelDefaults,
   type UserProviderConfig,
   type ProviderType,
+  type ModelDefaults,
+  type ModelDefaultKey,
 } from '@/lib/api/provider-configs';
 import { ProviderConfigForm, type ProviderConfigFormValues } from './ProviderConfigForm';
 
@@ -201,21 +204,46 @@ function ProviderSection({
 // Main Component
 // ============================================================================
 
+/** Hardcoded system defaults — must match _shared/defaults.ts */
+const SYSTEM_DEFAULTS: Record<ModelDefaultKey, string | null> = {
+  default_chat_model: 'doubao-seed-1-6-vision-250815',
+  default_image_model: 'gemini-2.5-flash-image',
+  agent_default_brain_model: null, // falls back to default_chat_model
+};
+
+const MODEL_DEFAULT_LABELS: Record<ModelDefaultKey, string> = {
+  default_chat_model: '默认聊天模型',
+  default_image_model: '默认图片模型',
+  agent_default_brain_model: 'Agent Brain 模型',
+};
+
 export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: ProviderConfigPanelProps) {
   const [configs, setConfigs] = useState<UserProviderConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editing, setEditing] = useState<EditingState>({ type: 'none' });
   const [error, setError] = useState<string | null>(null);
   const [canManage, setCanManage] = useState(false);
+  const [modelDefaults, setModelDefaults] = useState<ModelDefaults>({
+    default_chat_model: null,
+    default_image_model: null,
+    agent_default_brain_model: null,
+  });
+  const [editingDefault, setEditingDefault] = useState<ModelDefaultKey | null>(null);
+  const [editingDefaultValue, setEditingDefaultValue] = useState('');
+  const [savingDefault, setSavingDefault] = useState(false);
 
   // ---- Load configs ----
   const loadConfigs = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const context = await fetchProviderConfigsContext();
+      const [context, defaults] = await Promise.all([
+        fetchProviderConfigsContext(),
+        fetchModelDefaults().catch(() => null),
+      ]);
       setConfigs(context.data);
       setCanManage(context.canManage);
+      if (defaults) setModelDefaults(defaults);
     } catch (err) {
       console.error('[Settings] Failed to load provider configs:', err);
       setCanManage(false);
@@ -267,12 +295,6 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
         return;
       }
 
-      if (savedConfig.provider === 'anthropic-compatible') {
-        await updateAgentDefaultBrain({
-          model: savedConfig.model_identifier,
-        });
-      }
-
       setEditing({ type: 'none' });
       onConfigsChange?.();
     },
@@ -296,6 +318,33 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
     },
     [],
   );
+
+  const handleSaveDefault = useCallback(async (key: ModelDefaultKey, value: string) => {
+    try {
+      setSavingDefault(true);
+      const trimmed = value.trim();
+      await updateModelDefaults({ [key]: trimmed || null });
+      setModelDefaults((prev) => ({ ...prev, [key]: trimmed || null }));
+      setEditingDefault(null);
+    } catch (err) {
+      console.error('[Settings] Failed to save model default:', err);
+    } finally {
+      setSavingDefault(false);
+    }
+  }, []);
+
+  const handleResetDefault = useCallback(async (key: ModelDefaultKey) => {
+    try {
+      setSavingDefault(true);
+      await updateModelDefaults({ [key]: null });
+      setModelDefaults((prev) => ({ ...prev, [key]: null }));
+      setEditingDefault(null);
+    } catch (err) {
+      console.error('[Settings] Failed to reset model default:', err);
+    } finally {
+      setSavingDefault(false);
+    }
+  }, []);
 
   // ---- Render ----
   const isEditingForm = editing.type !== 'none';
@@ -378,6 +427,98 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
           ) : (
             /* ---- List view ---- */
             <>
+              {/* Model Defaults section (super-admin only) */}
+              {canManage && (
+                <ProviderSection
+                  title="默认模型"
+                  description="系统级模型默认配置"
+                  icon={<Settings2 className="size-4" />}
+                >
+                  {(['default_chat_model', 'default_image_model', 'agent_default_brain_model'] as const).map((key) => {
+                    const isEditing = editingDefault === key;
+                    const currentValue = modelDefaults[key];
+                    const hintText = key === 'agent_default_brain_model'
+                      ? '跟随默认聊天模型'
+                      : `使用系统默认值 (${SYSTEM_DEFAULTS[key]})`;
+
+                    return (
+                      <div key={key} className="flex items-center gap-2 px-3 py-2 rounded-lg border">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium mb-1">{MODEL_DEFAULT_LABELS[key]}</div>
+                          {isEditing ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                className="flex-1 text-xs px-2 py-1 rounded border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                value={editingDefaultValue}
+                                onChange={(e) => setEditingDefaultValue(e.target.value)}
+                                placeholder={hintText}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveDefault(key, editingDefaultValue);
+                                  if (e.key === 'Escape') setEditingDefault(null);
+                                }}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                disabled={savingDefault}
+                                onClick={() => handleSaveDefault(key, editingDefaultValue)}
+                              >
+                                {savingDefault ? <Loader2 className="size-3 animate-spin" /> : '保存'}
+                              </Button>
+                              {currentValue && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs text-destructive"
+                                  disabled={savingDefault}
+                                  onClick={() => handleResetDefault(key)}
+                                >
+                                  重置
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => setEditingDefault(null)}
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          ) : (
+                            <div
+                              className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                              onClick={() => {
+                                setEditingDefault(key);
+                                setEditingDefaultValue(currentValue ?? '');
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  setEditingDefault(key);
+                                  setEditingDefaultValue(currentValue ?? '');
+                                }
+                              }}
+                            >
+                              {currentValue ? (
+                                <span className="text-foreground">{currentValue}</span>
+                              ) : (
+                                <span className="italic">{hintText}</span>
+                              )}
+                              <span className="ml-2 text-[10px] opacity-60">点击编辑</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </ProviderSection>
+              )}
+
               {/* Gemini section (read-only) */}
               <ProviderSection
                 title="Gemini"

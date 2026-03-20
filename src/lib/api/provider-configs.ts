@@ -277,19 +277,38 @@ export async function testProviderConnection(
   };
 }
 
-export interface UpdateAgentDefaultBrainInput {
-  model: ModelValue;
+// ============================================================================
+// Model Defaults
+// ============================================================================
+
+/** Model default keys managed via system_settings */
+export type ModelDefaultKey = 'default_chat_model' | 'default_image_model' | 'agent_default_brain_model';
+
+export type ModelDefaults = Record<ModelDefaultKey, string | null>;
+
+/**
+ * Fetch current model defaults from system_settings.
+ * Returns null for any unset key.
+ */
+export async function fetchModelDefaults(): Promise<ModelDefaults> {
+  const res = await authorizedFetch('/api/system-settings/model-defaults', {
+    method: 'GET',
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
 }
 
-export async function updateAgentDefaultBrain(
-  input: UpdateAgentDefaultBrainInput,
+/**
+ * Update model defaults (partial — only provided keys are changed).
+ * Pass null to reset a key to system default.
+ */
+export async function updateModelDefaults(
+  updates: Partial<Record<ModelDefaultKey, string | null>>,
 ): Promise<void> {
-  const res = await authorizedFetch('/api/system-settings/agent-default-brain', {
+  const res = await authorizedFetch('/api/system-settings/model-defaults', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: input.model,
-    }),
+    body: JSON.stringify(updates),
   });
   if (!res.ok) throw await parseErrorResponse(res);
 }

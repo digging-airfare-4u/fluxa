@@ -46,6 +46,8 @@ import {
   type AgentToolExecutionResult,
 } from '../_shared/utils/agent-orchestrator.ts';
 import type { AspectRatio, ResolutionPreset } from '../_shared/types/index.ts';
+import { resolveDefaultModel } from '../_shared/utils/resolve-default-model.ts';
+import { DEFAULT_CHAT_MODEL, DEFAULT_AGENT_IMAGE_MODEL } from '../_shared/defaults.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,11 +55,6 @@ const corsHeaders = {
 };
 
 const AGENT_MODEL_NAME = 'fluxa-agent';
-const DEFAULT_AGENT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
-const DEFAULT_AGENT_RUNTIME_MODEL =
-  Deno.env.get('AGENT_RUNTIME_MODEL')
-  || Deno.env.get('DEFAULT_AI_MODEL')
-  || 'doubao-seed-1-6-vision-250815';
 const AGENT_SYSTEM_CONTEXT = [
   'You are Fluxa Agent.',
   'Provide concise, helpful answers.',
@@ -93,26 +90,13 @@ interface PersistedAgentMessage {
   created_at: string;
 }
 
-async function resolveDefaultAgentRuntimeModel(
+async function resolveAgentBrainModel(
   serviceClient: SupabaseClient,
 ): Promise<string> {
-  const { data, error } = await serviceClient
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'agent_default_brain_model')
-    .maybeSingle();
-
-  if (error) {
-    console.warn(
-      `[agent] Failed to load agent_default_brain_model, falling back to ${DEFAULT_AGENT_RUNTIME_MODEL}: ${error.message}`,
-    );
-    return DEFAULT_AGENT_RUNTIME_MODEL;
-  }
-
-  const configuredModel = (data?.value as { model?: unknown } | null)?.model;
-  return typeof configuredModel === 'string' && configuredModel.trim()
-    ? configuredModel.trim()
-    : DEFAULT_AGENT_RUNTIME_MODEL;
+  // Two-level DB fallback: agent_default_brain_model → default_chat_model → constant
+  const agentSpecific = await resolveDefaultModel(serviceClient, 'agent_default_brain_model', null);
+  if (agentSpecific) return agentSpecific;
+  return (await resolveDefaultModel(serviceClient, 'default_chat_model', DEFAULT_CHAT_MODEL))!;
 }
 
 function validateRequest(body: unknown): AgentRequest {
@@ -533,13 +517,13 @@ Deno.serve(async (req: Request) => {
     await validateTrustedReferenceImageUrl(serviceClient, body.projectId, body.referenceImageUrl);
 
     const registry = createRegistry(serviceClient);
-    const defaultRuntimeModel = await resolveDefaultAgentRuntimeModel(serviceClient);
+    const defaultRuntimeModel = await resolveAgentBrainModel(serviceClient);
     const runtime = await resolveChatProvider({
       serviceClient,
       registry,
       userId: user.id,
-      selectedModel: body.model,
-      fallbackModel: defaultRuntimeModel,
+      selectedModel: body.model || defaultRuntimeModel,
+      fallbackModel: DEFAULT_CHAT_MODEL,
     });
 
     const pointsService = new PointsService(serviceClient);
@@ -626,11 +610,12 @@ Deno.serve(async (req: Request) => {
               };
             }
 
+            const defaultImageModel = await resolveDefaultModel(serviceClient, 'default_image_model', DEFAULT_AGENT_IMAGE_MODEL);
             const resolvedImage = await resolveAgentImageProvider({
               serviceClient,
               registry,
               userId: user.id,
-              selectedModel: body.imageModel,
+              selectedModel: body.imageModel || defaultImageModel!,
               defaultModel: DEFAULT_AGENT_IMAGE_MODEL,
             });
             const assetService = new AssetService(serviceClient, supabaseUrl);

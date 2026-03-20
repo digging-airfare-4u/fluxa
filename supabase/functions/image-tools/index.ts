@@ -12,16 +12,16 @@ import { OpsService } from '../_shared/services/ops.ts';
 import { ProviderFactory } from '../_shared/providers/factory.ts';
 import type { AspectRatio, ResolutionPreset } from '../_shared/providers/types.ts';
 import type { ImageToolRequest, ImageToolResponse, ImageToolJobOutput } from '../_shared/types/index.ts';
+import { resolveDefaultModel } from '../_shared/utils/resolve-default-model.ts';
+import { DEFAULT_IMAGE_MODEL } from '../_shared/defaults.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-
-const DEFAULT_MODEL = 'gemini-2.5-flash-image';
-
 async function resolveImageToolModel(supabaseService: ReturnType<typeof createClient>): Promise<string> {
+  // Priority: ai_models table (supports_image_tool) → system_settings → hardcoded constant
   const { data, error } = await supabaseService
     .from('ai_models')
     .select('name, sort_order')
@@ -33,10 +33,12 @@ async function resolveImageToolModel(supabaseService: ReturnType<typeof createCl
 
   if (error) {
     console.warn('[image-tools] Failed to fetch image tool model:', error.message);
-    return DEFAULT_MODEL;
+    return (await resolveDefaultModel(supabaseService, 'default_image_model', DEFAULT_IMAGE_MODEL))!;
   }
 
-  return data?.name || DEFAULT_MODEL;
+  if (data?.name) return data.name;
+
+  return (await resolveDefaultModel(supabaseService, 'default_image_model', DEFAULT_IMAGE_MODEL))!;
 }
 
 

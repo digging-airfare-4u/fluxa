@@ -13,6 +13,8 @@ import type { ChatMessage, ChatCompletionOptions } from '../_shared/providers/ch
 import { errorToResponse, ProviderError, UserProviderConfigInvalidError } from '../_shared/errors/index.ts';
 import { callChatProviderJson } from '../_shared/utils/chat-provider-json.ts';
 import { resolveChatProvider, type ResolvedChatProvider } from '../_shared/utils/resolve-chat-provider.ts';
+import { resolveDefaultModel } from '../_shared/utils/resolve-default-model.ts';
+import { DEFAULT_CHAT_MODEL } from '../_shared/defaults.ts';
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -594,15 +596,15 @@ Deno.serve(async (req: Request) => {
     // =========================================================================
     
     // Determine the model name for points calculation
-    const defaultModel = Deno.env.get('DEFAULT_AI_MODEL') || 'doubao-seed-1-6-vision-250815';
-    const selectedModel = model || defaultModel;
+    const resolvedDefault = await resolveDefaultModel(supabaseService, 'default_chat_model', DEFAULT_CHAT_MODEL);
+    const selectedModel = model || resolvedDefault!;
     const registry = createRegistry(supabaseService);
     const runtime = await resolveChatProvider({
       serviceClient: supabaseService,
       registry,
       userId: user.id,
       selectedModel,
-      fallbackModel: defaultModel,
+      fallbackModel: DEFAULT_CHAT_MODEL,
     });
     
     let pointsDeducted = 0;

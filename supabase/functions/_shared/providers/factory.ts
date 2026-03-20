@@ -15,6 +15,7 @@ import {
 } from './types.ts';
 import { GeminiProvider } from './gemini.ts';
 import { VolcengineProvider } from './volcengine.ts';
+import { DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
 
 // ============================================================================
 // Provider Factory
@@ -48,8 +49,8 @@ export class ProviderFactory {
     
     // Register Volcengine models
     this.providerFactories.set(
-      'doubao-seedream-4-5-251128',
-      () => new VolcengineProvider('doubao-seedream-4-5-251128')
+      DEFAULT_VOLCENGINE_IMAGE_MODEL,
+      () => new VolcengineProvider(DEFAULT_VOLCENGINE_IMAGE_MODEL)
     );
   }
   
@@ -86,7 +87,7 @@ export class ProviderFactory {
    * @returns Default ImageProvider instance
    */
   getDefaultProvider(): ImageProvider {
-    return new VolcengineProvider();
+    return new VolcengineProvider(DEFAULT_VOLCENGINE_IMAGE_MODEL);
   }
   
   /**

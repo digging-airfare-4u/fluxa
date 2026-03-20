@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createProviderConfig,
   fetchUserProviderConfigs,
-  updateAgentDefaultBrain,
+  updateModelDefaults,
 } from '@/lib/api/provider-configs';
 import { supabase } from '@/lib/supabase/client';
 
@@ -122,7 +122,7 @@ describe('Provider configs API client auth contract', () => {
     );
   });
 
-  it('should send authenticated json when updating the default agent brain model', async () => {
+  it('should send authenticated json when updating model defaults', async () => {
     getSessionMock.mockResolvedValue({
       data: {
         session: {
@@ -138,15 +138,15 @@ describe('Provider configs API client auth contract', () => {
       }),
     );
 
-    await updateAgentDefaultBrain({ model: 'user:config-1' } as never);
+    await updateModelDefaults({ agent_default_brain_model: 'user:config-1' });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, init] = vi.mocked(global.fetch).mock.calls[0]!;
     const headers = new Headers(init?.headers);
-    expect(url).toBe('/api/system-settings/agent-default-brain');
+    expect(url).toBe('/api/system-settings/model-defaults');
     expect(init?.method).toBe('POST');
     expect(headers.get('Authorization')).toBe('Bearer token-789');
     expect(headers.get('Content-Type')).toBe('application/json');
-    expect(init?.body).toBe(JSON.stringify({ model: 'user:config-1' }));
+    expect(init?.body).toBe(JSON.stringify({ agent_default_brain_model: 'user:config-1' }));
   });
 });

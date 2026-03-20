@@ -100,15 +100,8 @@ export class VolcengineProvider implements ImageProvider {
   
   private modelName: string;
   
-  constructor(modelName?: string) {
-    // Use provided model name, or try to get from Deno env, or use default
-    if (modelName) {
-      this.modelName = modelName;
-    } else if (typeof Deno !== 'undefined' && Deno.env) {
-      this.modelName = Deno.env.get('VOLCENGINE_IMAGE_MODEL') || 'doubao-seedream-4-5-251128';
-    } else {
-      this.modelName = 'doubao-seedream-4-5-251128';
-    }
+  constructor(modelName: string) {
+    this.modelName = modelName;
   }
   
   /**
