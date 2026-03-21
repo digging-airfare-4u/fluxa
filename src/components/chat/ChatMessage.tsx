@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Copy, Check, ChevronDown, Search, X, ExternalLink, Sparkles, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -47,6 +47,13 @@ export function ChatMessage({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
+  const previewImgRef = useRef<HTMLImageElement>(null);
+
+  // Reset size when dialog closes so stale dimensions don't flash on next open
+  useEffect(() => {
+    if (!previewOpen) setPreviewSize(null);
+  }, [previewOpen]);
   
   const isAI = message.role === 'assistant';
   const metadata = message.metadata as MessageMetadata | undefined;
@@ -514,31 +521,52 @@ export function ChatMessage({
         </div>
       )}
 
-      {/* Image preview dialog */}
+      {/* Image preview dialog — sized to fit the image */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent
           showCloseButton={false}
-          className="w-[92vw] h-[88vh] max-w-[1400px] max-h-[920px] p-0 bg-black/92 border-none overflow-hidden flex items-center justify-center gap-0"
+          className="p-0 bg-black/92 border-none overflow-hidden gap-0 rounded-xl"
+          style={previewSize ? {
+            width: previewSize.width,
+            height: previewSize.height,
+            maxWidth: '92vw',
+            maxHeight: '88vh',
+          } : {
+            width: 'auto',
+            maxWidth: '92vw',
+            maxHeight: '88vh',
+          }}
         >
           <VisuallyHidden>
             <DialogTitle>{t('message.image_preview')}</DialogTitle>
           </VisuallyHidden>
           <button
             onClick={() => setPreviewOpen(false)}
-            className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            className="absolute top-3 right-3 z-50 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
           >
-            <X className="size-5" />
+            <X className="size-4" />
           </button>
           {primaryImageUrl && (
-            <div className="relative w-full h-full">
-              <Image
-                src={primaryImageUrl}
-                alt="Preview"
-                fill
-                unoptimized
-                className="object-contain"
-              />
-            </div>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              ref={previewImgRef}
+              src={primaryImageUrl}
+              alt="Preview"
+              className="block max-w-[92vw] max-h-[88vh] object-contain"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                const natW = img.naturalWidth;
+                const natH = img.naturalHeight;
+                // Fit within viewport with padding
+                const maxW = window.innerWidth * 0.92;
+                const maxH = window.innerHeight * 0.88;
+                const scale = Math.min(1, maxW / natW, maxH / natH);
+                setPreviewSize({
+                  width: Math.round(natW * scale),
+                  height: Math.round(natH * scale),
+                });
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
