@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Copy, Check, ChevronDown, Search, X, Sparkles, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, ChevronDown, Search, X, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ImageCard } from './ImageCard';
@@ -145,17 +145,6 @@ export function ChatMessage({
     return cleaned;
   };
 
-  const formatThinkingDuration = (ms?: number): string => {
-    if (!ms) return t('message.thought_done');
-    const seconds = Math.round(ms / 1000);
-    if (seconds < 60) {
-      return t('message.thought_for_seconds', { seconds });
-    }
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return t('message.thought_for_minutes', { minutes, seconds: remainingSeconds });
-  };
-
   const getAgentStatusText = (): string => {
     if (!isPending || !isAgentMessage) {
       return t('message.agent_process');
@@ -281,10 +270,10 @@ export function ChatMessage({
         </span>
       </div>
 
-      {/* Agent thinking steps */}
-      {isAgentMessage && isPending && (
+      {/* Agent thinking steps — always visible */}
+      {isAgentMessage && processPanelVisible && (
         <div className="my-2 space-y-1">
-          {(!agentProcess?.steps || agentProcess.steps.length === 0) && (
+          {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
               <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
@@ -303,30 +292,6 @@ export function ChatMessage({
             </div>
           ))}
         </div>
-      )}
-
-      {/* Collapsed thinking summary after completion */}
-      {isAgentMessage && !isPending && processPanelVisible && (
-        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="my-2">
-          <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer py-0.5">
-            <Sparkles className="size-3" />
-            <span>{formatThinkingDuration(agentProcess?.thinkingDurationMs)}</span>
-            <ChevronDown className={cn(
-              "size-3 transition-transform",
-              detailsOpen && "rotate-180"
-            )} />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-1.5 space-y-1">
-              {agentProcess?.steps?.map((step) => (
-                <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle2 className="size-3.5 text-muted-foreground/50" />
-                  <span>{step.title}</span>
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
       )}
 
       {/* Message content */}
