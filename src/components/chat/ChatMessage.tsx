@@ -486,7 +486,7 @@ export function ChatMessage({
         </div>
       )}
 
-      {generatedImages.length > 1 && (
+      {!isAgentMessage && generatedImages.length > 1 && (
         <div className="mt-3 space-y-2 max-w-[85%]">
           <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
             <ImageIcon className="size-3.5" />
