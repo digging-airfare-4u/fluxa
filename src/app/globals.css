@@ -799,6 +799,19 @@ h1, h2, h3, h4, h5, h6 {
   100% { background-position: 100% 0; }
 }
 
+/* Markdown in chat — keep everything compact and chat-appropriate */
+.chat-message-ai .chat-markdown {
+  @apply text-sm leading-relaxed;
+}
+
+.chat-message-ai .chat-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.chat-message-ai .chat-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Image card in chat */
 .chat-image-card {
   @apply rounded-xl overflow-hidden;

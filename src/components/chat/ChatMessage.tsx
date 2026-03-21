@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
+import { ChatMarkdown } from './ChatMarkdown';
 import type { AgentProcessDecision, AgentProcessStep, AgentToolActivity, Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 
 interface ChatMessageProps {
@@ -413,9 +414,7 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className="chat-message-ai">
-        <p className="whitespace-pre-wrap font-medium">
-          {isAgentMessage ? cleanAgentContent(message.content) : message.content}
-        </p>
+        <ChatMarkdown content={isAgentMessage ? cleanAgentContent(message.content) : message.content} />
       </div>
 
       {/* Optional reasoning/thinking summary (classic mode only) */}

@@ -66,6 +66,7 @@ const AGENT_SYSTEM_CONTEXT = [
 ].join(' ');
 const MAX_ITERATIONS = 5;
 const HISTORY_RETENTION = 24;
+const PLANNER_HISTORY_LIMIT = 8;
 const DEFAULT_RESOLUTION: ResolutionPreset = '1K';
 const DEFAULT_ASPECT_RATIO: AspectRatio = '1:1';
 
@@ -297,42 +298,65 @@ function createPlanner(
   referenceImageUrl?: string,
   conversationId?: string,
 ): (history: AgentHistoryEntry[]) => Promise<AgentPlannerResult> {
-  return (history) => retryWithExponentialBackoff(() => callChatProviderJson<AgentPlannerResult>({
-    provider: runtime.provider,
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'You are the planning stage for Fluxa Agent.',
-          'Return JSON only.',
-          'Schema: {"steps":[{"id":"step-1","title":"string","status":"pending"}],"needsSearch":boolean,"needsImageSearch":boolean,"executionMode":"direct"|"generate_image","summary":"string"}',
-          'If the user requests an image asset, choose executionMode="generate_image".',
-          'If the user asks for fresh facts, citations, or external references, set needsSearch=true.',
-          'If the user asks for visual references or inspiration from the web, set needsImageSearch=true.',
-          'If a reference image is attached, analyze it to inform your plan.',
-          'Keep the step list short and high signal.',
-        ].join(' '),
-      },
-      {
-        role: 'user',
-        content: referenceImageUrl
-          ? [
-              { type: 'text' as const, text: JSON.stringify({ history }) },
-              { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
-            ]
-          : JSON.stringify({ history }),
-      },
-    ],
-  }), {
-    provider: runtime.provider.name,
-    model: runtime.displayName,
-    diagnosticContext: {
-      stage: 'planner',
-      conversationId,
-      historyLength: history.length,
-      hasReferenceImage: Boolean(referenceImageUrl),
-    },
-  });
+  return async (history) => {
+    // Limit history sent to planner to avoid context dilution that causes
+    // models to ignore the JSON-only constraint.
+    const plannerHistory = truncateAgentHistory(history, PLANNER_HISTORY_LIMIT);
+
+    try {
+      return await retryWithExponentialBackoff(() => callChatProviderJson<AgentPlannerResult>({
+        provider: runtime.provider,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are the planning stage for Fluxa Agent.',
+              'You MUST return valid JSON only. No greetings, no explanation, no markdown fences.',
+              'Schema: {"steps":[{"id":"step-1","title":"string","status":"pending"}],"needsSearch":boolean,"needsImageSearch":boolean,"executionMode":"direct"|"generate_image","summary":"string"}',
+              'If the user requests an image asset, choose executionMode="generate_image".',
+              'If the user asks for fresh facts, citations, or external references, set needsSearch=true.',
+              'If the user asks for visual references or inspiration from the web, set needsImageSearch=true.',
+              'If a reference image is attached, analyze it to inform your plan.',
+              'Keep the step list short and high signal.',
+              'IMPORTANT: respond with the JSON object ONLY. Any non-JSON output is a fatal error.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: referenceImageUrl
+              ? [
+                  { type: 'text' as const, text: JSON.stringify({ history: plannerHistory }) },
+                  { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
+                ]
+              : JSON.stringify({ history: plannerHistory }),
+          },
+        ],
+      }), {
+        provider: runtime.provider.name,
+        model: runtime.displayName,
+        diagnosticContext: {
+          stage: 'planner',
+          conversationId,
+          historyLength: plannerHistory.length,
+          hasReferenceImage: Boolean(referenceImageUrl),
+        },
+      });
+    } catch (error) {
+      // Fallback: if the model returns non-JSON (e.g. plain text greeting),
+      // return a safe default plan so the executor can still produce a response.
+      console.error('[agent] planner JSON fallback triggered', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        steps: [{ id: 'step-1', title: 'Respond to user', status: 'pending' as const }],
+        needsSearch: false,
+        needsImageSearch: false,
+        executionMode: 'direct' as const,
+        summary: 'Direct response (planner fallback)',
+      };
+    }
+  };
 }
 
 function createExecutor(
@@ -345,47 +369,76 @@ function createExecutor(
   toolResults: AgentToolExecutionResult[];
   iteration: number;
 }) => Promise<AgentExecutorResult> {
-  return (input) => retryWithExponentialBackoff(() => callChatProviderJson<AgentExecutorResult>({
-    provider: runtime.provider,
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'You are the execution stage for Fluxa Agent.',
-          'Return JSON only.',
-          'Schema for final answer: {"kind":"final","text":"string","summary":"string","citations":[]}.',
-          'Schema for generate_image: {"kind":"tool_call","tool":"generate_image","prompt":"string","referenceImageUrl":"optional trusted asset url","stepId":"step-id"}.',
-          'Schema for web_search: {"kind":"tool_call","tool":"web_search","query":"string","stepId":"step-id"}.',
-          'Schema for fetch_url: {"kind":"tool_call","tool":"fetch_url","url":"https://...","stepId":"step-id"}.',
-          'Schema for image_search: {"kind":"tool_call","tool":"image_search","query":"string","stepId":"step-id"}.',
-          'Use fetch_url before citing a web result.',
-          'Use image_search when the user needs visual references, and only use trusted image URLs from tool results.',
-          'If a reference image is attached, analyze it and incorporate your observations.',
-          'Do not fabricate citations or verified facts.',
-          'Do not include raw image URLs in the final text. Images are displayed separately by the UI.',
-        ].join(' '),
-      },
-      {
-        role: 'user',
-        content: referenceImageUrl
-          ? [
-              { type: 'text' as const, text: JSON.stringify(input) },
-              { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
-            ]
-          : JSON.stringify(input),
-      },
-    ],
-  }), {
-    provider: runtime.provider.name,
-    model: runtime.displayName,
-    diagnosticContext: {
-      stage: 'executor',
-      conversationId,
-      historyLength: input.history.length,
-      iteration: input.iteration,
-      hasReferenceImage: Boolean(referenceImageUrl),
-    },
-  });
+  return async (input) => {
+    try {
+      return await retryWithExponentialBackoff(() => callChatProviderJson<AgentExecutorResult>({
+        provider: runtime.provider,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are the execution stage for Fluxa Agent.',
+              'You MUST return valid JSON only. No greetings, no explanation, no markdown fences.',
+              'Schema for final answer: {"kind":"final","text":"string","summary":"string","citations":[]}.',
+              'Schema for generate_image: {"kind":"tool_call","tool":"generate_image","prompt":"string","referenceImageUrl":"optional trusted asset url","stepId":"step-id"}.',
+              'Schema for web_search: {"kind":"tool_call","tool":"web_search","query":"string","stepId":"step-id"}.',
+              'Schema for fetch_url: {"kind":"tool_call","tool":"fetch_url","url":"https://...","stepId":"step-id"}.',
+              'Schema for image_search: {"kind":"tool_call","tool":"image_search","query":"string","stepId":"step-id"}.',
+              'Use fetch_url before citing a web result.',
+              'Use image_search when the user needs visual references, and only use trusted image URLs from tool results.',
+              'If a reference image is attached, analyze it and incorporate your observations.',
+              'Do not fabricate citations or verified facts.',
+              'Do not include raw image URLs in the final text. Images are displayed separately by the UI.',
+              'IMPORTANT: respond with the JSON object ONLY. Any non-JSON output is a fatal error.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: referenceImageUrl
+              ? [
+                  { type: 'text' as const, text: JSON.stringify(input) },
+                  { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
+                ]
+              : JSON.stringify(input),
+          },
+        ],
+      }), {
+        provider: runtime.provider.name,
+        model: runtime.displayName,
+        diagnosticContext: {
+          stage: 'executor',
+          conversationId,
+          historyLength: input.history.length,
+          iteration: input.iteration,
+          hasReferenceImage: Boolean(referenceImageUrl),
+        },
+      });
+    } catch (error) {
+      // Fallback: if the model returned plain text instead of JSON,
+      // extract it and wrap as a final result so the user still gets a response.
+      const rawContent = (
+        error instanceof ProviderError &&
+        error.details &&
+        typeof error.details === 'object' &&
+        'content' in error.details
+      ) ? String((error.details as Record<string, unknown>).content).trim() : undefined;
+
+      if (rawContent) {
+        console.error('[agent] executor JSON fallback triggered', {
+          conversationId,
+          iteration: input.iteration,
+          contentLength: rawContent.length,
+        });
+        return {
+          kind: 'final' as const,
+          text: rawContent,
+          summary: 'Response generated with text fallback',
+        };
+      }
+
+      throw error;
+    }
+  };
 }
 
 function isUserModelIdentifier(model: string): model is `user:${string}` {
