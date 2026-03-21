@@ -57,6 +57,9 @@
     "status_finalizing": "整理结果中",
     "tool_status_completed": "已完成",
     "tool_status_running": "进行中",
+    "thought_done": "已完成思考",
+    "thought_for_seconds": "已深度思考（用时 {seconds} 秒）",
+    "thought_for_minutes": "已深度思考（用时 {minutes} 分 {seconds} 秒）",
     "view_thinking_process": "查看思考过程",
     "view_full_report": "查看完整报告"
   },

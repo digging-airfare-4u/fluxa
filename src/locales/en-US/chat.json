@@ -57,6 +57,9 @@
     "status_finalizing": "Wrapping up",
     "tool_status_completed": "Completed",
     "tool_status_running": "Running",
+    "thought_done": "Finished thinking",
+    "thought_for_seconds": "Thought for {seconds}s",
+    "thought_for_minutes": "Thought for {minutes}m {seconds}s",
     "view_thinking_process": "View Thinking Process",
     "view_full_report": "View Full Report"
   },

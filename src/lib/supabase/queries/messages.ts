@@ -52,6 +52,8 @@ export interface AgentProcessTimeline {
   steps?: AgentProcessStep[];
   decisions?: AgentProcessDecision[];
   tools?: AgentToolActivity[];
+  /** Total thinking duration in milliseconds (set when generation completes) */
+  thinkingDurationMs?: number;
 }
 
 /**

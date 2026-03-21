@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Copy, Check, ChevronDown, Search, X, ExternalLink, Sparkles, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, ChevronDown, Search, X, Sparkles, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ImageCard } from './ImageCard';
@@ -24,7 +24,7 @@ import {
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
 import { ChatMarkdown } from './ChatMarkdown';
-import type { AgentProcessDecision, AgentProcessStep, AgentToolActivity, Message, MessageMetadata } from '@/lib/supabase/queries/messages';
+import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 
 interface ChatMessageProps {
   message: Message;
@@ -136,28 +136,6 @@ export function ChatMessage({
     }
   }, [primaryImageUrl, onImageClick, layerId]);
 
-  const renderStepStatus = (step: AgentProcessStep) => {
-    if (step.status === 'completed') {
-      return <CheckCircle2 className="size-3.5 text-emerald-600" />;
-    }
-
-    return <CircleDashed className="size-3.5 text-[#888]" />;
-  };
-
-  const renderDecisionText = (decision: AgentProcessDecision) => {
-    if (decision.key === 'needs_search') {
-      return decision.value ? t('message.search_required') : t('message.search_not_required');
-    }
-
-    return decision.value ? t('message.image_search_required') : t('message.image_search_not_required');
-  };
-
-  const renderToolStatus = (tool: AgentToolActivity) => (
-    tool.status === 'completed'
-      ? t('message.tool_status_completed')
-      : t('message.tool_status_running')
-  );
-
   const cleanAgentContent = (text: string): string => {
     let cleaned = text
       .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
@@ -165,6 +143,17 @@ export function ChatMessage({
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     return cleaned;
+  };
+
+  const formatThinkingDuration = (ms?: number): string => {
+    if (!ms) return t('message.thought_done');
+    const seconds = Math.round(ms / 1000);
+    if (seconds < 60) {
+      return t('message.thought_for_seconds', { seconds });
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return t('message.thought_for_minutes', { minutes, seconds: remainingSeconds });
   };
 
   const getAgentStatusText = (): string => {
@@ -292,128 +281,49 @@ export function ChatMessage({
         </span>
       </div>
 
-      {/* Agent process panel — shown BEFORE the answer for agent messages */}
-      {processPanelVisible && (
-        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="mb-2">
-          <CollapsibleTrigger className={cn(
-            "chat-collapsible-trigger w-full",
-            isPending && isAgentMessage && "agent-status-glow"
-          )}>
-            <Sparkles className={cn(
-              "size-3.5",
-              isPending && isAgentMessage && "animate-[pulse_2s_ease-in-out_infinite]"
-            )} />
-            <span className={cn(
-              isPending && isAgentMessage && "animate-[pulse_2s_ease-in-out_infinite]"
-            )}>{getAgentStatusText()}</span>
+      {/* Agent thinking steps */}
+      {isAgentMessage && isPending && (
+        <div className="my-2 space-y-1">
+          {(!agentProcess?.steps || agentProcess.steps.length === 0) && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+              <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
+            </div>
+          )}
+          {agentProcess?.steps?.map((step) => (
+            <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+              {step.status === 'completed' ? (
+                <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+              ) : (
+                <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+              )}
+              <span className={cn(step.status !== 'completed' && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
+                {step.title}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Collapsed thinking summary after completion */}
+      {isAgentMessage && !isPending && processPanelVisible && (
+        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="my-2">
+          <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer py-0.5">
+            <Sparkles className="size-3" />
+            <span>{formatThinkingDuration(agentProcess?.thinkingDurationMs)}</span>
             <ChevronDown className={cn(
-              "size-3 ml-auto transition-transform",
+              "size-3 transition-transform",
               detailsOpen && "rotate-180"
             )} />
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="chat-quote-card space-y-4">
-              {(agentProcess?.label || metadata?.processSummary) && (
-                <div className="space-y-1">
-                  {agentProcess?.label && (
-                    <div className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-1 text-[11px] font-medium text-[#555] dark:bg-white/[0.08] dark:text-white/80">
-                      {t('message.phase_label', { phase: agentProcess.label })}
-                    </div>
-                  )}
-                  {metadata?.processSummary && (
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {metadata.processSummary}
-                    </p>
-                  )}
+            <div className="mt-1.5 space-y-1">
+              {agentProcess?.steps?.map((step) => (
+                <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-3.5 text-muted-foreground/50" />
+                  <span>{step.title}</span>
                 </div>
-              )}
-
-              {agentProcess?.steps && agentProcess.steps.length > 0 && (
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#666] dark:text-white/60">
-                    {t('message.process_steps')}
-                  </p>
-                  <div className="space-y-2">
-                    {agentProcess.steps.map((step) => (
-                      <div key={step.id} className="flex items-start gap-2 rounded-lg border border-black/[0.06] px-2.5 py-2 dark:border-white/10">
-                        {renderStepStatus(step)}
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground">{step.title}</p>
-                          {step.summary && (
-                            <p className="mt-0.5 text-xs text-muted-foreground">{step.summary}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {agentProcess?.decisions && agentProcess.decisions.length > 0 && (
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#666] dark:text-white/60">
-                    {t('message.process_decisions')}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {agentProcess.decisions.map((decision) => (
-                      <span
-                        key={decision.key}
-                        className="rounded-full border border-black/[0.08] px-2 py-1 text-[11px] text-[#555] dark:border-white/10 dark:text-white/80"
-                      >
-                        {renderDecisionText(decision)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {agentProcess?.tools && agentProcess.tools.length > 0 && (
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#666] dark:text-white/60">
-                    {t('message.process_tools')}
-                  </p>
-                  <div className="space-y-2">
-                    {agentProcess.tools.map((tool, index) => (
-                      <div key={`${tool.tool}-${index}`} className="rounded-lg border border-black/[0.06] px-2.5 py-2 dark:border-white/10">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-medium text-foreground">{tool.tool}</p>
-                          <span className="text-[11px] text-muted-foreground">{renderToolStatus(tool)}</span>
-                        </div>
-                        {(tool.inputSummary || tool.resultSummary) && (
-                          <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                            {tool.resultSummary || tool.inputSummary}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {citations.length > 0 && (
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#666] dark:text-white/60">
-                    {t('message.citations')}
-                  </p>
-                  <div className="space-y-2">
-                    {citations.map((citation, index) => (
-                      <a
-                        key={`${citation.url}-${index}`}
-                        href={citation.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between gap-3 rounded-lg border border-black/[0.06] px-2.5 py-2 text-xs transition-colors hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.04]"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-foreground">{citation.title}</p>
-                          <p className="truncate text-muted-foreground">{citation.domain}</p>
-                        </div>
-                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+              ))}
             </div>
           </CollapsibleContent>
         </Collapsible>

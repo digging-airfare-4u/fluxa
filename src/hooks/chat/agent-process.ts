@@ -17,6 +17,7 @@ import type {
 
 export interface AgentPendingState {
   content: string;
+  startedAt: number;
   processSummary?: string;
   searchSummary?: string;
   citations: MessageCitation[];
@@ -142,6 +143,7 @@ function deriveSearchSummary(decisions: AgentProcessDecision[]): string | undefi
 export function createInitialAgentPendingState(): AgentPendingState {
   return {
     content: '',
+    startedAt: Date.now(),
     citations: [],
     generatedImages: [],
     agentProcess: {
@@ -277,6 +279,11 @@ export function mergeAgentFinalMessage(
   modelName: string,
 ): Message {
   const metadata = (message.metadata || {}) as MessageMetadata;
+  const thinkingDurationMs = Date.now() - state.startedAt;
+
+  const finalAgentProcess = state.agentProcess.steps?.length || state.agentProcess.tools?.length || state.agentProcess.decisions?.length
+    ? { ...state.agentProcess, thinkingDurationMs }
+    : metadata.agentProcess;
 
   return {
     ...message,
@@ -289,9 +296,7 @@ export function mergeAgentFinalMessage(
       searchSummary: metadata.searchSummary || state.searchSummary,
       citations: metadata.citations || state.citations,
       generatedImages: metadata.generatedImages || state.generatedImages,
-      agentProcess: state.agentProcess.steps?.length || state.agentProcess.tools?.length || state.agentProcess.decisions?.length
-        ? state.agentProcess
-        : metadata.agentProcess,
+      agentProcess: finalAgentProcess,
     },
   };
 }
