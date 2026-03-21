@@ -281,6 +281,12 @@ export async function runAgentLoop(
       assetId: toolResult.assetId,
     });
     args.emitEvent({ type: 'step_done', stepId: step.id, summary: toolResult.summary });
+
+    // Image generation is a terminal action — stop iterating to prevent
+    // the executor from generating additional unwanted images.
+    if (executionResult.tool === 'generate_image') {
+      break;
+    }
   }
 
   const finalText = 'Agent stopped after reaching the iteration limit.';

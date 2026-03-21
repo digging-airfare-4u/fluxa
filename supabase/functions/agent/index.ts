@@ -388,6 +388,7 @@ function createExecutor(
               'Use image_search when the user needs visual references, and only use trusted image URLs from tool results.',
               'If a reference image is attached, analyze it and incorporate your observations.',
               'When the user asks to modify, iterate on, or reference a previously generated image, find the imageUrl from the earlier generate_image tool result in the conversation history and pass it as referenceImageUrl in your generate_image tool call.',
+              'Call generate_image at most ONCE per turn. After generating an image, return a final answer summarizing the result.',
               'Do not fabricate citations or verified facts.',
               'Do not include raw image URLs in the final text. Images are displayed separately by the UI.',
               'IMPORTANT: respond with the JSON object ONLY. Any non-JSON output is a fatal error.',
