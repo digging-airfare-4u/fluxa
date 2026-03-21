@@ -282,10 +282,21 @@ export async function runAgentLoop(
     });
     args.emitEvent({ type: 'step_done', stepId: step.id, summary: toolResult.summary });
 
-    // Image generation is a terminal action — stop iterating to prevent
+    // Image generation is a terminal action — return immediately to prevent
     // the executor from generating additional unwanted images.
     if (executionResult.tool === 'generate_image') {
-      break;
+      const summary = plan.summary || toolResult.summary;
+      args.emitEvent({ type: 'text', content: summary });
+
+      return {
+        history: workingHistory,
+        finalText: summary,
+        processSummary: summary,
+        citations,
+        generatedImages,
+        plan,
+        terminationReason: 'completed',
+      };
     }
   }
 

@@ -279,18 +279,21 @@ export function ChatMessage({
               <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
             </div>
           )}
-          {agentProcess?.steps?.map((step) => (
-            <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-              {step.status === 'completed' ? (
-                <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
-              ) : (
-                <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
-              )}
-              <span className={cn(step.status !== 'completed' && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
-                {step.title}
-              </span>
-            </div>
-          ))}
+          {agentProcess?.steps?.map((step) => {
+            const isDone = !isPending || step.status === 'completed';
+            return (
+              <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                {isDone ? (
+                  <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+                ) : (
+                  <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+                )}
+                <span className={cn(!isDone && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
+                  {step.title}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
