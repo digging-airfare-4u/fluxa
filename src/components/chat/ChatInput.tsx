@@ -5,8 +5,8 @@
 
 'use client';
 
-import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
-import { AtSign, ArrowUp, MessageSquare, Bot } from 'lucide-react';
+import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react';
+import { AtSign, ArrowUp, MessageSquare, Bot, X } from 'lucide-react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -229,13 +229,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
     textareaRef.current?.focus();
   };
 
-  const handleReferencedImageClick = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Keep the referenced image attached in the input and retain typing flow.
-    textareaRef.current?.focus();
-  }, []);
-
   const canSend = message.trim().length > 0 && !disabled && !isLoading && !isBusy;
   const isInputDisabled = disabled || isBusy;
 
@@ -296,54 +289,32 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
       )}>
         {/* Textarea with inline image reference */}
         <div className="px-4 pt-3 pb-2">
+          {/* Referenced image chip */}
+          {referencedImage && (
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] px-1.5 py-1">
+              <div className="relative size-5 rounded overflow-hidden flex-shrink-0">
+                <Image
+                  src={referencedImage.url}
+                  alt={t('assets.reference_image')}
+                  fill
+                  unoptimized
+                  sizes="20px"
+                  className="object-cover"
+                />
+              </div>
+              <span className="text-xs text-[#555] dark:text-white/70 max-w-[120px] truncate">
+                {referencedImage.filename}
+              </span>
+              <button
+                type="button"
+                onClick={() => setReferencedImage(null)}
+                className="text-[#999] hover:text-[#555] dark:text-white/40 dark:hover:text-white/70 transition-colors"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          )}
           <div className="flex items-start gap-1">
-            {/* Inline referenced image */}
-            {referencedImage && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="relative size-4 rounded overflow-hidden cursor-pointer flex-shrink-0 mt-[3px] hover:ring-2 hover:ring-primary/50"
-                    onClick={handleReferencedImageClick}
-                  >
-                    <Image
-                      src={referencedImage.url}
-                      alt={t('assets.reference_image')}
-                      fill
-                      unoptimized
-                      sizes="16px"
-                      className="object-cover"
-                    />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  align="start"
-                  sideOffset={8}
-                  collisionPadding={16}
-                  className="p-1 bg-white dark:bg-[#1A1028]"
-                >
-                  <div
-                    className="relative rounded overflow-hidden"
-                    style={{
-                      width: 180,
-                      height: 180,
-                      maxWidth: 'calc(100vw - 2rem)',
-                      maxHeight: 'calc(100vh - 6rem)',
-                    }}
-                  >
-                    <Image
-                      src={referencedImage.url}
-                      alt={t('assets.reference_image')}
-                      fill
-                      unoptimized
-                      sizes="180px"
-                      className="object-contain"
-                    />
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )}
             <textarea
               ref={textareaRef}
               value={message}
