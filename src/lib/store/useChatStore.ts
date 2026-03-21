@@ -28,11 +28,11 @@ export const CHAT_MODE_STORAGE_KEY = 'fluxa-chat-mode';
 
 function getInitialChatMode(): ChatMode {
   if (typeof window === 'undefined') {
-    return 'classic';
+    return 'agent';
   }
 
   const persistedMode = window.localStorage.getItem(CHAT_MODE_STORAGE_KEY);
-  return persistedMode === 'agent' ? 'agent' : 'classic';
+  return persistedMode === 'classic' ? 'classic' : 'agent';
 }
 
 function persistChatMode(mode: ChatMode) {

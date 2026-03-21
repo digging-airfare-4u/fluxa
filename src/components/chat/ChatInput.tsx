@@ -415,7 +415,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                 tooltipLabel={t('model_selector.agent_image_model')}
               />
             )}
-            {onResolutionChange && onAspectRatioChange && (
+            {chatMode === 'classic' && onResolutionChange && onAspectRatioChange && (
               <div className="flex items-center gap-0.5">
                 <ResolutionSelector
                   selectedResolution={selectedResolution}
