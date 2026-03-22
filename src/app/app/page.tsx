@@ -23,6 +23,7 @@ import { PointsBalanceIndicator, ProfileDialog } from '@/components/points';
 import { UserPopover } from '@/components/layout';
 import { ProviderConfigPanel } from '@/components/settings';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { PublicationDetailDialog } from '@/components/discover';
 import {
@@ -42,7 +43,7 @@ const QUICK_TAGS = [
   { id: 'video', label: 'Video', icon: Video },
 ];
 
-const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-44', 'h-56', 'h-48', 'h-64'] as const;
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -413,24 +414,24 @@ export default function HomePage() {
             </div>
 
             {isInspirationLoading ? (
-              <div className="columns-2 lg:columns-3 gap-3 sm:gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'mb-3 break-inside-avoid rounded-2xl bg-muted animate-pulse sm:mb-4',
-                      HOME_INSPIRATION_SKELETON_HEIGHTS[i % HOME_INSPIRATION_SKELETON_HEIGHTS.length]
-                    )}
-                  />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-2xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-sm">
+                    <Skeleton className="aspect-[4/3]" />
+                    <div className="p-3">
+                      <Skeleton className="h-4 w-3/4 mb-1" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : inspirationItems.length > 0 ? (
-              <div className="columns-2 lg:columns-3 gap-3 sm:gap-4">
-                {/* Baseline card contract: <PublicationCard key={publication.id} publication={publication} /> */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {inspirationItems.map((publication) => (
                   <PublicationCard
                     key={publication.id}
                     publication={publication}
+                    compact
                     onOpenDetail={(publicationId) => {
                       setActivePublicationId(publicationId);
                       setIsPublicationDialogOpen(true);
