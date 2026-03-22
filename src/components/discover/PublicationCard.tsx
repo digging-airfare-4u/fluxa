@@ -3,10 +3,9 @@
 import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { Eye, Sparkles, Loader2 } from 'lucide-react';
+import { Heart, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { GalleryPublication } from '@/lib/supabase/queries/publications';
-import { LikeButton, BookmarkButton } from '@/components/social';
 
 interface PublicationCardProps {
   publication: GalleryPublication;
@@ -15,7 +14,7 @@ interface PublicationCardProps {
   onRemix?: () => void | Promise<void>;
   isRemixing?: boolean;
   isRemixActive?: boolean;
-  /** Compact mode for home page — fixed aspect ratio, no social buttons */
+  /** Compact mode for home page — fixed aspect ratio, uniform grid */
   compact?: boolean;
 }
 
@@ -66,18 +65,48 @@ export function PublicationCard({ publication, footerActions, onOpenDetail, onRe
                 onLoad={() => setImageLoaded(true)}
               />
               {!imageLoaded && <div className="absolute inset-0 bg-muted animate-pulse" style={{ aspectRatio: '4/3' }} />}
+
+              {/* Remix hover overlay */}
+              {onRemix && (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-end p-2.5">
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isRemixing) return;
+                      void onRemix();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        if (isRemixing) return;
+                        void onRemix();
+                      }
+                    }}
+                    className={cn(
+                      'h-7 px-2.5 rounded-full bg-white/90 dark:bg-black/60 backdrop-blur-sm text-xs font-medium inline-flex items-center gap-1 transition-colors',
+                      'hover:bg-white dark:hover:bg-black/80',
+                      isRemixing && 'opacity-60 pointer-events-none'
+                    )}
+                  >
+                    {isRemixActive ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+                    {isRemixActive ? t('actions.loading') : t('discover.remix_cta')}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="p-3 space-y-2">
-            <h3 className="text-sm font-medium text-foreground line-clamp-1">{publication.title}</h3>
+          <div className="p-2.5">
+            <h3 className="text-sm font-medium text-foreground line-clamp-2">{publication.title}</h3>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mt-1.5">
               <div className="flex items-center gap-1.5 min-w-0">
                 {publication.avatar_url ? (
-                  <Image src={publication.avatar_url} alt="" width={20} height={20} className="size-5 rounded-full object-cover" unoptimized />
+                  <Image src={publication.avatar_url} alt="" width={16} height={16} className="size-4 rounded-full object-cover" unoptimized />
                 ) : (
-                  <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
+                  <div className="size-4 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-medium text-primary">
                     {(publication.display_name || 'U')[0]}
                   </div>
                 )}
@@ -85,37 +114,14 @@ export function PublicationCard({ publication, footerActions, onOpenDetail, onRe
               </div>
 
               <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
-                <Eye className="size-3" />
-                {publication.view_count}
+                <Heart className="size-3" />
+                {publication.like_count}
               </span>
             </div>
           </div>
         </button>
 
-        {!compact && (
-          <div className="px-3 pb-3 space-y-1">
-            <div className="flex items-center gap-1">
-              <LikeButton publicationId={publication.id} initialCount={publication.like_count} size="sm" />
-              <BookmarkButton publicationId={publication.id} initialCount={publication.bookmark_count} size="sm" />
-              {onRemix ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isRemixing) return;
-                    void onRemix();
-                  }}
-                  className="h-8 px-2 rounded-md border text-xs inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={!!isRemixing}
-                >
-                  {isRemixActive ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
-                  {isRemixActive ? t('actions.loading') : t('discover.remix_cta')}
-                </button>
-              ) : null}
-            </div>
-
-            {footerActions ? <div className="pt-1">{footerActions}</div> : null}
-          </div>
-        )}
+        {footerActions && !compact ? <div className="px-2.5 pb-2.5">{footerActions}</div> : null}
       </div>
     </div>
   );
