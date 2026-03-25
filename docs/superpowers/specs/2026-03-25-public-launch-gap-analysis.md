@@ -36,13 +36,27 @@ There is zero notification infrastructure. When someone likes a publication, com
 
 ---
 
-### G3: Editor Share Button is Not Wired
+### G3: Share Flow Works, But ShareDialog Copy Link Is Imprecise
 
-`TopToolbar` has a `Share2` button with an `onShare` prop. `EditorLayout` receives `onShare` but has no handler for it. The publish flow (`src/components/share/ShareDialog.tsx`, `src/components/share/PublishForm.tsx`) exists as a dialog shell but may not be connected to the toolbar.
+**Verified on 2026-03-25 — the publish flow is NOT broken.** The actual share path is:
 
-**Impact:** A creator inside the editor has no UI path to publish their work. The entire creator → discovery loop is blocked at the last mile.
+```
+ChatPanel (line 406: setIsShareOpen(true))
+  → ShareDialog (isShareOpen state)
+    → PublishForm ✅
+```
 
-**Recommendation:** Verify whether `EditorLayout` correctly wires `onShare` to `<ShareDialog>`. If `ShareDialog` exists but is disconnected, this is a small fix. If the publish component is missing entirely, it needs to be built as part of P0 completion.
+This chain is complete and functional. The TopToolbar `Share2` button is **dead code**: `TopToolbar` is never imported by any component, its `onShare` prop is never connected, and the TopToolbar itself is unused.
+
+**Two real issues remain:**
+
+1. **`share_image` button is disabled with `coming_soon`** — `ShareDialog` line 18 has a disabled share-to-image button. Covered by P0 Task 10.
+
+2. **Copy link points to `/app/discover` instead of the specific publication** — `ShareDialog` line 13 copies a generic URL instead of the current publication's detail URL. Minor UX gap.
+
+**Impact:** The core publish loop is intact. The dead TopToolbar code is misleading but not blocking.
+
+**Recommendation:** No action needed for publish connectivity. TopToolbar dead code can be cleaned up or left for future use.
 
 ---
 
@@ -166,13 +180,13 @@ Users have no way to report publications that violate community standards. The o
 
 ---
 
-### G15: Editor TopToolbar Has Incorrect Mobile Offset
+### G15: TopToolbar (Unused) Has Mobile Offset Issues
 
-`TopToolbar` uses `className="mr-[380px]"` on the right section to accommodate the layer panel width. On mobile, where the layer panel is hidden, this pushes toolbar controls far off-screen.
+`TopToolbar` uses `className="mr-[380px]"` on the right section. Note: `TopToolbar` itself is dead code (never imported), so this layout issue is currently non-impactful. However, if the component is activated in future, this offset would break mobile layout.
 
-**Impact:** Broken toolbar layout on mobile in the editor.
+**Impact:** Currently none (dead code). Potential future impact if TopToolbar is activated.
 
-**Recommendation:** Add responsive classes that remove or adjust the right margin on mobile breakpoints.
+**Recommendation:** When TopToolbar is wired in, add responsive classes that remove or adjust the right margin on mobile breakpoints.
 
 ---
 
@@ -182,7 +196,7 @@ Users have no way to report publications that violate community standards. The o
 |---|---|---|
 | G1 | **High** | No per-publication OG/SEO previews |
 | G2 | **High** | No in-app notification system |
-| G3 | **High** | Editor share button not wired |
+| G3 | ~~**High**~~ **Low** | Share flow works; dead TopToolbar code is non-blocking |
 | G4 | **High** | No password reset |
 | G5 | **High** | Post-payment points arrival opaque |
 | G6 | Medium | Landing page no product explanation |
@@ -194,13 +208,13 @@ Users have no way to report publications that violate community standards. The o
 | G12 | Low | Realtime disconnect no user feedback |
 | G13 | Low | External QR code has no fallback |
 | G14 | Low | No user-facing content reporting |
-| G15 | Low | Editor toolbar broken on mobile |
+| G15 | Low | TopToolbar (unused) has mobile offset issues |
 
 ---
 
 ## Recommended Next Steps
 
-1. **Before P0 execution (optional):** G3 (share button wiring) should be verified — if the publish flow is actually disconnected, it is a P0 blocker in disguise and should be folded into Package 3.
+1. **P0 already covers:** The publish flow (G3) is verified working. P0 Task 10 will address the `share_image` disabled button.
 2. **After P0:** G1 (OG/SEO), G4 (password reset), G9 (email resend), G10 (i18n tooltips) are relatively small and high-value — consider adding them to a P1 plan.
 3. **P1:** G2 (notifications), G11 (account deletion), G6 (landing explanation)
 4. **P2:** G7 (creator visibility), G14 (content reporting), G13 (QR fallback)
