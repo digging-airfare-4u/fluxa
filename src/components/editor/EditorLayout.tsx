@@ -298,13 +298,13 @@ export const EditorLayout = forwardRef<EditorLayoutRef, EditorLayoutProps>(funct
   // Zoom in
   const handleZoomIn = useCallback(() => {
     const currentZoom = canvasRef.current?.getZoom() || 1;
-    canvasRef.current?.setZoom(Math.min(currentZoom + 0.25, 5));
+    canvasRef.current?.setZoom(Math.min(currentZoom + 0.45, 5));
   }, []);
 
   // Zoom out
   const handleZoomOut = useCallback(() => {
     const currentZoom = canvasRef.current?.getZoom() || 1;
-    canvasRef.current?.setZoom(Math.max(currentZoom - 0.25, 0.1));
+    canvasRef.current?.setZoom(Math.max(currentZoom - 0.45, 0.1));
   }, []);
 
   const handleNameSubmit = useCallback(() => {
