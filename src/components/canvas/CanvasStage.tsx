@@ -43,8 +43,8 @@ export type { ToolType, LayerInfo, CanvasState, LayerModifiedEvent };
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
-const WHEEL_ZOOM_SENSITIVITY = 0.0032;
-const ZOOM_STEP = 0.45;
+const WHEEL_ZOOM_SENSITIVITY = 0.0038;
+const ZOOM_STEP = 0.5;
 const PAN_SENSITIVITY = 1;
 const IMAGE_TOOLBAR_GAP = 20;
 const IMAGE_TOOLBAR_EDGE_MARGIN = 12;
