@@ -577,28 +577,49 @@ export function useGeneration({
       if (event.type === 'tool_result' && event.tool === 'generate_image' && event.imageUrl) {
         const placeholder = activePlaceholders.shift();
         if (placeholder) {
-          const finalPosition = onGetPlaceholderPosition?.(placeholder.id);
-          const layerId = `agent-img-${Date.now()}`;
-          pendingGenerationTracker.registerLayerId(layerId);
-          const addImageOp: AddImageOp = {
-            type: 'addImage',
-            payload: {
-              id: layerId,
-              src: event.imageUrl,
-              x: finalPosition?.x ?? placeholder.x,
-              y: finalPosition?.y ?? placeholder.y,
-              width: placeholderDimensions.width,
-              height: placeholderDimensions.height,
-              fadeIn: true,
-            },
-          };
-          onOpsGenerated?.([addImageOp]);
-          pendingGenerationTracker.unregisterLayerId(layerId);
-          pendingGenerationTracker.unregisterGeneration(placeholder.x, placeholder.y);
-          saveOp({ documentId, op: { ...addImageOp, payload: { ...addImageOp.payload, fadeIn: undefined } } as Op }).catch((err) => {
-            console.error('[useGeneration] Failed to save agent addImage op:', err);
-          });
-          setTimeout(() => onRemovePlaceholder?.(placeholder.id), 400);
+          const imageUrl = event.imageUrl;
+          void (async () => {
+            const finalPosition = onGetPlaceholderPosition?.(placeholder.id);
+            const layerId = `agent-img-${Date.now()}`;
+            pendingGenerationTracker.registerLayerId(layerId);
+
+            const addImageOp: AddImageOp = {
+              type: 'addImage',
+              payload: {
+                id: layerId,
+                src: imageUrl,
+                x: finalPosition?.x ?? placeholder.x,
+                y: finalPosition?.y ?? placeholder.y,
+                width: placeholderDimensions.width,
+                height: placeholderDimensions.height,
+                fadeIn: true,
+              },
+            };
+
+            try {
+              console.log('[useGeneration] Executing agent addImage op:', addImageOp.payload.id);
+              await onOpsGenerated?.([addImageOp]);
+              console.log('[useGeneration] Agent addImage op executed successfully');
+
+              pendingGenerationTracker.unregisterLayerId(layerId);
+              pendingGenerationTracker.unregisterGeneration(placeholder.x, placeholder.y);
+
+              await saveOp({
+                documentId,
+                op: {
+                  ...addImageOp,
+                  payload: { ...addImageOp.payload, fadeIn: undefined },
+                } as Op,
+              });
+
+              setTimeout(() => onRemovePlaceholder?.(placeholder.id), 400);
+            } catch (error) {
+              console.error('[useGeneration] Failed to execute agent addImage flow:', error);
+              pendingGenerationTracker.unregisterLayerId(layerId);
+              pendingGenerationTracker.unregisterGeneration(placeholder.x, placeholder.y);
+              onRemovePlaceholder?.(placeholder.id);
+            }
+          })();
         }
       }
 
