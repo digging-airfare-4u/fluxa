@@ -158,31 +158,38 @@ export function ProviderConfigForm({
     return Object.keys(errs).length === 0;
   }, [isEditing, apiKey, apiUrl, modelName, displayName]);
 
-  // ---- Test + Save flow ----
-  const handleSave = useCallback(async () => {
-    if (!validate()) return;
-
-    // Step 1: Test connectivity
+  const runConnectivityTest = useCallback(async (): Promise<boolean> => {
     setTestStatus('testing');
     setTestError(null);
     setSaveError(null);
 
-    try {
-      const result = await onTest({
-        provider,
-        apiUrl: apiUrl.trim(),
-        apiKey: apiKey.trim() || undefined,
-        modelName: modelName.trim(),
-        configId,
-      });
+    const result = await onTest({
+      provider,
+      apiUrl: apiUrl.trim(),
+      apiKey: apiKey.trim() || undefined,
+      modelName: modelName.trim(),
+      configId,
+    });
 
-      if (!result.success) {
-        setTestStatus('failed');
-        setTestError(result.error?.message ?? '连接测试失败');
+    if (!result.success) {
+      setTestStatus('failed');
+      setTestError(result.error?.message ?? '连接测试失败');
+      return false;
+    }
+
+    setTestStatus('success');
+    return true;
+  }, [onTest, provider, apiUrl, apiKey, modelName, configId]);
+
+  // ---- Test + Save flow ----
+  const handleSave = useCallback(async () => {
+    if (!validate()) return;
+
+    try {
+      const testPassed = await runConnectivityTest();
+      if (!testPassed) {
         return;
       }
-
-      setTestStatus('success');
 
       // Step 2: Persist config
       setIsSaving(true);
@@ -201,7 +208,19 @@ export function ProviderConfigForm({
     } finally {
       setIsSaving(false);
     }
-  }, [validate, onTest, onSave, apiUrl, apiKey, modelName, displayName, configId, provider, modelType, resolvedModelType]);
+  }, [validate, runConnectivityTest, onSave, apiUrl, apiKey, modelName, displayName, provider, resolvedModelType]);
+
+  const handleTestOnly = useCallback(async () => {
+    if (!validate()) return;
+
+    try {
+      await runConnectivityTest();
+    } catch (err) {
+      console.error('[Settings] ProviderConfigForm test error:', err);
+      setSaveError(err instanceof Error ? err.message : '测试失败');
+      setTestStatus('idle');
+    }
+  }, [validate, runConnectivityTest]);
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
@@ -228,7 +247,8 @@ export function ProviderConfigForm({
     }
   }, [onToggleEnabled]);
 
-  const isSubmitting = testStatus === 'testing' || isSaving;
+  const isTesting = testStatus === 'testing';
+  const isSubmitting = isTesting || isSaving;
 
   return (
     <div className="space-y-4">
@@ -424,9 +444,13 @@ export function ProviderConfigForm({
             <Button variant="outline" size="sm" onClick={onCancel} disabled={isSubmitting}>
               取消
             </Button>
+            <Button variant="outline" size="sm" onClick={handleTestOnly} disabled={isSubmitting || isDeleting}>
+              {isTesting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
+              测试连接
+            </Button>
             <Button size="sm" onClick={handleSave} disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
-              {testStatus === 'testing' ? '测试中...' : isSaving ? '保存中...' : '测试并保存'}
+              {isSaving && <Loader2 className="size-3.5 mr-1 animate-spin" />}
+              {isSaving ? '保存中...' : '测试并保存'}
             </Button>
           </div>
         </CardFooter>

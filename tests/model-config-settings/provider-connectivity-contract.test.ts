@@ -47,4 +47,44 @@ describe('provider connectivity contract', () => {
       }),
     );
   });
+
+  it('falls back to MiniMax native image_generation for image models on the MiniMax host', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ base_resp: { status_code: 0 } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+    const result = await testProviderConnectivityWithTimeout({
+      provider: 'openai-compatible',
+      apiUrl: 'https://api.minimaxi.com/v1',
+      apiKey: 'sk-test',
+      modelName: 'image-01',
+      timeoutMs: 12000,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://api.minimaxi.com/v1/image_generation',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer sk-test',
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({
+          model: 'image-01',
+          prompt: 'test',
+          aspect_ratio: '1:1',
+          n: 1,
+        }),
+      }),
+    );
+  });
 });

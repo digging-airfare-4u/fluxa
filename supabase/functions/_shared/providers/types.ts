@@ -56,6 +56,8 @@ export interface ProviderRequest {
   referenceImageFileUri?: string;
   /** Gemini Files API resource name (for cleanup) */
   referenceImageFileName?: string;
+  /** Original reference image URL when the provider accepts remote file URLs */
+  referenceImageUrl?: string;
 }
 
 // ============================================================================

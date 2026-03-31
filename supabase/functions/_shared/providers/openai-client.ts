@@ -31,7 +31,12 @@ export interface ImageGenerationRequest {
   prompt: string;
   n?: number;
   size?: string;
+  aspect_ratio?: string;
   response_format?: 'url' | 'b64_json';
+  subject_reference?: Array<{
+    type: string;
+    image_file: string;
+  }>;
 }
 
 export interface ImageGenerationResponse {
@@ -120,6 +125,10 @@ export class OpenAICompatibleClient {
   async imageGeneration(
     request: ImageGenerationRequest
   ): Promise<ImageGenerationResponse> {
+    if (this.isMiniMaxHost()) {
+      return this.miniMaxImageGeneration(request);
+    }
+
     const body: Record<string, unknown> = {
       model: request.model,
       prompt: request.prompt,
@@ -153,9 +162,100 @@ export class OpenAICompatibleClient {
     return { data: data.data };
   }
 
+  private async miniMaxImageGeneration(
+    request: ImageGenerationRequest,
+  ): Promise<ImageGenerationResponse> {
+    const body: Record<string, unknown> = {
+      model: request.model,
+      prompt: request.prompt,
+      n: request.n ?? 1,
+    };
+
+    const aspectRatio = request.aspect_ratio ?? this.resolveAspectRatioFromSize(request.size);
+    if (aspectRatio) {
+      body.aspect_ratio = aspectRatio;
+    }
+
+    if (request.response_format !== undefined) {
+      body.response_format = request.response_format === 'b64_json' ? 'base64' : request.response_format;
+    }
+
+    if (request.subject_reference?.length) {
+      body.subject_reference = request.subject_reference;
+    }
+
+    const response = await this.sendRequest(this.resolveMiniMaxImageUrl(), body);
+    const data = await this.parseJSON(response);
+
+    const statusCode = data?.base_resp?.status_code;
+    if (typeof statusCode === 'number' && statusCode !== 0) {
+      throw new ProviderError(
+        data?.base_resp?.status_msg || 'MiniMax image generation failed',
+        'API_ERROR',
+        { rawResponse: JSON.stringify(data) },
+        this.config.providerName,
+        request.model,
+      );
+    }
+
+    if (Array.isArray(data?.data?.image_base64) && data.data.image_base64.length > 0) {
+      return {
+        data: data.data.image_base64.map((item: string) => ({ b64_json: item })),
+      };
+    }
+
+    if (Array.isArray(data?.data?.image_urls) && data.data.image_urls.length > 0) {
+      return {
+        data: data.data.image_urls.map((item: string) => ({ url: item })),
+      };
+    }
+
+    throw new ProviderError(
+      'Invalid MiniMax image response: missing image_urls or image_base64',
+      'INVALID_RESPONSE',
+      { rawResponse: JSON.stringify(data) },
+      this.config.providerName,
+      request.model,
+    );
+  }
+
   // ==========================================================================
   // Private helpers
   // ==========================================================================
+
+  private isMiniMaxHost(): boolean {
+    try {
+      const hostname = new URL(this.config.apiUrl).hostname.toLowerCase();
+      return hostname === 'api.minimaxi.com' || hostname === 'api.minimax.io';
+    } catch {
+      return false;
+    }
+  }
+
+  private resolveMiniMaxImageUrl(): string {
+    const baseUrl = this.config.apiUrl.replace(/\/+$/, '');
+    if (baseUrl.endsWith('/v1')) {
+      return `${baseUrl}/image_generation`;
+    }
+    return `${baseUrl}/v1/image_generation`;
+  }
+
+  private resolveAspectRatioFromSize(size?: string): string | undefined {
+    if (!size) return undefined;
+
+    const match = size.match(/^(\d+)x(\d+)$/);
+    if (!match) return undefined;
+
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return undefined;
+    }
+
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const divisor = gcd(width, height);
+    return `${width / divisor}:${height / divisor}`;
+  }
 
   /**
    * Send a POST request with auth headers.

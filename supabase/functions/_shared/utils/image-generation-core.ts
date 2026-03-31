@@ -220,6 +220,7 @@ export async function executeSharedImageGeneration(
       resolution: args.resolution,
       referenceImageBase64: referenceImage?.base64,
       referenceImageMimeType: referenceImage?.mimeType,
+      referenceImageUrl: args.imageUrl,
     });
   } catch (error) {
     if (error instanceof ProviderError && error.providerCode === 'TEXT_ONLY_RESPONSE') {

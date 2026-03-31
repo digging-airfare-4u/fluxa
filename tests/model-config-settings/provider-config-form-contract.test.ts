@@ -13,4 +13,14 @@ describe('provider config form contract', () => {
     expect(source).toContain("const resolvedModelType = isAnthropicCompatible ? 'chat' : modelType");
     expect(source).toContain('{!isAnthropicCompatible && (');
   });
+
+  it('exposes a standalone connectivity test action without forcing save', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/settings/ProviderConfigForm.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain('const handleTestOnly = useCallback(async () => {');
+    expect(source).toContain('测试连接');
+  });
 });

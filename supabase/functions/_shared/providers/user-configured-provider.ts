@@ -62,6 +62,19 @@ function resolveSize(request: ProviderRequest): string {
   return sizeMap[request.aspectRatio || '1:1'] || '1024x1024';
 }
 
+function buildSubjectReference(request: ProviderRequest): Array<{ type: string; image_file: string }> | undefined {
+  if (!request.referenceImageUrl) {
+    return undefined;
+  }
+
+  return [
+    {
+      type: 'character',
+      image_file: request.referenceImageUrl,
+    },
+  ];
+}
+
 // ============================================================================
 // UserConfiguredImageProvider
 // ============================================================================
@@ -108,7 +121,9 @@ export class UserConfiguredImageProvider implements ImageProvider {
       prompt: request.prompt,
       n: 1,
       size,
+      aspect_ratio: request.aspectRatio,
       response_format: 'b64_json',
+      subject_reference: buildSubjectReference(request),
     });
 
     const imageEntry = response.data[0];

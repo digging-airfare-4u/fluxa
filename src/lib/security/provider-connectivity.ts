@@ -52,10 +52,40 @@ export async function testProviderConnectivity(
   const chatResult = await tryChatCompletion(baseUrl, headers, params.modelName);
   if (chatResult.success) return { success: true };
 
+  if (isMiniMaxHost(baseUrl)) {
+    const miniMaxImageResult = await tryMiniMaxImageGeneration(baseUrl, headers, params.modelName);
+    if (miniMaxImageResult.success) return { success: true };
+
+    return {
+      success: false,
+      message:
+        miniMaxImageResult.message ||
+        chatResult.message ||
+        modelsResult.message ||
+        'Provider connectivity test failed',
+    };
+  }
+
   return {
     success: false,
     message: chatResult.message || modelsResult.message || 'Provider connectivity test failed',
   };
+}
+
+function isMiniMaxHost(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return hostname === 'api.minimaxi.com' || hostname === 'api.minimax.io';
+  } catch {
+    return false;
+  }
+}
+
+function resolveMiniMaxImageUrl(baseUrl: string): string {
+  if (baseUrl.endsWith('/v1')) {
+    return `${baseUrl}/image_generation`;
+  }
+  return `${baseUrl}/v1/image_generation`;
 }
 
 export async function testProviderConnectivityWithTimeout(
@@ -169,6 +199,49 @@ async function tryChatCompletion(
   }
 
   return { success: false, message: 'No compatible endpoint found' };
+}
+
+async function tryMiniMaxImageGeneration(
+  baseUrl: string,
+  headers: Record<string, string>,
+  modelName: string,
+): Promise<ProviderConnectivityResult> {
+  try {
+    const response = await fetch(resolveMiniMaxImageUrl(baseUrl), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelName,
+        prompt: 'test',
+        aspect_ratio: '1:1',
+        n: 1,
+      }),
+      signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
+    });
+
+    if (response.ok) {
+      return { success: true };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return { success: false, message: `Authentication failed (${response.status})` };
+    }
+
+    try {
+      const errorBody = await response.json();
+      const message =
+        errorBody?.base_resp?.status_msg ||
+        errorBody?.error?.message ||
+        errorBody?.message ||
+        `Status ${response.status}`;
+      return { success: false, message: `MiniMax image generation failed: ${message}` };
+    } catch {
+      return { success: false, message: `MiniMax image generation returned ${response.status}` };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return { success: false, message: `Failed to reach MiniMax image endpoint: ${message}` };
+  }
 }
 
 async function tryAnthropicMessages(
