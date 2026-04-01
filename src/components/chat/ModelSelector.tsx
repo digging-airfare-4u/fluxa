@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Check, Image as ImageIcon, MessageSquare, Zap, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -19,13 +19,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { fetchModels } from '@/lib/supabase/queries/models';
-import { fetchUserProviderConfigs } from '@/lib/api/provider-configs';
 import {
   getClassicSelectableModels,
-  resolveSelectableModels,
   type SelectableModel,
 } from '@/lib/models/resolve-selectable-models';
+import { useSelectableModels } from '@/lib/store/useChatStore';
 
 interface ModelSelectorProps {
   selectedModel: string;
@@ -44,24 +42,8 @@ export function ModelSelector({
   showPricing = true,
   tooltipLabel,
 }: ModelSelectorProps) {
-  const [models, setModels] = useState<SelectableModel[]>([]);
+  const models = useSelectableModels();
   const [isOpen, setIsOpen] = useState(false);
-
-  const loadModels = useCallback(async () => {
-    try {
-      const [systemModels, userConfigs] = await Promise.all([
-        fetchModels(),
-        fetchUserProviderConfigs().catch(() => []),
-      ]);
-      setModels(resolveSelectableModels(systemModels, userConfigs));
-    } catch (err) {
-      console.error('[ModelSelector] Failed to load models:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadModels();
-  }, [loadModels]);
 
   const filteredModels = allowedTypes?.length
     ? models.filter((model) => allowedTypes.includes(model.type))
