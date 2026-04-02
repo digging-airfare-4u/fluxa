@@ -17,6 +17,12 @@ const GENERIC_PENDING_CONTENT = new Set([
   '处理中...',
 ]);
 
+export interface AgentStatusMetrics {
+  stepCount: number;
+  toolCount: number;
+  citationCount: number;
+}
+
 function getMessageMetadata(message: Message): MessageMetadata | undefined {
   return message.metadata as MessageMetadata | undefined;
 }
@@ -29,8 +35,16 @@ export function shouldShowGeneratingIndicatorNearInput(
   messages: Message[],
   generationPhase: GenerationPhase,
 ): boolean {
-  return isActivePendingPhase(generationPhase)
-    && messages.some((message) => getMessageMetadata(message)?.isPending === true);
+  if (!isActivePendingPhase(generationPhase)) {
+    return false;
+  }
+
+  const pendingMessages = messages.filter((message) => getMessageMetadata(message)?.isPending === true);
+  if (pendingMessages.length === 0) {
+    return false;
+  }
+
+  return pendingMessages.some((message) => !shouldRenderMessageInTranscript(message, generationPhase));
 }
 
 export function shouldRenderMessageInTranscript(
@@ -71,4 +85,24 @@ export function sanitizeAgentProcessStepTitle(title: string, fallbackTitle: stri
     .trim();
 
   return cleanedTitle || fallbackTitle;
+}
+
+export function formatAgentThinkingDuration(durationMs?: number): string | null {
+  if (typeof durationMs !== 'number' || Number.isNaN(durationMs) || durationMs < 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+export function getAgentStatusMetrics(metadata?: MessageMetadata): AgentStatusMetrics {
+  return {
+    stepCount: metadata?.agentProcess?.steps?.length ?? 0,
+    toolCount: metadata?.agentProcess?.tools?.length ?? 0,
+    citationCount: metadata?.citations?.length ?? 0,
+  };
 }

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Copy, Check, ChevronDown, Search, X, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -25,7 +25,11 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
-import { sanitizeAgentProcessStepTitle } from './chat-pending-ui';
+import {
+  formatAgentThinkingDuration,
+  getAgentStatusMetrics,
+  sanitizeAgentProcessStepTitle,
+} from './chat-pending-ui';
 
 interface ChatMessageProps {
   message: Message;
@@ -50,6 +54,7 @@ export function ChatMessage({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [agentProcessOpen, setAgentProcessOpen] = useState(isPending);
+  const [pendingElapsedMs, setPendingElapsedMs] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
@@ -62,6 +67,7 @@ export function ChatMessage({
   const agentProcess = metadata?.agentProcess;
   const generatedImages = metadata?.generatedImages || [];
   const citations = metadata?.citations || [];
+  const statusMetrics = getAgentStatusMetrics(metadata);
   const processPanelVisible = isAgentMessage && (
     Boolean(metadata?.processSummary) ||
     Boolean(agentProcess?.label) ||
@@ -71,6 +77,24 @@ export function ChatMessage({
     citations.length > 0 ||
     generatedImages.length > 0
   );
+
+  useEffect(() => {
+    if (!isPending || !isAgentMessage) {
+      return;
+    }
+
+    const updateElapsed = () => {
+      const startedAtMs = new Date(message.created_at).getTime();
+      setPendingElapsedMs(Math.max(0, Date.now() - startedAtMs));
+    };
+
+    updateElapsed();
+    const timerId = window.setInterval(updateElapsed, 1000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [isAgentMessage, isPending, message.created_at]);
   
   // Format time for display
   const formatTime = (dateStr: string) => {
@@ -151,7 +175,7 @@ export function ChatMessage({
 
   const getAgentStatusText = (): string => {
     if (!isPending || !isAgentMessage) {
-      return t('message.agent_process');
+      return t('message.status_complete');
     }
 
     const runningTool = agentProcess?.tools?.find((tool) => tool.status === 'running');
@@ -181,6 +205,10 @@ export function ChatMessage({
 
     return t('message.status_thinking');
   };
+
+  const durationText = isAgentMessage
+    ? formatAgentThinkingDuration(isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs)
+    : null;
 
   // User message - simple clean style
   if (!isAI) {
@@ -264,10 +292,12 @@ export function ChatMessage({
   return (
     <div className="chat-message-wrapper mb-5">
       {/* Model indicator */}
-      <div className="chat-model-indicator">
-        <span>{displayModelName}</span>
-        <span 
-          className="text-[10px] text-muted-foreground/60 ml-2 cursor-default"
+      <div className="mb-2 flex items-center gap-2 text-[11px]">
+        <span className="font-medium tracking-[0.02em] text-slate-700 dark:text-white/85">
+          {displayModelName}
+        </span>
+        <span
+          className="cursor-default tabular-nums text-slate-400 dark:text-white/45"
           title={fullDateTime}
         >
           {messageTime}
@@ -276,16 +306,61 @@ export function ChatMessage({
 
       {/* Agent thinking steps */}
       {isAgentMessage && processPanelVisible && (
-        <Collapsible open={agentProcessOpen} onOpenChange={setAgentProcessOpen} className="mt-3">
-          <CollapsibleTrigger className="chat-collapsible-trigger w-full">
-            {isPending ? (
-              <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite]" />
-            ) : (
-              <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+        <Collapsible open={agentProcessOpen} onOpenChange={setAgentProcessOpen} className="mb-3 mt-2">
+          <CollapsibleTrigger
+            aria-label={t('message.agent_process')}
+            className={cn(
+              "flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors",
+              "border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.98))]",
+              "shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(241,245,249,1))]",
+              "dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.035))] dark:hover:border-white/15 dark:hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.045))]",
             )}
-            <span>{isPending ? getAgentStatusText() : t('message.agent_process')}</span>
+          >
+            <span className="relative mt-1 flex size-2.5 shrink-0 items-center justify-center">
+              <span className={cn(
+                "size-2 rounded-full",
+                isPending ? "bg-cyan-500" : "bg-emerald-500",
+              )} />
+              {isPending && (
+                <span className="absolute size-2 rounded-full bg-cyan-400/35 animate-ping" />
+              )}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-[13px] font-medium text-slate-900 dark:text-white/92">
+                  {getAgentStatusText()}
+                </span>
+                {durationText && (
+                  <span className="rounded-full border border-slate-200 bg-white/80 px-1.5 py-0.5 text-[11px] tabular-nums text-slate-500 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/55">
+                    {durationText}
+                  </span>
+                )}
+              </div>
+
+              {(statusMetrics.stepCount > 0 || statusMetrics.toolCount > 0 || statusMetrics.citationCount > 0) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-white/55">
+                  {statusMetrics.stepCount > 0 && (
+                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
+                      {t('message.metrics_steps', { count: statusMetrics.stepCount })}
+                    </span>
+                  )}
+                  {statusMetrics.toolCount > 0 && (
+                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
+                      {t('message.metrics_tools', { count: statusMetrics.toolCount })}
+                    </span>
+                  )}
+                  {statusMetrics.citationCount > 0 && (
+                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
+                      {t('message.metrics_sources', { count: statusMetrics.citationCount })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
             <ChevronDown className={cn(
-              "size-3 ml-auto transition-transform",
+              "mt-0.5 size-3.5 shrink-0 text-slate-400 transition-transform dark:text-white/35",
               agentProcessOpen && "rotate-180"
             )} />
           </CollapsibleTrigger>

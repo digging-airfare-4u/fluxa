@@ -69,7 +69,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   selectedAgentModel = '',
   selectedAgentImageModel = '',
   onModelChange,
-  onAgentModelChange,
   onAgentImageModelChange,
   selectedResolution = '1K',
   onResolutionChange,
@@ -238,29 +237,36 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
       {showMentionMenu && (
         <div
           ref={mentionMenuRef}
-          className="absolute bottom-full left-3 mb-2 w-[300px] max-w-[calc(100%-1.5rem)] bg-white dark:bg-[#1A1028] rounded-lg border border-black/10 dark:border-white/10 shadow-lg overflow-hidden z-50"
+          className={cn(
+            "absolute bottom-full left-3 z-50 mb-2 w-[320px] max-w-[calc(100%-1.5rem)] overflow-hidden rounded-2xl",
+            "border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.98))]",
+            "shadow-[0_16px_40px_rgba(15,23,42,0.12)]",
+            "dark:border-white/10 dark:bg-[#1A1028]"
+          )}
         >
-          <div className="px-2 py-1.5 border-b border-black/5 dark:border-white/5">
-            <span className="text-xs text-[#888]">{t('assets.this_project')}</span>
+          <div className="border-b border-slate-200/80 px-3 py-2 dark:border-white/8">
+            <span className="text-[11px] font-medium tracking-[0.02em] text-slate-500 dark:text-white/55">
+              {t('assets.this_project')}
+            </span>
           </div>
           <div className="max-h-[160px] overflow-y-auto">
             {assetsLoading ? (
-              <div className="p-3 text-center text-xs text-[#888]">{tCommon('actions.loading')}</div>
+              <div className="p-3 text-center text-xs text-slate-400 dark:text-white/45">{tCommon('actions.loading')}</div>
             ) : assets.length === 0 ? (
-              <div className="p-3 text-center text-xs text-[#888]">{t('assets.no_images')}</div>
+              <div className="p-3 text-center text-xs text-slate-400 dark:text-white/45">{t('assets.no_images')}</div>
             ) : (
               assets.map((asset, index) => (
                 <button
                   key={asset.id}
                   onClick={() => handleSelectAsset(asset)}
                   className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 transition-colors",
+                    "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
                     index === selectedIndex 
-                      ? "bg-black/10 dark:bg-white/10" 
-                      : "hover:bg-black/5 dark:hover:bg-white/5"
+                      ? "bg-slate-900/[0.045] dark:bg-white/10" 
+                      : "hover:bg-slate-900/[0.025] dark:hover:bg-white/5"
                   )}
                 >
-                  <div className="relative size-6 rounded overflow-hidden bg-[#f0f0f0] dark:bg-[#333]">
+                  <div className="relative size-7 overflow-hidden rounded-lg bg-slate-100 dark:bg-[#333]">
                     <Image
                       src={asset.url}
                       alt={asset.filename || t('assets.generated_image')}
@@ -270,7 +276,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                       className="object-cover"
                     />
                   </div>
-                  <span className="text-xs text-[#1A1A1A] dark:text-white truncate flex-1 text-left">
+                  <span className="flex-1 truncate text-xs text-slate-700 dark:text-white/88">
                     {asset.metadata?.generation?.prompt || asset.filename || t('assets.generated_image')}
                   </span>
                 </button>
@@ -282,16 +288,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
 
       {/* Input container - white box with border and shadow */}
       <div className={cn(
-        "rounded-xl bg-white dark:bg-[#1A1028]",
-        "border border-black/10 dark:border-white/10",
-        "shadow-sm",
-        "transition-all"
+        "overflow-hidden rounded-[24px]",
+        "border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,247,250,0.98))]",
+        "shadow-[0_10px_30px_rgba(15,23,42,0.06)]",
+        "transition-all dark:border-white/10 dark:bg-[#1A1028]"
       )}>
         {/* Textarea with inline image reference */}
-        <div className="px-4 pt-3 pb-2">
+        <div className="px-4 pt-4 pb-3">
           {/* Referenced image chip */}
           {referencedImage && (
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] px-1.5 py-1">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 px-2 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-white/[0.06]">
               <div className="relative size-5 rounded overflow-hidden flex-shrink-0">
                 <Image
                   src={referencedImage.url}
@@ -302,13 +308,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   className="object-cover"
                 />
               </div>
-              <span className="text-xs text-[#555] dark:text-white/70 max-w-[120px] truncate">
+              <span className="max-w-[120px] truncate text-xs font-medium text-slate-600 dark:text-white/70">
                 {referencedImage.filename}
               </span>
               <button
                 type="button"
                 onClick={() => setReferencedImage(null)}
-                className="text-[#999] hover:text-[#555] dark:text-white/40 dark:hover:text-white/70 transition-colors"
+                className="text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70"
               >
                 <X className="size-3" />
               </button>
@@ -327,8 +333,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
               rows={6}
               className={cn(
                 "flex-1 min-h-[108px] max-h-[160px] resize-none bg-transparent",
-                "text-sm text-[#1A1A1A] dark:text-white leading-[18px]",
-                "placeholder:text-[#999] dark:placeholder:text-[#666]",
+                "text-[14px] leading-6 text-slate-800 dark:text-white",
+                "placeholder:text-slate-400 dark:placeholder:text-[#666]",
                 "focus:outline-none",
                 isBusy && "cursor-not-allowed opacity-60"
               )}
@@ -337,10 +343,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
         </div>
 
         {/* Bottom toolbar - inside the box */}
-        <div className="flex items-center justify-between px-3 pb-2.5">
+        <div className="flex items-center justify-between border-t border-slate-200/80 px-3.5 py-3 dark:border-white/8">
           {/* Left: Mode toggle + Model selector + attachment buttons */}
-          <div className="flex items-center gap-0.5">
-            <div className="inline-flex items-center rounded-full border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] p-[2px] mr-0.5">
+          <div className="flex items-center gap-1.5">
+            <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/85 p-[3px] shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-white/[0.04]">
               {chatModes.map((mode) => {
                 const isActive = mode === chatMode;
                 return (
@@ -351,16 +357,19 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                         onClick={() => onChatModeChange?.(mode)}
                         disabled={isInputDisabled}
                         className={cn(
-                          "rounded-full p-1 transition-colors",
+                          "rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                           isActive
-                            ? "bg-[#1A1A1A] text-white dark:bg-white dark:text-black"
-                            : "text-[#888] hover:text-[#1A1A1A] dark:hover:text-white",
+                            ? "bg-slate-900 text-white shadow-[0_4px_10px_rgba(15,23,42,0.18)] dark:bg-white dark:text-black"
+                            : "text-slate-500 hover:text-slate-700 dark:hover:text-white",
                         )}
                       >
-                        {mode === 'classic'
-                          ? <MessageSquare className="size-3" />
-                          : <Bot className="size-3" />
-                        }
+                        <span className="flex items-center gap-1.5">
+                          {mode === 'classic'
+                            ? <MessageSquare className="size-3" />
+                            : <Bot className="size-3" />
+                          }
+                          <span>{mode === 'classic' ? t('modes.classic') : t('modes.agent')}</span>
+                        </span>
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -424,10 +433,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "size-6 rounded-full border border-black/10 dark:border-white/10",
+                    "size-7 rounded-full border border-slate-200 bg-white/85 text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:bg-white/[0.04]",
                     showMentionMenu 
-                      ? "bg-[#1A1A1A] dark:bg-white text-white dark:text-black" 
-                      : "text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 hover:text-white dark:bg-white dark:text-black" 
+                      : ""
                   )}
                   onClick={() => {
                     if (showMentionMenu) {
@@ -446,7 +455,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
           </div>
 
           {/* Right: Action buttons + send */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1.5">
             {/* <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -497,10 +506,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
                   onClick={handleSend}
                   disabled={!canSend}
                   className={cn(
-                    "size-6 rounded-full ml-0.5 transition-all",
+                    "size-8 rounded-full transition-all shadow-[0_8px_18px_rgba(15,23,42,0.12)]",
                     canSend 
-                      ? "bg-[#1A1A1A] dark:bg-white text-white dark:text-black hover:opacity-90" 
-                      : "bg-[#E0E0E0] dark:bg-[#333] text-[#999] dark:text-[#666]"
+                      ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-black" 
+                      : "bg-slate-200 text-slate-400 shadow-none dark:bg-[#333] dark:text-[#666]"
                   )}
                 >
                   {isLoading || isBusy ? (

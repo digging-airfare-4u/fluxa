@@ -26,16 +26,27 @@ export function GeneratingPlaceholder({ className }: GeneratingPlaceholderProps)
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    if (mins > 0) {
-      return `${mins}分${secs}秒`;
-    }
-    return `${secs}秒`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className={cn('flex items-center justify-between w-full', className)}>
-      <span className="text-sm text-[#888] animate-pulse">{t('status.generating')}</span>
-      <span className="text-xs text-[#aaa]">{formatTime(elapsed)} / 2分钟</span>
+    <div
+      className={cn(
+        'flex items-center justify-between rounded-2xl border border-slate-200/80',
+        'bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,247,250,0.98))]',
+        'px-3.5 py-2.5 text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
+        'dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60',
+        className,
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="relative flex size-2.5 items-center justify-center">
+          <span className="size-2 rounded-full bg-cyan-500" />
+          <span className="absolute size-2 rounded-full bg-cyan-400/35 animate-ping" />
+        </span>
+        <span className="text-sm font-medium text-slate-700 dark:text-white/85">{t('status.generating')}</span>
+      </div>
+      <span className="text-xs tabular-nums text-slate-400 dark:text-white/45">{formatTime(elapsed)}</span>
     </div>
   );
 }
