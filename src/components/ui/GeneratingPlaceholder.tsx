@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 interface GeneratingPlaceholderProps {
@@ -12,6 +13,7 @@ interface GeneratingPlaceholderProps {
  * Shows "生成中" with breathing animation and timer
  */
 export function GeneratingPlaceholder({ className }: GeneratingPlaceholderProps) {
+  const t = useTranslations('chat');
   const [elapsed, setElapsed] = useState(0);
   
   useEffect(() => {
@@ -32,7 +34,7 @@ export function GeneratingPlaceholder({ className }: GeneratingPlaceholderProps)
 
   return (
     <div className={cn('flex items-center justify-between w-full', className)}>
-      <span className="text-sm text-[#888] animate-pulse">生成中...</span>
+      <span className="text-sm text-[#888] animate-pulse">{t('status.generating')}</span>
       <span className="text-xs text-[#aaa]">{formatTime(elapsed)} / 2分钟</span>
     </div>
   );

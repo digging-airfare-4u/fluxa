@@ -233,7 +233,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   const isInputDisabled = disabled || isBusy;
 
   return (
-    <div className="p-3 relative">
+    <div className="relative px-3 pb-3 pt-1">
       {/* Mention menu */}
       {showMentionMenu && (
         <div

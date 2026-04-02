@@ -16,7 +16,7 @@ import { ChatInput, ChatInputRef } from './ChatInput';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { GeneratingPlaceholder, GeneratingPlaceholderBox } from '@/components/ui/GeneratingPlaceholder';
+import { GeneratingPlaceholder } from '@/components/ui/GeneratingPlaceholder';
 import { InlineError } from '@/components/ui/InlineError';
 import { useChat } from '@/hooks/chat';
 import { useGeneration } from '@/hooks/chat';
@@ -33,7 +33,10 @@ import type { Op } from '@/lib/canvas/ops.types';
 import { InsufficientPointsDialog } from '@/components/points/InsufficientPointsDialog';
 import { InvalidProviderConfigDialog } from '@/components/points/InvalidProviderConfigDialog';
 import { ShareDialog } from '@/components/share';
-import type { MessageMetadata } from '@/lib/supabase/queries/messages';
+import {
+  shouldRenderMessageInTranscript,
+  shouldShowGeneratingIndicatorNearInput,
+} from './chat-pending-ui';
 
 export interface ChatPanelRef {
   focusInput: () => void;
@@ -341,7 +344,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     }
   }, [initialPrompt, isLoading, models.length, handleSendMessage]);
 
-  const handleImageClick = useCallback((_imageUrl: string, _layerId?: string) => {
+  const handleImageClick = useCallback(() => {
     // Keep chat image click behavior local to chat preview dialog.
     // Do not auto-locate/camera-jump on canvas.
   }, []);
@@ -369,6 +372,10 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   // Combine errors
   const error = chatError || generationError;
+  const showGeneratingIndicatorNearInput = shouldShowGeneratingIndicatorNearInput(
+    messages,
+    generationPhase,
+  );
 
   if (isCollapsed) {
     return (
@@ -440,19 +447,10 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         ) : (
           <>
             {messages.map((message) => {
-              const metadata = message.metadata as MessageMetadata | undefined;
-              const isPending = metadata?.isPending;
-              const isAgentPending = metadata?.mode === 'agent';
-              
-              if (isPending && !isAgentPending && (generationPhase === 'phase-a' || generationPhase === 'phase-b')) {
-                return (
-                  <div key={message.id} className="mb-4">
-                    <GeneratingPlaceholderBox className="mb-3" />
-                    <GeneratingPlaceholder />
-                  </div>
-                );
+              if (!shouldRenderMessageInTranscript(message, generationPhase)) {
+                return null;
               }
-              
+
               return (
                 <ChatMessage
                   key={message.id}
@@ -478,6 +476,12 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
             }}
             autoDismiss={false}
           />
+        </div>
+      )}
+
+      {showGeneratingIndicatorNearInput && (
+        <div className="px-4 pt-2 pb-0">
+          <GeneratingPlaceholder />
         </div>
       )}
 

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
 import { Copy, Check, ChevronDown, Search, X, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -25,6 +25,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
+import { sanitizeAgentProcessStepTitle } from './chat-pending-ui';
 
 interface ChatMessageProps {
   message: Message;
@@ -42,22 +43,18 @@ export function ChatMessage({
   onAddToCanvas,
 }: ChatMessageProps) {
   const t = useTranslations('chat');
+  const metadata = message.metadata as MessageMetadata | undefined;
+  const isPending = metadata?.isPending === true;
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [thinkingOpen, setThinkingOpen] = useState(false);
+  const [agentProcessOpen, setAgentProcessOpen] = useState(isPending);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
 
-  // Reset size when dialog closes so stale dimensions don't flash on next open
-  useEffect(() => {
-    if (!previewOpen) setPreviewSize(null);
-  }, [previewOpen]);
-  
   const isAI = message.role === 'assistant';
-  const metadata = message.metadata as MessageMetadata | undefined;
-  const isPending = metadata?.isPending === true;
   const isAgentMessage = metadata?.mode === 'agent';
   const displayModelName = isAgentMessage
     ? 'Fluxa Agent'
@@ -102,42 +99,49 @@ export function ChatMessage({
   // Get referenced image from user message
   const referencedImage = metadata?.referencedImage as { id: string; url: string; filename: string } | undefined;
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = () => {
     navigator.clipboard.writeText(message.content).catch(console.error);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [message.content]);
+  };
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = () => {
     if (primaryImageUrl) {
       onImageDownload?.(primaryImageUrl);
       if (!onImageDownload) {
         const link = document.createElement('a');
         link.href = primaryImageUrl;
-        link.download = `generated-${Date.now()}.png`;
+        link.download = `generated-${message.id}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
     }
-  }, [primaryImageUrl, onImageDownload]);
+  };
 
-  const handleAddToCanvas = useCallback(() => {
+  const handleAddToCanvas = () => {
     if (primaryImageUrl) {
       onAddToCanvas?.(primaryImageUrl);
     }
-  }, [primaryImageUrl, onAddToCanvas]);
+  };
 
-  const handleImageClick = useCallback(() => {
+  const handleImageClick = () => {
     console.log('[ChatMessage] handleImageClick called', { primaryImageUrl });
     if (primaryImageUrl) {
       onImageClick?.(primaryImageUrl, layerId);
       setPreviewOpen(true);
     }
-  }, [primaryImageUrl, onImageClick, layerId]);
+  };
+
+  const handlePreviewOpenChange = (open: boolean) => {
+    setPreviewOpen(open);
+    if (!open) {
+      setPreviewSize(null);
+    }
+  };
 
   const cleanAgentContent = (text: string): string => {
-    let cleaned = text
+    const cleaned = text
       .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
       .replace(/(?:^|\n)https?:\/\/\S+(?:\n|$)/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
@@ -270,31 +274,104 @@ export function ChatMessage({
         </span>
       </div>
 
-      {/* Agent thinking steps — always visible */}
+      {/* Agent thinking steps */}
       {isAgentMessage && processPanelVisible && (
-        <div className="my-2 space-y-1">
-          {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
-              <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
-            </div>
-          )}
-          {agentProcess?.steps?.map((step) => {
-            const isDone = !isPending || step.status === 'completed';
-            return (
-              <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                {isDone ? (
-                  <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
-                ) : (
+        <Collapsible open={agentProcessOpen} onOpenChange={setAgentProcessOpen} className="mt-3">
+          <CollapsibleTrigger className="chat-collapsible-trigger w-full">
+            {isPending ? (
+              <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite]" />
+            ) : (
+              <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+            )}
+            <span>{isPending ? getAgentStatusText() : t('message.agent_process')}</span>
+            <ChevronDown className={cn(
+              "size-3 ml-auto transition-transform",
+              agentProcessOpen && "rotate-180"
+            )} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 space-y-2">
+              {agentProcess?.steps && agentProcess.steps.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_steps')}</p>
+                  {agentProcess.steps.map((step) => {
+                    const isDone = !isPending || step.status === 'completed';
+                    const stepTitle = sanitizeAgentProcessStepTitle(
+                      step.title,
+                      t('message.status_processing'),
+                    );
+
+                    return (
+                      <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {isDone ? (
+                          <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+                        ) : (
+                          <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+                        )}
+                        <span className={cn(!isDone && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
+                          {stepTitle}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {agentProcess?.decisions && agentProcess.decisions.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_decisions')}</p>
+                  {agentProcess.decisions.map((decision) => {
+                    const decisionLabel = decision.key === 'needs_search'
+                      ? (decision.value ? t('message.search_required') : t('message.search_not_required'))
+                      : (decision.value ? t('message.image_search_required') : t('message.image_search_not_required'));
+
+                    return (
+                      <p key={decision.key} className="text-xs text-muted-foreground">
+                        {decisionLabel}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
+
+              {agentProcess?.tools && agentProcess.tools.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_tools')}</p>
+                  {agentProcess.tools.map((tool, index) => {
+                    const toolStatus = tool.status === 'completed'
+                      ? t('message.tool_status_completed')
+                      : t('message.tool_status_running');
+                    const toolSummary = tool.resultSummary || tool.inputSummary || tool.tool;
+
+                    return (
+                      <p key={`${tool.tool}-${index}`} className="text-xs text-muted-foreground">
+                        {toolStatus} · {toolSummary}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
+
+              {citations.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.citations')}</p>
+                  {citations.slice(0, 3).map((citation) => (
+                    <p key={citation.url} className="text-xs text-muted-foreground truncate">
+                      {citation.title}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
-                )}
-                <span className={cn(!isDone && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
-                  {step.title}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       {/* Message content */}
@@ -400,7 +477,7 @@ export function ChatMessage({
       )}
 
       {/* Image preview dialog — sized to fit the image */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <Dialog open={previewOpen} onOpenChange={handlePreviewOpenChange}>
         <DialogContent
           showCloseButton={false}
           className="p-0 bg-black/92 border-none overflow-hidden gap-0 rounded-xl"
