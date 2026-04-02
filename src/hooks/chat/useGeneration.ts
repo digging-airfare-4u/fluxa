@@ -559,12 +559,9 @@ export function useGeneration({
 
     const syncPendingMessage = () => {
       const updates: Partial<Message> = {
-        metadata: buildAgentPendingMetadata(pendingState, currentModelName),
+        content: pendingState.content,
+        metadata: buildAgentPendingMetadata(pendingState, currentModelName, pendingMessageId),
       };
-
-      if (pendingState.content) {
-        updates.content = pendingState.content;
-      }
 
       onPendingUpdated(pendingMessageId, updates);
     };
@@ -644,6 +641,8 @@ export function useGeneration({
     }, 150);
 
     try {
+      syncPendingMessage();
+
       const doneEvent = await generateAgentStream(
         {
           projectId,
@@ -675,7 +674,7 @@ export function useGeneration({
 
       onPendingReplaced(
         pendingMessageId,
-        mergeAgentFinalMessage(doneEvent.message, pendingState, currentModelName),
+        mergeAgentFinalMessage(doneEvent.message, pendingState, currentModelName, pendingMessageId),
       );
       completeGeneration();
       onGeneratingChange?.(false);

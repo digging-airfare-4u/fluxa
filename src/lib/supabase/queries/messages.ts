@@ -60,6 +60,8 @@ export interface AgentProcessTimeline {
  * Message metadata structure
  */
 export interface MessageMetadata {
+  /** Stable client-side key used to preserve transient UI state across pending/final replacement */
+  clientKey?: string;
   mode?: MessageMode;
   plan?: string;
   ops?: Op[];

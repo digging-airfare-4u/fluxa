@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialAgentPendingState, mergeAgentFinalMessage, reduceAgentPendingState } from '@/hooks/chat/agent-process';
+import {
+  buildAgentPendingMetadata,
+  createInitialAgentPendingState,
+  mergeAgentFinalMessage,
+  reduceAgentPendingState,
+} from '@/hooks/chat/agent-process';
 import type { AgentSSEEvent } from '@/lib/api';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -105,6 +110,37 @@ describe('agent process state', () => {
       modelName: 'Fluxa Agent',
       processSummary: 'Persisted summary',
       citations: [{ title: 'Source B', url: 'https://example.com/b', domain: 'example.com' }],
+    });
+  });
+
+  it('preserves a stable client key across pending and final agent messages', () => {
+    const state = createInitialAgentPendingState();
+
+    expect(buildAgentPendingMetadata(state, 'Fluxa Agent', 'pending-123')).toMatchObject({
+      isPending: true,
+      mode: 'agent',
+      clientKey: 'pending-123',
+    });
+
+    const message = mergeAgentFinalMessage(
+      {
+        id: 'msg-final',
+        conversation_id: 'conv-1',
+        role: 'assistant',
+        content: 'Final answer',
+        created_at: '2026-03-16T00:00:00.000Z',
+        metadata: { mode: 'agent' },
+      },
+      state,
+      'Fluxa Agent',
+      'pending-123',
+    );
+
+    expect(message.metadata).toMatchObject({
+      mode: 'agent',
+      modelName: 'Fluxa Agent',
+      clientKey: 'pending-123',
+      isPending: false,
     });
   });
 });

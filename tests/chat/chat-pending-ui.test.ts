@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '@/lib/supabase/queries/messages';
 import {
+  buildAgentToolUiParts,
   formatAgentThinkingDuration,
   getAgentStatusMetrics,
+  isMeaningfulAgentProcessStepTitle,
   sanitizeAgentProcessStepTitle,
   shouldRenderMessageInTranscript,
   shouldShowGeneratingIndicatorNearInput,
@@ -20,9 +22,10 @@ function createMessage(overrides: Partial<Message> = {}): Message {
 }
 
 describe('chat pending ui', () => {
-  it('shows the docked generating indicator for pending agent turns too', () => {
+  it('keeps pending agent turns in the transcript instead of duplicating a docked loading indicator', () => {
     const messages: Message[] = [
       createMessage({
+        content: '正在生成...',
         metadata: {
           isPending: true,
           mode: 'agent',
@@ -30,7 +33,7 @@ describe('chat pending ui', () => {
       }),
     ];
 
-    expect(shouldShowGeneratingIndicatorNearInput(messages, 'phase-b')).toBe(true);
+    expect(shouldShowGeneratingIndicatorNearInput(messages, 'phase-b')).toBe(false);
   });
 
   it('hides the docked generating indicator when the pending agent turn is already rendered in the transcript', () => {
@@ -52,7 +55,7 @@ describe('chat pending ui', () => {
     expect(shouldShowGeneratingIndicatorNearInput(messages, 'phase-b')).toBe(false);
   });
 
-  it('hides pending transcript rows when they only contain generic loading text', () => {
+  it('renders pending agent transcript rows even before structured steps arrive', () => {
     expect(
       shouldRenderMessageInTranscript(
         createMessage({
@@ -60,12 +63,11 @@ describe('chat pending ui', () => {
           metadata: {
             isPending: true,
             mode: 'agent',
-            agentProcess: { phase: 'planning', label: 'Planning', steps: [] },
           },
         }),
         'phase-b',
       ),
-    ).toBe(false);
+    ).toBe(true);
 
     expect(
       shouldRenderMessageInTranscript(
@@ -100,6 +102,13 @@ describe('chat pending ui', () => {
     ).toBe('整理结果');
   });
 
+  it('filters out generic internal step titles from user-facing progress', () => {
+    expect(isMeaningfulAgentProcessStepTitle('处理中')).toBe(false);
+    expect(isMeaningfulAgentProcessStepTitle('Processing')).toBe(false);
+    expect(isMeaningfulAgentProcessStepTitle('Executing')).toBe(false);
+    expect(isMeaningfulAgentProcessStepTitle('Search references')).toBe(true);
+  });
+
   it('formats completed agent thinking duration with compact timer text', () => {
     expect(formatAgentThinkingDuration(undefined)).toBeNull();
     expect(formatAgentThinkingDuration(9_000)).toBe('00:09');
@@ -117,7 +126,8 @@ describe('chat pending ui', () => {
           steps: [
             { id: 'step-1', title: 'Search references', status: 'completed' },
             { id: 'step-2', title: 'Draft layout', status: 'completed' },
-            { id: 'step-3', title: 'Polish copy', status: 'completed' },
+            { id: 'step-3', title: '处理中', status: 'completed' },
+            { id: 'step-4', title: 'Polish copy', status: 'completed' },
           ],
           tools: [
             { tool: 'web_search', status: 'completed' },
@@ -132,5 +142,50 @@ describe('chat pending ui', () => {
       toolCount: 2,
       citationCount: 2,
     });
+  });
+
+  it('adapts agent tool activity into structured ui parts', () => {
+    const message = createMessage({
+      metadata: {
+        agentProcess: {
+          tools: [
+            {
+              tool: 'web_search',
+              status: 'running',
+              inputSummary: 'latest ai poster trends',
+            },
+            {
+              tool: 'generate_image',
+              status: 'completed',
+              inputSummary: 'generate a bright hero image',
+              resultSummary: 'Created a wide hero concept',
+              imageUrl: 'https://example.com/hero.png',
+              assetId: 'asset-1',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(buildAgentToolUiParts(message.metadata?.agentProcess?.tools)).toEqual([
+      {
+        id: 'web_search-0',
+        tool: 'web_search',
+        state: 'input-available',
+        inputText: 'latest ai poster trends',
+        outputText: undefined,
+        imageUrl: undefined,
+        assetId: undefined,
+      },
+      {
+        id: 'generate_image-1',
+        tool: 'generate_image',
+        state: 'output-available',
+        inputText: 'generate a bright hero image',
+        outputText: 'Created a wide hero concept',
+        imageUrl: 'https://example.com/hero.png',
+        assetId: 'asset-1',
+      },
+    ]);
   });
 });

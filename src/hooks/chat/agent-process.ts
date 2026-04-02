@@ -260,8 +260,10 @@ export function reduceAgentPendingState(
 export function buildAgentPendingMetadata(
   state: AgentPendingState,
   modelName: string,
+  clientKey?: string,
 ): MessageMetadata {
   return {
+    clientKey,
     isPending: true,
     mode: 'agent',
     modelName,
@@ -277,6 +279,7 @@ export function mergeAgentFinalMessage(
   message: Message,
   state: AgentPendingState,
   modelName: string,
+  clientKey?: string,
 ): Message {
   const metadata = (message.metadata || {}) as MessageMetadata;
   const thinkingDurationMs = Date.now() - state.startedAt;
@@ -289,6 +292,7 @@ export function mergeAgentFinalMessage(
     ...message,
     metadata: {
       ...metadata,
+      clientKey: metadata.clientKey || clientKey,
       isPending: false,
       mode: 'agent',
       modelName: metadata.modelName || modelName,

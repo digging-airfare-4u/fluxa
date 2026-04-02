@@ -1,21 +1,29 @@
 /**
  * ChatMessage Component
- * Redesigned to match reference UI with clean layout, collapsible sections, and quote cards
+ * Renders chat turns with lightweight reasoning summaries, agent process details,
+ * and generated image previews.
  */
 
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Copy, Check, ChevronDown, Search, X, Globe, ImageIcon, CircleDashed, CheckCircle2 } from 'lucide-react';
+import {
+  BrainIcon,
+  Check,
+  CheckCircle2,
+  CircleDashed,
+  Copy,
+  Globe,
+  ImageIcon,
+  Search,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ImageCard } from './ImageCard';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Reasoning, ReasoningContent, ReasoningTrigger } from './Reasoning';
 import {
   Dialog,
   DialogContent,
@@ -26,8 +34,11 @@ import { cn } from '@/lib/utils';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 import {
+  type AgentToolUiPart,
+  buildAgentToolUiParts,
   formatAgentThinkingDuration,
   getAgentStatusMetrics,
+  isMeaningfulAgentProcessStepTitle,
   sanitizeAgentProcessStepTitle,
 } from './chat-pending-ui';
 
@@ -51,9 +62,6 @@ export function ChatMessage({
   const isPending = metadata?.isPending === true;
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [thinkingOpen, setThinkingOpen] = useState(false);
-  const [agentProcessOpen, setAgentProcessOpen] = useState(isPending);
   const [pendingElapsedMs, setPendingElapsedMs] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
@@ -67,12 +75,12 @@ export function ChatMessage({
   const agentProcess = metadata?.agentProcess;
   const generatedImages = metadata?.generatedImages || [];
   const citations = metadata?.citations || [];
+  const agentToolUiParts = buildAgentToolUiParts(agentProcess?.tools);
   const statusMetrics = getAgentStatusMetrics(metadata);
   const processPanelVisible = isAgentMessage && (
     Boolean(metadata?.processSummary) ||
     Boolean(agentProcess?.label) ||
     Boolean(agentProcess?.steps?.length) ||
-    Boolean(agentProcess?.decisions?.length) ||
     Boolean(agentProcess?.tools?.length) ||
     citations.length > 0 ||
     generatedImages.length > 0
@@ -210,6 +218,96 @@ export function ChatMessage({
     ? formatAgentThinkingDuration(isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs)
     : null;
 
+  const formatThoughtSummary = (durationMs?: number): string => {
+    if (typeof durationMs !== 'number' || durationMs <= 0) {
+      return t('message.thought_done');
+    }
+
+    const totalSeconds = Math.ceil(durationMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    if (minutes > 0) {
+      return t('message.thought_for_minutes', { minutes, seconds });
+    }
+
+    return t('message.thought_for_seconds', { seconds });
+  };
+
+  const getToolTitle = (tool: AgentToolUiPart['tool']): string => {
+    switch (tool) {
+      case 'web_search':
+        return t('message.tool_web_search');
+      case 'fetch_url':
+        return t('message.tool_fetch_url');
+      case 'image_search':
+        return t('message.tool_image_search');
+      case 'generate_image':
+        return t('message.tool_generate_image');
+    }
+  };
+
+  const getToolIcon = (tool: AgentToolUiPart['tool']) => {
+    switch (tool) {
+      case 'web_search':
+        return <Globe className="size-3.5" />;
+      case 'fetch_url':
+        return <Search className="size-3.5" />;
+      case 'image_search':
+        return <ImageIcon className="size-3.5" />;
+      case 'generate_image':
+        return <Sparkles className="size-3.5" />;
+    }
+  };
+
+  const getAgentStepTitle = (title: string): string | null => {
+    const cleanedTitle = sanitizeAgentProcessStepTitle(title, '');
+    if (!isMeaningfulAgentProcessStepTitle(cleanedTitle)) {
+      return null;
+    }
+
+    if (/^(understand(?:ing)? request|analy[sz]e request|review request)$/iu.test(cleanedTitle)) {
+      return t('message.step_understand_request');
+    }
+    if (/^(planning|plan response|create plan|draft plan)$/iu.test(cleanedTitle)) {
+      return t('message.step_plan_response');
+    }
+    if (/^(search references|search web|web search|research|gather references)$/iu.test(cleanedTitle)) {
+      return t('message.step_search_references');
+    }
+    if (/^(search images|image search|find visual references|search image references)$/iu.test(cleanedTitle)) {
+      return t('message.step_search_images');
+    }
+    if (/^(verify sources?|verify source|fetch url|source verification)$/iu.test(cleanedTitle)) {
+      return t('message.step_verify_sources');
+    }
+    if (/^(draft layout|draft concept|propose layout|design direction)$/iu.test(cleanedTitle)) {
+      return t('message.step_draft_layout');
+    }
+    if (/^(generate image|create image|image generation)$/iu.test(cleanedTitle)) {
+      return t('message.step_generate_image');
+    }
+    if (/^(respond to user|write answer|draft response|finali[sz]e response|polish copy|summari[sz]e findings|summari[sz]e results?|wrap up)$/iu.test(cleanedTitle)) {
+      return t('message.step_compose_answer');
+    }
+
+    return cleanedTitle;
+  };
+
+  const visibleAgentSteps = (agentProcess?.steps ?? [])
+    .map((step) => {
+      const displayTitle = getAgentStepTitle(step.title);
+      if (!displayTitle) {
+        return null;
+      }
+
+      return {
+        ...step,
+        displayTitle,
+      };
+    })
+    .filter((step): step is NonNullable<typeof step> => step !== null);
+
   // User message - simple clean style
   if (!isAI) {
     return (
@@ -306,85 +404,46 @@ export function ChatMessage({
 
       {/* Agent thinking steps */}
       {isAgentMessage && processPanelVisible && (
-        <Collapsible open={agentProcessOpen} onOpenChange={setAgentProcessOpen} className="mb-3 mt-2">
-          <CollapsibleTrigger
-            aria-label={t('message.agent_process')}
-            className={cn(
-              "flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors",
-              "border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,251,0.98))]",
-              "shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(241,245,249,1))]",
-              "dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.035))] dark:hover:border-white/15 dark:hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.045))]",
-            )}
-          >
-            <span className="relative mt-1 flex size-2.5 shrink-0 items-center justify-center">
-              <span className={cn(
-                "size-2 rounded-full",
-                isPending ? "bg-cyan-500" : "bg-emerald-500",
-              )} />
-              {isPending && (
-                <span className="absolute size-2 rounded-full bg-cyan-400/35 animate-ping" />
-              )}
-            </span>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-[13px] font-medium text-slate-900 dark:text-white/92">
-                  {getAgentStatusText()}
+        <Reasoning className="mb-3 mt-2" isStreaming={isPending} defaultOpen={isPending} durationMs={isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs}>
+          <ReasoningTrigger aria-label={t('message.agent_process')}>
+            <BrainIcon className="size-4 shrink-0" />
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-sm text-slate-600 dark:text-white/68">
+                {isPending ? getAgentStatusText() : formatThoughtSummary(agentProcess?.thinkingDurationMs)}
+              </span>
+              {durationText && (
+                <span className="text-[11px] tabular-nums text-slate-400 dark:text-white/40">
+                  {durationText}
                 </span>
-                {durationText && (
-                  <span className="rounded-full border border-slate-200 bg-white/80 px-1.5 py-0.5 text-[11px] tabular-nums text-slate-500 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/55">
-                    {durationText}
-                  </span>
-                )}
-              </div>
-
+              )}
               {(statusMetrics.stepCount > 0 || statusMetrics.toolCount > 0 || statusMetrics.citationCount > 0) && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-white/55">
-                  {statusMetrics.stepCount > 0 && (
-                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
-                      {t('message.metrics_steps', { count: statusMetrics.stepCount })}
-                    </span>
-                  )}
-                  {statusMetrics.toolCount > 0 && (
-                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
-                      {t('message.metrics_tools', { count: statusMetrics.toolCount })}
-                    </span>
-                  )}
-                  {statusMetrics.citationCount > 0 && (
-                    <span className="rounded-full border border-slate-200/80 bg-white/70 px-2 py-0.5 dark:border-white/8 dark:bg-white/[0.04]">
-                      {t('message.metrics_sources', { count: statusMetrics.citationCount })}
-                    </span>
-                  )}
-                </div>
+                <span className="text-[11px] text-slate-400 dark:text-white/40">
+                  {[
+                    statusMetrics.stepCount > 0 ? t('message.metrics_steps', { count: statusMetrics.stepCount }) : null,
+                    statusMetrics.toolCount > 0 ? t('message.metrics_tools', { count: statusMetrics.toolCount }) : null,
+                    statusMetrics.citationCount > 0 ? t('message.metrics_sources', { count: statusMetrics.citationCount }) : null,
+                  ].filter(Boolean).join(' · ')}
+                </span>
               )}
             </div>
-
-            <ChevronDown className={cn(
-              "mt-0.5 size-3.5 shrink-0 text-slate-400 transition-transform dark:text-white/35",
-              agentProcessOpen && "rotate-180"
-            )} />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-2 space-y-2">
-              {agentProcess?.steps && agentProcess.steps.length > 0 && (
+          </ReasoningTrigger>
+          <ReasoningContent>
+            <div className="space-y-4">
+              {visibleAgentSteps.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_steps')}</p>
-                  {agentProcess.steps.map((step) => {
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_steps')}</p>
+                  {visibleAgentSteps.map((step) => {
                     const isDone = !isPending || step.status === 'completed';
-                    const stepTitle = sanitizeAgentProcessStepTitle(
-                      step.title,
-                      t('message.status_processing'),
-                    );
 
                     return (
-                      <div key={step.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div key={step.id} className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
                         {isDone ? (
-                          <CheckCircle2 className="size-3.5 text-muted-foreground/70" />
+                          <CheckCircle2 className="size-3.5 text-slate-400 dark:text-white/40" />
                         ) : (
-                          <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+                          <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-slate-400 dark:text-white/40" />
                         )}
                         <span className={cn(!isDone && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
-                          {stepTitle}
+                          {step.displayTitle}
                         </span>
                       </div>
                     );
@@ -392,46 +451,43 @@ export function ChatMessage({
                 </div>
               )}
 
-              {agentProcess?.decisions && agentProcess.decisions.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_decisions')}</p>
-                  {agentProcess.decisions.map((decision) => {
-                    const decisionLabel = decision.key === 'needs_search'
-                      ? (decision.value ? t('message.search_required') : t('message.search_not_required'))
-                      : (decision.value ? t('message.image_search_required') : t('message.image_search_not_required'));
-
-                    return (
-                      <p key={decision.key} className="text-xs text-muted-foreground">
-                        {decisionLabel}
-                      </p>
-                    );
-                  })}
-                </div>
-              )}
-
-              {agentProcess?.tools && agentProcess.tools.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.process_tools')}</p>
-                  {agentProcess.tools.map((tool, index) => {
-                    const toolStatus = tool.status === 'completed'
-                      ? t('message.tool_status_completed')
-                      : t('message.tool_status_running');
-                    const toolSummary = tool.resultSummary || tool.inputSummary || tool.tool;
-
-                    return (
-                      <p key={`${tool.tool}-${index}`} className="text-xs text-muted-foreground">
-                        {toolStatus} · {toolSummary}
-                      </p>
-                    );
-                  })}
+              {agentToolUiParts.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_tools')}</p>
+                  <div className="space-y-3">
+                    {agentToolUiParts.map((part) => (
+                      <div key={part.id} className="flex items-start gap-2.5 text-xs">
+                        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/[0.04] dark:text-white/55">
+                          {getToolIcon(part.tool)}
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="font-medium text-slate-700 dark:text-white/78">
+                              {getToolTitle(part.tool)}
+                            </span>
+                            <span className="text-[11px] text-slate-400 dark:text-white/40">
+                              {part.state === 'input-available'
+                                ? t('message.tool_status_running')
+                                : t('message.tool_status_completed')}
+                            </span>
+                          </div>
+                          {(part.outputText || part.imageUrl) && (
+                            <p className="leading-5 text-slate-400 dark:text-white/42">
+                              {part.outputText || t('message.tool_generated_asset')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {citations.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">{t('message.citations')}</p>
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.citations')}</p>
                   {citations.slice(0, 3).map((citation) => (
-                    <p key={citation.url} className="text-xs text-muted-foreground truncate">
+                    <p key={citation.url} className="truncate text-xs text-slate-500 dark:text-white/55">
                       {citation.title}
                     </p>
                   ))}
@@ -439,14 +495,14 @@ export function ChatMessage({
               )}
 
               {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-muted-foreground/70" />
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
+                  <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-slate-400 dark:text-white/40" />
                   <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
                 </div>
               )}
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </ReasoningContent>
+        </Reasoning>
       )}
 
       {/* Message content */}
@@ -456,51 +512,45 @@ export function ChatMessage({
 
       {/* Optional reasoning/thinking summary (classic mode only) */}
       {!isAgentMessage && metadata?.thinking && (
-        <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen} className="mt-3">
-          <CollapsibleTrigger className="chat-collapsible-trigger w-full">
-            <Search className="size-3.5" />
-            <span>{t('message.view_thinking_process')}</span>
-            <ChevronDown className={cn(
-              "size-3 ml-auto transition-transform",
-              thinkingOpen && "rotate-180"
-            )} />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="chat-quote-card">
-              <p className="text-xs text-foreground mb-2 font-medium">{t('message.thinking_details')}</p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                {metadata.thinking}
-              </p>
+        <Reasoning className="mt-3" defaultOpen={false}>
+          <ReasoningTrigger>
+            <BrainIcon className="size-4 shrink-0" />
+            <span className="text-sm text-slate-600 dark:text-white/68">
+              {t('message.thought_done')}
+            </span>
+          </ReasoningTrigger>
+          <ReasoningContent>
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.thinking_details')}</p>
+              <div className="text-sm text-slate-600 dark:text-white/65">
+                <ChatMarkdown content={metadata.thinking} />
+              </div>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </ReasoningContent>
+        </Reasoning>
       )}
 
       {/* Collapsible info section (if there's a plan/process) */}
       {metadata?.plan && (
-        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="mt-3">
-          <CollapsibleTrigger className="chat-collapsible-trigger w-full">
-            <Search className="size-3.5" />
-            <span>{t('message.view_full_report')}</span>
-            <ChevronDown className={cn(
-              "size-3 ml-auto transition-transform",
-              detailsOpen && "rotate-180"
-            )} />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="chat-quote-card">
-              <p className="text-xs text-foreground mb-2 font-medium">{t('message.design_details')}</p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+        <Reasoning className="mt-3" defaultOpen={false}>
+          <ReasoningTrigger>
+            <Search className="size-4 shrink-0" />
+            <span className="text-sm text-slate-600 dark:text-white/68">{t('message.view_full_report')}</span>
+          </ReasoningTrigger>
+          <ReasoningContent>
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.design_details')}</p>
+              <div className="text-sm leading-6 whitespace-pre-wrap text-slate-600 dark:text-white/65">
                 {metadata.plan}
-              </p>
+              </div>
               {metadata.ops && metadata.ops.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  • {t('message.ops_count', { count: metadata.ops.length })}
+                <p className="text-xs text-slate-400 dark:text-white/42">
+                  {t('message.ops_count', { count: metadata.ops.length })}
                 </p>
               )}
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </ReasoningContent>
+        </Reasoning>
       )}
 
       {/* Generated image - no rounded corners, left aligned with max width */}

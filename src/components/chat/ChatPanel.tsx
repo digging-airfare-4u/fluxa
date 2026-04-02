@@ -271,9 +271,23 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         id: pendingMessageId,
         conversation_id: conversationId,
         role: 'assistant',
-        content: t('status.generating'),
+        content: chatMode === 'agent' ? '' : t('status.generating'),
         created_at: new Date().toISOString(),
-        metadata: { isPending: true, modelName: currentModelName, mode: chatMode },
+        metadata: {
+          clientKey: pendingMessageId,
+          isPending: true,
+          modelName: currentModelName,
+          mode: chatMode,
+          agentProcess: chatMode === 'agent'
+            ? {
+                phase: 'planning',
+                label: 'Planning',
+                steps: [],
+                decisions: [],
+                tools: [],
+              }
+            : undefined,
+        },
       });
 
       // Notify canvas about generation start
@@ -453,7 +467,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
               return (
                 <ChatMessage
-                  key={message.id}
+                  key={(message.metadata as { clientKey?: string } | undefined)?.clientKey ?? message.id}
                   message={message}
                   onImageClick={handleImageClick}
                   onAddToCanvas={handleAddToCanvas}

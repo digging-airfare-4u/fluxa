@@ -128,6 +128,10 @@ export interface RunAgentLoopResult {
   terminationReason: 'completed' | 'max_iterations';
 }
 
+const STREAM_FRAME_FALLBACK_CHARS = 48;
+const STREAM_FRAME_LOOKAHEAD_CHARS = 18;
+const STREAM_FRAME_DELAY_MS = 28;
+
 export function bootstrapAgentHistoryFromMessages(
   messages: Array<{ role: string; content: string | null | undefined }>,
 ): AgentHistoryEntry[] {
@@ -158,6 +162,68 @@ export function truncateAgentHistory(
   const truncatedNonSystemEntries = nonSystemEntries.slice(-keepNonSystemCount);
 
   return [...systemEntries, ...truncatedNonSystemEntries];
+}
+
+export function buildProgressiveTextFrames(text: string): string[] {
+  const normalized = text.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  if (normalized.length <= STREAM_FRAME_FALLBACK_CHARS) {
+    for (let index = 0; index < normalized.length; index += 1) {
+      if (/[。！？.!?,，；;：:]/u.test(normalized[index] ?? '') && index + 1 < normalized.length) {
+        return [normalized.slice(0, index + 1), normalized];
+      }
+    }
+  }
+
+  const frames: string[] = [];
+  let cursor = 0;
+
+  while (cursor < normalized.length) {
+    let nextCursor = Math.min(normalized.length, cursor + STREAM_FRAME_FALLBACK_CHARS);
+
+    if (nextCursor < normalized.length) {
+      const lookaheadLimit = Math.min(normalized.length, nextCursor + STREAM_FRAME_LOOKAHEAD_CHARS);
+      let boundary = -1;
+
+      for (let index = nextCursor; index < lookaheadLimit; index += 1) {
+        if (/[。！？.!?,，；;：:\s]/u.test(normalized[index] ?? '')) {
+          boundary = index + 1;
+          break;
+        }
+      }
+
+      if (boundary !== -1) {
+        nextCursor = boundary;
+      }
+    }
+
+    frames.push(normalized.slice(0, nextCursor));
+    cursor = nextCursor;
+  }
+
+  if (frames[frames.length - 1] !== normalized) {
+    frames.push(normalized);
+  }
+
+  return frames.filter((frame, index) => frame.length > 0 && frame !== frames[index - 1]);
+}
+
+async function emitProgressiveText(
+  emitEvent: RunAgentLoopArgs['emitEvent'],
+  text: string,
+): Promise<void> {
+  const frames = buildProgressiveTextFrames(text);
+
+  for (let index = 0; index < frames.length; index += 1) {
+    emitEvent({ type: 'text', content: frames[index] });
+
+    if (index < frames.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, STREAM_FRAME_DELAY_MS));
+    }
+  }
 }
 
 export function appendCurrentUserTurn(
@@ -227,7 +293,7 @@ export async function runAgentLoop(
       if (executionResult.citations && executionResult.citations.length > 0) {
         args.emitEvent({ type: 'citation', citations: executionResult.citations });
       }
-      args.emitEvent({ type: 'text', content: executionResult.text });
+      await emitProgressiveText(args.emitEvent, executionResult.text);
       args.emitEvent({ type: 'step_done', stepId: step.id, summary: executionResult.summary });
 
       return {
@@ -286,7 +352,7 @@ export async function runAgentLoop(
     // the executor from generating additional unwanted images.
     if (executionResult.tool === 'generate_image') {
       const summary = plan.summary || toolResult.summary;
-      args.emitEvent({ type: 'text', content: summary });
+      await emitProgressiveText(args.emitEvent, summary);
 
       return {
         history: workingHistory,

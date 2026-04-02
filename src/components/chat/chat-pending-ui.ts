@@ -4,23 +4,35 @@
  * normalize agent process labels for user-facing display.
  */
 
-import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
+import type { AgentToolActivity, Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 import type { GenerationPhase } from '@/lib/store/useChatStore';
 
 const ACTIVE_PENDING_PHASES: GenerationPhase[] = ['phase-a', 'phase-b'];
-const GENERIC_PENDING_CONTENT = new Set([
-  'Generating...',
-  '正在生成...',
-  'Thinking...',
-  '思考中...',
-  'Processing...',
-  '处理中...',
-]);
+const GENERIC_AGENT_STEP_TITLE_PATTERNS = [
+  /^processing$/iu,
+  /^处理中$/u,
+  /^executing$/iu,
+  /^执行中$/u,
+  /^working(?:\s+on\s+it)?$/iu,
+  /^处理中\.\.\.$/u,
+  /^in\s+progress$/iu,
+  /^pending$/iu,
+];
 
 export interface AgentStatusMetrics {
   stepCount: number;
   toolCount: number;
   citationCount: number;
+}
+
+export interface AgentToolUiPart {
+  id: string;
+  tool: AgentToolActivity['tool'];
+  state: 'input-available' | 'output-available';
+  inputText?: string;
+  outputText?: string;
+  imageUrl?: string;
+  assetId?: string;
 }
 
 function getMessageMetadata(message: Message): MessageMetadata | undefined {
@@ -65,15 +77,7 @@ export function shouldRenderMessageInTranscript(
     return false;
   }
 
-  const content = message.content.trim();
-  const hasMeaningfulContent = content.length > 0 && !GENERIC_PENDING_CONTENT.has(content);
-  const hasStructuredProcess = Boolean(metadata.processSummary)
-    || Boolean(metadata.agentProcess?.steps?.length)
-    || Boolean(metadata.agentProcess?.tools?.length)
-    || Boolean(metadata.generatedImages?.length)
-    || Boolean(metadata.citations?.length);
-
-  return hasMeaningfulContent || hasStructuredProcess;
+  return true;
 }
 
 export function sanitizeAgentProcessStepTitle(title: string, fallbackTitle: string): string {
@@ -85,6 +89,15 @@ export function sanitizeAgentProcessStepTitle(title: string, fallbackTitle: stri
     .trim();
 
   return cleanedTitle || fallbackTitle;
+}
+
+export function isMeaningfulAgentProcessStepTitle(title: string): boolean {
+  const cleanedTitle = sanitizeAgentProcessStepTitle(title, '');
+  if (!cleanedTitle) {
+    return false;
+  }
+
+  return !GENERIC_AGENT_STEP_TITLE_PATTERNS.some((pattern) => pattern.test(cleanedTitle));
 }
 
 export function formatAgentThinkingDuration(durationMs?: number): string | null {
@@ -101,8 +114,22 @@ export function formatAgentThinkingDuration(durationMs?: number): string | null 
 
 export function getAgentStatusMetrics(metadata?: MessageMetadata): AgentStatusMetrics {
   return {
-    stepCount: metadata?.agentProcess?.steps?.length ?? 0,
+    stepCount: (metadata?.agentProcess?.steps ?? []).filter((step) => (
+      isMeaningfulAgentProcessStepTitle(step.title)
+    )).length,
     toolCount: metadata?.agentProcess?.tools?.length ?? 0,
     citationCount: metadata?.citations?.length ?? 0,
   };
+}
+
+export function buildAgentToolUiParts(tools?: AgentToolActivity[]): AgentToolUiPart[] {
+  return (tools ?? []).map((tool, index) => ({
+    id: `${tool.tool}-${index}`,
+    tool: tool.tool,
+    state: tool.status === 'completed' ? 'output-available' : 'input-available',
+    inputText: tool.inputSummary,
+    outputText: tool.resultSummary,
+    imageUrl: tool.imageUrl,
+    assetId: tool.assetId,
+  }));
 }

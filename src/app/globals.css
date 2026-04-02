@@ -742,51 +742,6 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 100%;
 }
 
-/* AI model indicator - diamond bullet style */
-.chat-model-indicator {
-  @apply flex items-center gap-1.5 text-xs text-muted-foreground mb-2 font-medium;
-}
-
-.chat-model-indicator::before {
-  content: '◆';
-  font-size: 8px;
-  color: var(--color-primary);
-}
-
-/* Quote/Reference card style */
-.chat-quote-card {
-  @apply rounded-lg p-3 my-2 text-sm;
-  background: var(--color-muted);
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-primary);
-}
-
-.chat-quote-card ul {
-  @apply space-y-1 pl-4 list-disc text-muted-foreground;
-}
-
-.chat-quote-card li {
-  @apply text-xs;
-}
-
-/* Collapsible section in chat - refined style */
-.chat-collapsible-trigger {
-  @apply flex items-center gap-2 text-xs text-muted-foreground py-2 px-3 cursor-pointer rounded-lg;
-  background: var(--color-muted);
-  border: 1px solid var(--color-border);
-  transition: all 0.15s ease;
-}
-
-.chat-collapsible-trigger:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-primary);
-  background: rgba(124, 58, 237, 0.05);
-}
-
-.chat-collapsible-trigger svg {
-  @apply size-3.5;
-}
-
 .agent-status-glow {
   background: linear-gradient(90deg, var(--color-muted), rgba(124, 58, 237, 0.06), var(--color-muted));
   background-size: 200% 100%;
