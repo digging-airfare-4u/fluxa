@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/hooks';
 
-type AuthMode = 'login' | 'register';
+type AuthMode = 'login' | 'register' | 'forgot';
 
 interface AuthDialogProps {
   open: boolean;
@@ -55,6 +55,32 @@ export function AuthDialog({
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (mode === 'forgot') {
+      if (!email) {
+        setError(t('errors.email_required'));
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        });
+
+        if (error) {
+          setError(error.message);
+          return;
+        }
+
+        setSuccess(t('forgot.success'));
+      } catch {
+        setError(t('errors.generic_error'));
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     if (!email || !password) {
       setError(t('errors.email_required') + ' ' + t('errors.password_required'));
@@ -129,14 +155,14 @@ export function AuthDialog({
     }
   }, [mode, email, password, confirmPassword, inviteCode, router, onOpenChange, redirectTo, t]);
 
-  const toggleMode = useCallback(() => {
-    setMode(mode === 'login' ? 'register' : 'login');
+  const switchMode = useCallback((newMode: AuthMode) => {
+    setMode(newMode);
     setError(null);
     setSuccess(null);
     setPassword('');
     setConfirmPassword('');
     setInviteCode('');
-  }, [mode]);
+  }, []);
 
   const resetForm = useCallback(() => {
     setEmail('');
@@ -163,7 +189,7 @@ export function AuthDialog({
               className="size-12 rounded-xl"
             />
             <DialogTitle className="text-xl font-semibold">
-              {mode === 'login' ? t('login.title') : t('register.title')}
+              {mode === 'login' ? t('login.title') : mode === 'register' ? t('register.title') : t('forgot.title')}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -189,32 +215,48 @@ export function AuthDialog({
           </div>
 
           {/* Password Input */}
-          <div>
-            <label htmlFor="auth-password" className="block text-sm font-medium mb-1.5 text-muted-foreground">
-              {t('login.password_label')}
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                id="auth-password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('login.password_placeholder')}
-                className="pl-10 pr-10 h-10"
-                disabled={isLoading}
-              />
+          {mode !== 'forgot' && (
+            <div>
+              <label htmlFor="auth-password" className="block text-sm font-medium mb-1.5 text-muted-foreground">
+                {t('login.password_label')}
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="auth-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('login.password_placeholder')}
+                  className="pl-10 pr-10 h-10"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Forgot password link (Login only) */}
+          {mode === 'login' && (
+            <div className="flex justify-end -mt-1">
               <Button
                 type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
+                variant="link"
+                onClick={() => switchMode('forgot')}
+                className="p-0 h-auto text-xs text-muted-foreground hover:text-primary"
               >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {t('forgot.link')}
               </Button>
             </div>
-          </div>
+          )}
 
           {/* Confirm Password (Register only) */}
           {mode === 'register' && (
@@ -280,26 +322,91 @@ export function AuthDialog({
             {isLoading ? (
               <>
                 <Loader2 className="size-4 animate-spin mr-2" />
-                {mode === 'login' ? t('login.submitting') : t('register.submitting')}
+                {mode === 'login' ? t('login.submitting') : mode === 'register' ? t('register.submitting') : t('forgot.submitting')}
               </>
             ) : (
-              mode === 'login' ? t('login.submit') : t('register.submit')
+              mode === 'login' ? t('login.submit') : mode === 'register' ? t('register.submit') : t('forgot.submit')
             )}
           </Button>
 
-          {/* Toggle Mode */}
-          <div className="text-center text-sm">
-            <span className="text-muted-foreground">
-              {mode === 'login' ? t('login.no_account') : t('register.has_account')}
-            </span>
+          {/* Divider */}
+          {mode !== 'forgot' && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">{t('login.or_divider')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Google Sign In */}
+          {mode !== 'forgot' && (
             <Button
               type="button"
-              variant="link"
-              onClick={toggleMode}
-              className="ml-1 p-0 h-auto font-medium text-primary"
+              variant="outline"
+              disabled={isLoading}
+              className="w-full h-10"
+              onClick={async () => {
+                setError(null);
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: 'google',
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                  },
+                });
+                if (error) setError(error.message);
+              }}
             >
-              {mode === 'login' ? t('login.register_link') : t('register.login_link')}
+              <svg className="size-4 mr-2" viewBox="0 0 24 24">
+                <path
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  fill="#EA4335"
+                />
+              </svg>
+              {t('login.google_button')}
             </Button>
+          )}
+
+          {/* Toggle Mode */}
+          <div className="text-center text-sm">
+            {mode === 'forgot' ? (
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => switchMode('login')}
+                className="p-0 h-auto font-medium text-primary"
+              >
+                {t('forgot.back_to_login')}
+              </Button>
+            ) : (
+              <>
+                <span className="text-muted-foreground">
+                  {mode === 'login' ? t('login.no_account') : t('register.has_account')}
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+                  className="ml-1 p-0 h-auto font-medium text-primary"
+                >
+                  {mode === 'login' ? t('login.register_link') : t('register.login_link')}
+                </Button>
+              </>
+            )}
           </div>
         </form>
       </DialogContent>
