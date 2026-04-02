@@ -66,7 +66,7 @@ export interface UseGenerationOptions {
 
 export interface GenerationContext {
   content: string;
-  model: string;
+  model?: string;
   imageModel?: string;
   referencedImage?: { id: string; url: string; filename: string };
   pendingMessageId: string;
@@ -176,6 +176,10 @@ export function useGeneration({
 
   const startImageGeneration = useCallback(async (ctx: GenerationContext) => {
     const { content, model, referencedImage, pendingMessageId, onPendingReplaced, onCleanup } = ctx;
+
+    if (!model) {
+      throw new Error('Image generation requires a selected model');
+    }
     
     console.log('[useGeneration] startImageGeneration called', { content, model });
     
@@ -464,6 +468,10 @@ export function useGeneration({
 
   const startOpsGeneration = useCallback(async (ctx: GenerationContext) => {
     const { content, model, pendingMessageId, onPendingReplaced, onCleanup } = ctx;
+
+    if (!model) {
+      throw new Error('Ops generation requires a selected model');
+    }
     
     abortControllerRef.current = new AbortController();
     
@@ -541,7 +549,8 @@ export function useGeneration({
     const currentModelName =
       selectableModels.find((entry) => entry.value === model)?.displayName
       || models.find((entry) => entry.name === model)?.display_name
-      || model;
+      || model
+      || 'Fluxa Agent';
     let pendingState = createInitialAgentPendingState();
 
     const targetResolution = RESOLUTION_PIXELS[selectedResolution] ?? 1024;
