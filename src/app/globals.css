@@ -35,6 +35,9 @@
   --color-canvas-bg: #FAFAFA;
   --color-canvas-grid: rgba(0, 0, 0, 0.05);
   --color-artboard: #FFFFFF;
+  --color-canvas-glow-primary: rgba(124, 58, 237, 0.14);
+  --color-canvas-glow-secondary: rgba(6, 182, 212, 0.12);
+  --color-canvas-vignette: rgba(255, 255, 255, 0.72);
 
   /* Text colors */
   --color-text-primary: #1E293B;
@@ -123,6 +126,9 @@
   /* Canvas */
   --color-canvas-bg: #0D0915;
   --color-canvas-grid: rgba(255, 255, 255, 0.03);
+  --color-canvas-glow-primary: rgba(124, 58, 237, 0.2);
+  --color-canvas-glow-secondary: rgba(6, 182, 212, 0.14);
+  --color-canvas-vignette: rgba(13, 9, 21, 0.72);
 
   /* Text colors */
   --color-text-primary: #F8FAFC;
@@ -874,8 +880,39 @@ h1, h2, h3, h4, h5, h6 {
 /* Canvas container - Clean style without grid */
 .canvas-container {
   @apply flex-1 overflow-hidden relative;
-  background-color: var(--color-canvas-bg);
-  transition: background-color 0.2s ease;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 18% 18%, var(--color-canvas-glow-primary) 0%, transparent 30%),
+    radial-gradient(circle at 82% 14%, var(--color-canvas-glow-secondary) 0%, transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
+    var(--color-canvas-bg);
+  transition: background 0.2s ease;
+}
+
+.canvas-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--color-canvas-grid) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  opacity: 0.85;
+}
+
+.canvas-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 18%),
+    radial-gradient(circle at center, transparent 55%, var(--color-canvas-vignette) 100%);
+  opacity: 0.9;
+}
+
+.canvas-container > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ============================================

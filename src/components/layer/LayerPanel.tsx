@@ -43,6 +43,7 @@ export function LayerPanel({ className }: LayerPanelProps) {
     toggleVisibility,
     toggleLock,
     renameLayer,
+    persistName,
   } = useLayerStore();
 
   // Handle layer selection
@@ -61,9 +62,15 @@ export function LayerPanel({ className }: LayerPanelProps) {
   }, [toggleLock]);
 
   // Handle rename
-  const handleRename = useCallback((layerId: string, name: string) => {
+  const handleRename = useCallback(async (layerId: string, name: string) => {
     renameLayer(layerId, name);
-  }, [renameLayer]);
+
+    try {
+      await persistName(layerId, name);
+    } catch (error) {
+      console.error('[LayerPanel] Failed to persist layer name:', error);
+    }
+  }, [persistName, renameLayer]);
 
   return (
     <div

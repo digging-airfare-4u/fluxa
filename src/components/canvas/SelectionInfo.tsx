@@ -1,39 +1,124 @@
 'use client';
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import { getSelectionDisplayLabel } from '@/lib/canvas/selectionLabel';
 
 export interface SelectionInfoProps {
   type: string;
+  label?: string;
   width: number;
   height: number;
   x: number;
   y: number;
   attachedToImageBorder?: boolean;
   attachedWidth?: number;
+  editable?: boolean;
+  onLabelChange?: (value: string) => void;
 }
-
-const typeLabels: Record<string, string> = {
-  'i-text': '文本',
-  'text': '文本',
-  'textbox': '文本',
-  'image': '图片',
-  'rect': '矩形',
-  'circle': '圆形',
-  'triangle': '三角形',
-  'path': '路径',
-  'group': '组合',
-};
 
 /**
  * Displays selection info above the selected element - Theme aware
  */
 export const SelectionInfo = forwardRef<HTMLDivElement, SelectionInfoProps>(function SelectionInfo(
-  { type, width, height, x, y, attachedToImageBorder = false, attachedWidth },
+  { type, label, width, height, x, y, attachedToImageBorder = false, attachedWidth, editable = false, onLabelChange },
   ref
 ) {
-  const label = typeLabels[type] || type;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const displayLabel = getSelectionDisplayLabel({ type, label });
   const isAttached = attachedToImageBorder && type === 'image';
   const barWidth = attachedWidth ? Math.max(110, attachedWidth) : 110;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftLabel, setDraftLabel] = useState(displayLabel);
+
+  useEffect(() => {
+    setDraftLabel(displayLabel);
+  }, [displayLabel]);
+
+  useEffect(() => {
+    if (!editable && isEditing) {
+      setIsEditing(false);
+      return;
+    }
+
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editable, isEditing]);
+
+  const startEditing = useCallback((event: React.MouseEvent | React.PointerEvent) => {
+    event.stopPropagation();
+    if (!editable) return;
+    setDraftLabel(displayLabel);
+    setIsEditing(true);
+  }, [displayLabel, editable]);
+
+  const handleSubmit = useCallback(() => {
+    const trimmedLabel = draftLabel.trim();
+    if (trimmedLabel && trimmedLabel !== displayLabel) {
+      onLabelChange?.(trimmedLabel);
+    }
+
+    setDraftLabel(trimmedLabel || displayLabel);
+    setIsEditing(false);
+  }, [displayLabel, draftLabel, onLabelChange]);
+
+  const handleCancel = useCallback(() => {
+    setDraftLabel(displayLabel);
+    setIsEditing(false);
+  }, [displayLabel]);
+
+  const renderImageLabel = () => {
+    if (!editable) {
+      return (
+        <span
+          className="truncate font-medium"
+          style={{ color: '#1D4ED8', maxWidth: '64%', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}
+        >
+          {displayLabel}
+        </span>
+      );
+    }
+
+    if (isEditing) {
+      return (
+        <input
+          ref={inputRef}
+          value={draftLabel}
+          onChange={(event) => setDraftLabel(event.target.value)}
+          onBlur={handleSubmit}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              handleSubmit();
+            }
+
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              handleCancel();
+            }
+          }}
+          className="pointer-events-auto h-5 min-w-0 flex-1 rounded-sm border border-[#93C5FD] bg-white/95 px-1.5 text-[9px] font-medium text-[#1D4ED8] outline-none"
+          style={{ maxWidth: '64%', boxShadow: '0 1px 0 rgba(255,255,255,0.45)' }}
+        />
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={startEditing}
+        onPointerDown={(event) => event.stopPropagation()}
+        className="pointer-events-auto truncate text-left font-medium outline-none"
+        style={{ color: '#1D4ED8', maxWidth: '64%', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}
+        title="点击修改图片描述"
+      >
+        {displayLabel}
+      </button>
+    );
+  };
 
   return (
     <div
@@ -67,16 +152,14 @@ export const SelectionInfo = forwardRef<HTMLDivElement, SelectionInfoProps>(func
       >
         {isAttached ? (
           <>
-            <span className="truncate font-medium" style={{ color: '#1D4ED8', maxWidth: '64%', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}>
-              {label}
-            </span>
+            {renderImageLabel()}
             <span className="tabular-nums shrink-0" style={{ color: '#1D4ED8', textShadow: '0 1px 0 rgba(255,255,255,0.45)' }}>
               {Math.round(width)} × {Math.round(height)}
             </span>
           </>
         ) : (
           <>
-            <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{label}</span>
+            <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{displayLabel}</span>
             <span style={{ color: 'var(--color-text-muted)' }}>|</span>
             <span className="tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
               {Math.round(width)} × {Math.round(height)}

@@ -103,12 +103,14 @@ export interface CanvasStageRef {
 
 interface SelectionInfoState {
   type: string;
+  label?: string;
   width: number;
   height: number;
   x: number;
   y: number;
   attachedToImageBorder?: boolean;
   attachedWidth?: number;
+  editable?: boolean;
 }
 
 interface TextToolbarState {
@@ -214,6 +216,48 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         getLayersArray: store.getLayersArray,
       };
     }, []);
+    const renameLayer = useLayerStore((state) => state.renameLayer);
+    const persistName = useLayerStore((state) => state.persistName);
+
+    const getImageLayerName = useCallback((canvasObjectId?: string) => {
+      if (!canvasObjectId) return undefined;
+      const layer = useLayerStore.getState().getLayerByCanvasObjectId(canvasObjectId);
+      return layer?.type === 'image' ? layer.name : undefined;
+    }, []);
+
+    const handleImageDescriptionChange = useCallback(async (value: string) => {
+      const imageObj = selectedImageRef.current as (fabric.FabricImage & { id?: string; name?: string }) | null;
+      const canvasObjectId = imageObj?.id;
+      if (!canvasObjectId) return;
+
+      const layer = useLayerStore.getState().getLayerByCanvasObjectId(canvasObjectId);
+      const nextName = value.trim();
+
+      if (!layer || !nextName || nextName === layer.name) {
+        return;
+      }
+
+      renameLayer(layer.id, nextName);
+      imageObj.name = nextName;
+      setSelectionInfo((prev) => (
+        prev && prev.type === 'image'
+          ? { ...prev, label: nextName, editable: true }
+          : prev
+      ));
+
+      try {
+        await persistName(layer.id, nextName);
+      } catch (error) {
+        console.error('[CanvasStage] Failed to persist image description:', error);
+      }
+    }, [persistName, renameLayer]);
+
+    const cancelPendingSelectionUpdate = useCallback(() => {
+      if (selectionUpdateRafRef.current !== null) {
+        cancelAnimationFrame(selectionUpdateRafRef.current);
+        selectionUpdateRafRef.current = null;
+      }
+    }, []);
 
     // Save state to history
     const saveHistory = useCallback(() => {
@@ -291,11 +335,10 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     ) => {
       if (!containerRef.current || !fabricRef.current) return;
 
-      if (selectionUpdateRafRef.current) {
-        cancelAnimationFrame(selectionUpdateRafRef.current);
-      }
+      cancelPendingSelectionUpdate();
 
       selectionUpdateRafRef.current = requestAnimationFrame(() => {
+        selectionUpdateRafRef.current = null;
         selectionUpdateCountRef.current += 1;
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -354,12 +397,14 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
           setSelectionInfo({
             type: obj.type || 'object',
+            label: getImageLayerName((obj as fabric.FabricObject & { id?: string }).id),
             width: boundingRect.width,
             height: boundingRect.height,
             x: centerX,
             y: screenY,
             attachedToImageBorder: true,
             attachedWidth: Math.max(110, scaledWidth),
+            editable: true,
           });
         }
 
@@ -370,12 +415,14 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         setSelectionInfo({
           type: obj.type || 'object',
+          label: isImage ? getImageLayerName((obj as fabric.FabricObject & { id?: string }).id) : undefined,
           width: boundingRect.width,
           height: boundingRect.height,
           x: centerX,
           y: screenY,
           attachedToImageBorder: isImage,
           attachedWidth: isImage ? Math.max(110, boundingRect.width * vpt[0]) : undefined,
+          editable: isImage,
         });
 
         // Check if selected object is a text type
@@ -462,7 +509,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           setImageToolbarInfo(null);
         }
       });
-    }, [applyImageSelectionAppearance]);
+    }, [applyImageSelectionAppearance, cancelPendingSelectionUpdate, getImageLayerName]);
 
     // Handle text property change
     const handleTextPropertyChange = useCallback((property: keyof TextProperties, value: string | number | boolean) => {
@@ -1508,6 +1555,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         if (active.type === 'image') {
           if (!isDraggingImageRef.current) {
             isDraggingImageRef.current = true;
+            cancelPendingSelectionUpdate();
             setImageToolbarInfo(null);
             setSelectionInfo(null);
           }
@@ -1543,16 +1591,17 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.requestRenderAll();
       };
       window.addEventListener('resize', handleResize);
+      const activeDropPlaceholders = activeDropPlaceholdersRef.current;
 
       return () => {
         window.removeEventListener('resize', handleResize);
         if (selectionUpdateRafRef.current) {
           cancelAnimationFrame(selectionUpdateRafRef.current);
         }
-        for (const placeholderId of activeDropPlaceholdersRef.current) {
+        for (const placeholderId of activeDropPlaceholders) {
           removePlaceholder(placeholderId);
         }
-        activeDropPlaceholdersRef.current.clear();
+        activeDropPlaceholders.clear();
         selectionUpdateCountRef.current = 0;
         movingEventCountRef.current = 0;
         movingLogTimeRef.current = 0;
@@ -1567,7 +1616,7 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
         canvas.dispose();
         fabricRef.current = null;
       };
-    }, [documentId, getLayerStoreActions]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [cancelPendingSelectionUpdate, documentId, getLayerStoreActions]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Subscribe to Layer Store changes
     useEffect(() => {
@@ -1587,6 +1636,26 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
           const prevLayer = prevState.layers.get(id);
           if (prevLayer?.visible !== layer.visible) synchronizerRef.current?.syncVisibility(id);
           if (prevLayer?.locked !== layer.locked) synchronizerRef.current?.syncLockState(id);
+        }
+
+        const activeObject = synchronizerRef.current?.getCanvas().getActiveObject() as (fabric.FabricObject & { id?: string }) | undefined;
+        if (!activeObject?.id || activeObject.type !== 'image') {
+          return;
+        }
+
+        const currentLayer = Array.from(state.layers.values()).find(
+          (layer) => layer.canvasObjectId === activeObject.id
+        );
+        const previousLayer = Array.from(prevState.layers.values()).find(
+          (layer) => layer.canvasObjectId === activeObject.id
+        );
+
+        if (currentLayer?.name !== previousLayer?.name) {
+          setSelectionInfo((prev) => (
+            prev && prev.type === 'image'
+              ? { ...prev, label: currentLayer?.name, editable: true }
+              : prev
+          ));
         }
       });
       return () => unsubscribe();
@@ -2143,7 +2212,11 @@ const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
 
         {selectionInfo && (
           <>
-            <SelectionInfo ref={selectionInfoRef} {...selectionInfo} />
+            <SelectionInfo
+              ref={selectionInfoRef}
+              {...selectionInfo}
+              onLabelChange={handleImageDescriptionChange}
+            />
           </>
         )}
 
