@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import {
   Dialog,
   DialogContent,
@@ -185,7 +186,10 @@ export function AuthDialog({
       onOpenChange(isOpen);
     }}>
       <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-4">
+        <DialogHeader className="relative p-6 pb-4">
+          <div className="absolute left-6 top-6">
+            <LanguageSwitcher />
+          </div>
           <div className="flex flex-col items-center gap-3">
             <Image
               src="/logo.png" 
