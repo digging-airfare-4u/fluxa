@@ -842,8 +842,9 @@ h1, h2, h3, h4, h5, h6 {
 /* Horizontal mode: bottom-center floating bar */
 .editor-toolbar--horizontal {
   @apply w-auto bottom-4 left-1/2 -translate-x-1/2
-         flex-row px-2.5 py-1.5;
-  gap: 8px;
+         flex-row;
+  padding: 5px 8px;
+  gap: 6px;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -867,7 +868,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .editor-toolbar--horizontal .editor-toolbar__divider {
   width: 1px;
-  height: 26px;
+  height: 24px;
   margin-inline: 2px;
 }
 
@@ -889,9 +890,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .editor-toolbar--horizontal .editor-toolbar__button {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
 }
 
 .editor-toolbar__button:hover {

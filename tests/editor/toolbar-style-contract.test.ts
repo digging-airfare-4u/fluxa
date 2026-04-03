@@ -18,7 +18,7 @@ describe('editor toolbar style contract', () => {
     expect(source).toContain('editor-toolbar__button--active');
   });
 
-  it('defines a denser floating toolbar shell and dark active chip styling', () => {
+  it('defines a denser floating toolbar shell and a slightly smaller bottom toolbar', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/app/globals.css'),
       'utf8',
@@ -29,11 +29,12 @@ describe('editor toolbar style contract', () => {
     expect(source).toContain('.editor-toolbar__button {');
     expect(source).toContain('.editor-toolbar__button--active {');
     expect(source).toContain('.editor-toolbar--horizontal .editor-toolbar__group {');
+    expect(source).toContain('.editor-toolbar--horizontal {');
     expect(source).toContain('.editor-toolbar--horizontal .editor-toolbar__button {');
-    expect(source).toContain('gap: 8px;');
-    expect(source).toContain('height: 26px;');
-    expect(source).toContain('width: 42px;');
-    expect(source).toContain('height: 42px;');
+    expect(source).toContain('gap: 6px;');
+    expect(source).toContain('height: 24px;');
+    expect(source).toContain('width: 40px;');
+    expect(source).toContain('height: 40px;');
     expect(source).toContain('box-shadow: 0 12px 28px');
     expect(source).toContain('background: #2f2f2f;');
   });
