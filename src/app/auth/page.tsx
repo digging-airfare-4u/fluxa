@@ -6,8 +6,8 @@
  * Requirements: 13.2 - Translate all alt attributes
  */
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -17,21 +17,29 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/hooks';
+import { storeReferralCodeLocally } from '@/lib/supabase/queries/referral-codes';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
 export default function AuthPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tCommon = useT('common');
+  const refCode = searchParams.get('ref') ?? '';
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(refCode);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Persist referral code to localStorage (survives OAuth redirects)
+  useEffect(() => {
+    if (refCode) storeReferralCodeLocally(refCode);
+  }, [refCode]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +116,10 @@ export default function AuthPage() {
           options: {
             emailRedirectTo: `${window.location.origin}/app`,
             data: normalizedInviteCode
-              ? { pending_invite_code: normalizedInviteCode }
+              ? {
+                  pending_invite_code: normalizedInviteCode,
+                  pending_referral_code: normalizedInviteCode,
+                }
               : undefined,
           },
         });

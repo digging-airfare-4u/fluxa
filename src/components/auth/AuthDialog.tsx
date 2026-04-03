@@ -30,13 +30,16 @@ interface AuthDialogProps {
   onOpenChange: (open: boolean) => void;
   defaultMode?: AuthMode;
   redirectTo?: string;
+  /** Pre-filled referral code from ?ref= URL param */
+  initialReferralCode?: string;
 }
 
-export function AuthDialog({ 
-  open, 
-  onOpenChange, 
+export function AuthDialog({
+  open,
+  onOpenChange,
   defaultMode = 'login',
-  redirectTo = '/app'
+  redirectTo = '/app',
+  initialReferralCode = '',
 }: AuthDialogProps) {
   const router = useRouter();
   const t = useTranslations('auth');
@@ -45,7 +48,7 @@ export function AuthDialog({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(initialReferralCode);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +131,10 @@ export function AuthDialog({
           options: {
             emailRedirectTo: `${window.location.origin}${redirectTo}`,
             data: normalizedInviteCode
-              ? { pending_invite_code: normalizedInviteCode }
+              ? {
+                  pending_invite_code: normalizedInviteCode,
+                  pending_referral_code: normalizedInviteCode,
+                }
               : undefined,
           },
         });
@@ -168,10 +174,11 @@ export function AuthDialog({
     setEmail('');
     setPassword('');
     setConfirmPassword('');
+    setInviteCode(initialReferralCode);
     setError(null);
     setSuccess(null);
     setMode(defaultMode);
-  }, [defaultMode]);
+  }, [defaultMode, initialReferralCode]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
