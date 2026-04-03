@@ -349,7 +349,7 @@ export function ChatMessage({
               />
             </div>
             {/* Hover preview */}
-            <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50">
+            <div className="pointer-events-none absolute right-0 bottom-full z-50 mb-2 hidden w-max group-hover:block">
               <div className="p-1 bg-white dark:bg-[#1A1028] rounded-lg shadow-lg border border-black/10 dark:border-white/10">
                 <Image
                   src={referencedImage.url}

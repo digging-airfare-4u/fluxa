@@ -76,6 +76,13 @@
     "points_required": "当前余额 {current} 点，需要 {required} 点",
     "error_processing": "处理失败，请重试"
   },
+  "project": {
+    "back_home": "返回首页",
+    "incomplete": "项目数据不完整",
+    "load_denied": "无法加载该项目，请检查项目是否存在或您是否有访问权限。",
+    "load_failed": "加载项目失败",
+    "not_found": "项目不存在"
+  },
   "text_toolbar": {
     "align_center": "居中",
     "align_left": "左对齐",

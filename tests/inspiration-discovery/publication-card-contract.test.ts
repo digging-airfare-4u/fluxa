@@ -9,17 +9,23 @@ describe('inspiration-discovery PublicationCard contract', () => {
       'utf8'
     );
 
-    expect(source).toContain('const IMAGE_RATIO_CLASSES');
-    expect(source).toContain('function getImageRatioClass(publicationId: string)');
-    expect(source).toContain('getImageRatioClass(publication.id)');
+    expect(source).toContain("layout?: 'default' | 'compact' | 'discover';");
     expect(source).toContain('onOpenDetail?: (publicationId: string) => void');
     expect(source).toContain('onClick={() => onOpenDetail?.(publication.id)}');
     expect(source).toContain('type="button"');
-    expect(source).toContain('line-clamp-2');
-    expect(source).toContain('publication.display_name');
+    expect(source).toContain("layout === 'discover'");
+    expect(source).toContain('publication.view_count');
     expect(source).toContain('publication.like_count');
-    expect(source).toContain('aria-hidden="true"');
-    expect(source).toContain('aria-label={`${publication.like_count} likes`}');
+    expect(source).toContain('publication.display_name');
+    expect(source).toContain('publication.canvas_width');
+    expect(source).toContain('publication.canvas_height');
+    expect(source).toContain('coverAspectRatio');
+    expect(source).toContain("style={{ aspectRatio: coverAspectRatio }}");
+    expect(source).toContain('formatCompactStat');
+    expect(source).toContain('className="sr-only">{publication.title}</span>');
+    expect(source).toContain('rounded-[22px]');
+    expect(source).toContain('Eye');
+    expect(source).toContain('Heart');
     expect(source).toContain('footerActions');
     expect(source).not.toContain('href={`/app/discover/${publication.id}`}');
     expect(source).not.toContain("router.push(`/app/discover/${publication.id}`)");
@@ -38,7 +44,7 @@ describe('inspiration-discovery PublicationCard contract', () => {
 
     expect(source).toContain('onRemix?:');
     expect(source).toContain('isRemixing?: boolean');
-    expect(source).toContain('disabled={!!isRemixing}');
+    expect(source).toContain('disabled={Boolean(isRemixing)}');
     expect(source).toContain("t('discover.remix_cta')");
     expect(source).toContain("t('actions.loading')");
     expect(discoverPage).toContain('entry: "card"');

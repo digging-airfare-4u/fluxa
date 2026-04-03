@@ -34,6 +34,7 @@ import { useT } from '@/lib/i18n/hooks';
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const t = useT('home');
   const tCommon = useT('common');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,11 +55,11 @@ export default function ProjectsPage() {
       })));
     } catch (err) {
       console.error('Failed to load projects:', err);
-      setError('加载项目失败，请刷新重试');
+      setError(t('errors.load_failed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadProjects();
@@ -76,11 +77,11 @@ export default function ProjectsPage() {
     } catch (err) {
       console.error('Failed to create project:', err);
       newTab?.close();
-      setError('创建项目失败，请重试');
+      setError(t('errors.create_failed'));
     } finally {
       setIsCreating(false);
     }
-  }, []);
+  }, [t]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     try {
@@ -88,9 +89,9 @@ export default function ProjectsPage() {
       setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch (err) {
       console.error('Failed to delete project:', err);
-      setError('删除项目失败，请重试');
+      setError(t('errors.delete_failed'));
     }
-  }, []);
+  }, [t]);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -167,11 +168,11 @@ export default function ProjectsPage() {
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => setProfileOpen(true)}>
               <User className="size-4 mr-2" />
-              个人中心
+              {t('profile.title')}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Settings className="size-4 mr-2" />
-              设置
+              {t('menu.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
@@ -179,7 +180,7 @@ export default function ProjectsPage() {
               className="text-red-500 focus:text-red-500"
             >
               <LogOut className="size-4 mr-2" />
-              退出登录
+              {tCommon('actions.logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -191,10 +192,10 @@ export default function ProjectsPage() {
           {/* Page header */}
           <div className="mb-8">
             <h1 className="text-2xl font-semibold text-[#1A1A1A] dark:text-white">
-              所有项目
+              {t('dashboard.all_projects')}
             </h1>
             <p className="text-[#666] dark:text-[#888] mt-1">
-              共 {projects.length} 个项目
+              {t('dashboard.project_count', { count: projects.length })}
             </p>
           </div>
           

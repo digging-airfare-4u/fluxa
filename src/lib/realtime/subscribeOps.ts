@@ -159,9 +159,12 @@ export function subscribeToOps(
     .subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
         console.log(`[Ops] Subscribed to channel: ${channelName}`);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      } else if (status === 'TIMED_OUT') {
+        console.warn('[Ops] Subscription timed out for channel:', channelName);
+        callbacks.onError?.(new Error('Subscription timed out'));
+      } else if (status === 'CHANNEL_ERROR') {
         console.error(`[Ops] Subscription error:`, err);
-        callbacks.onError?.(new Error(`Subscription failed: ${status}`));
+        callbacks.onError?.(err ?? new Error(`Subscription failed: ${status}`));
       }
     });
 

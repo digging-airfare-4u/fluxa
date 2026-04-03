@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:coverage": "vitest --run --coverage"
+    "test:coverage": "vitest --run --coverage",
+    "import:nanobananas:dry": "node scripts/inspiration/import-nanobananas.mjs --dry-run",
+    "import:nanobananas": "node scripts/inspiration/import-nanobananas.mjs"
   },
   "keywords": [],
   "author": "",

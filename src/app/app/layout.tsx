@@ -11,30 +11,34 @@ import { supabase } from '@/lib/supabase/client';
 import { usePointsStore } from '@/lib/store/usePointsStore';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import {
-  clearPendingInviteCode,
-  shouldClearPendingInviteCode,
-} from '@/lib/supabase/queries/invite-codes';
+  clearLocalReferralCode,
+  clearPendingReferralCode,
+  getLocalReferralCode,
+  shouldClearPendingReferralCode,
+} from '@/lib/supabase/queries/referral-codes';
 
 /**
  * Points Initializer Component
  * Handles fetching points and subscribing to realtime updates
  */
 function PointsInitializer({ userId }: { userId: string }) {
-  const { fetchPoints, subscribeToChanges, isInitialized } = usePointsStore();
+  const { fetchPoints, subscribeToChanges } = usePointsStore();
+  const fetchedPointsUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Fetch points on mount if not initialized
-    if (!isInitialized) {
-      fetchPoints();
-    }
+    if (fetchedPointsUserIdRef.current === userId) return;
 
-    // Subscribe to realtime changes
+    fetchedPointsUserIdRef.current = userId;
+    void fetchPoints();
+  }, [userId, fetchPoints]);
+
+  useEffect(() => {
     const unsubscribe = subscribeToChanges(userId);
 
     return () => {
       unsubscribe();
     };
-  }, [userId, fetchPoints, subscribeToChanges, isInitialized]);
+  }, [userId, subscribeToChanges]);
 
   return null;
 }
@@ -49,7 +53,7 @@ export default function AppLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const resetPointsStore = usePointsStore((state) => state.reset);
-  const autoRedeemAttemptedUserIdRef = useRef<string | null>(null);
+  const autoRedeemReferralAttemptedUserIdRef = useRef<string | null>(null);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -83,7 +87,7 @@ export default function AppLayout({
       } else {
         setIsAuthenticated(false);
         setUserId(null);
-        autoRedeemAttemptedUserIdRef.current = null;
+        autoRedeemReferralAttemptedUserIdRef.current = null;
         // Reset points store on logout
         resetPointsStore();
         router.push('/auth');
@@ -93,37 +97,44 @@ export default function AppLayout({
     return () => subscription.unsubscribe();
   }, [checkAuth, router, resetPointsStore]);
 
+  // Auto-redeem pending referral code (from metadata or localStorage)
   useEffect(() => {
     if (!isAuthenticated || !userId) return;
-    if (autoRedeemAttemptedUserIdRef.current === userId) return;
+    if (autoRedeemReferralAttemptedUserIdRef.current === userId) return;
 
-    autoRedeemAttemptedUserIdRef.current = userId;
+    autoRedeemReferralAttemptedUserIdRef.current = userId;
 
-    const tryAutoRedeem = async () => {
+    const tryAutoRedeemReferral = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const pendingInviteCode = String(session?.user?.user_metadata?.pending_invite_code ?? '').trim();
-        if (!session?.access_token || !pendingInviteCode) return;
+        if (!session?.access_token) return;
 
-        const response = await fetch('/api/invite/redeem', {
+        // Check metadata first, then localStorage (OAuth flow)
+        const metaCode = String(session.user?.user_metadata?.pending_referral_code ?? '').trim();
+        const localCode = getLocalReferralCode()?.trim() ?? '';
+        const referralCode = metaCode || localCode;
+        if (!referralCode) return;
+
+        const response = await fetch('/api/referral/redeem', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ invite_code: pendingInviteCode }),
+          body: JSON.stringify({ referral_code: referralCode }),
         });
 
         const payload = await response.json();
-        if (shouldClearPendingInviteCode(payload)) {
-          await clearPendingInviteCode();
+        if (shouldClearPendingReferralCode(payload)) {
+          if (metaCode) await clearPendingReferralCode();
+          clearLocalReferralCode();
         }
       } catch (err) {
-        console.error('[app/layout] auto invite redeem failed:', err);
+        console.error('[app/layout] auto referral redeem failed:', err);
       }
     };
 
-    void tryAutoRedeem();
+    void tryAutoRedeemReferral();
   }, [isAuthenticated, userId]);
 
   // Loading state

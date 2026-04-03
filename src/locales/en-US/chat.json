@@ -13,6 +13,8 @@
   },
   "empty_state": {
     "description": "Describe your design, and AI will generate an editable canvas for you",
+    "suggestions_hint": "Tap one to fill the input, then refine it if needed.",
+    "suggestions_title": "Start from one of these",
     "title": "Start Designing"
   },
   "input": {
@@ -92,7 +94,62 @@
   "panel": {
     "collapse": "Collapse panel",
     "expand": "Expand chat panel",
+    "resize": "Resize chat panel",
     "title": "Fluxa"
+  },
+  "starter_prompts": {
+    "agent": {
+      "artDirection": {
+        "prompt": "Before generating anything, give me an art direction for a young professional audience, including palette, typography mood, illustration or photo direction, and what visual mistakes to avoid.",
+        "title": "Art direction"
+      },
+      "campaign": {
+        "prompt": "I need a set of campaign assets. First plan a consistent visual system and explain how the hero visual, poster, social cover, and banner should stay aligned.",
+        "title": "Campaign system"
+      },
+      "copy": {
+        "prompt": "Based on the keywords efficient, professional, and trustworthy, draft a poster copy structure with a headline, subheadline, 3 benefit bullets, and CTA copy suggestions.",
+        "title": "Copy ideas"
+      },
+      "directions": {
+        "prompt": "Do not generate yet. Based on the theme AI design workspace, give me 3 distinct visual directions and explain the best use case, palette, and layout focus for each one.",
+        "title": "3 directions"
+      },
+      "layout": {
+        "prompt": "I want to make a product poster. First break down a clean layout structure and explain how the headline area, benefits area, focal visual, and CTA should be arranged.",
+        "title": "Layout breakdown"
+      },
+      "reference": {
+        "prompt": "If I provide a reference image, explain how to extract its composition, color system, and information hierarchy, then turn that into a stronger generation prompt.",
+        "title": "Reference remix"
+      }
+    },
+    "classic": {
+      "ecommerce": {
+        "prompt": "Design an ecommerce hero image that highlights a limited-time offer and core selling points, with a clear product focus and strong information hierarchy.",
+        "title": "Ecommerce hero"
+      },
+      "invitation": {
+        "prompt": "Design an event invitation poster that includes the date, venue, theme, and registration details, with a polished layout and strong visual hierarchy.",
+        "title": "Invitation"
+      },
+      "landing": {
+        "prompt": "Create a landing page hero visual with a headline, supporting subheadline, main visual, and clear CTA, using a modern SaaS style.",
+        "title": "Landing hero"
+      },
+      "poster": {
+        "prompt": "Design a futuristic tech poster for an AI design tool launch, with a bold headline, blue-cyan neon palette, dynamic motion cues, and clearly layered information blocks.",
+        "title": "Tech poster"
+      },
+      "product": {
+        "prompt": "Create a product highlight visual that emphasizes lightweight design, battery life, and premium aesthetics, suitable for a new product launch campaign.",
+        "title": "Product highlights"
+      },
+      "social": {
+        "prompt": "Create a social media cover for a brand campaign, designed for channels like Xiaohongshu or WeChat, with a memorable minimal style, strong brand name, and one sharp tagline.",
+        "title": "Social cover"
+      }
+    }
   },
   "placeholders": [
     "Help me design a tech-style poster...",

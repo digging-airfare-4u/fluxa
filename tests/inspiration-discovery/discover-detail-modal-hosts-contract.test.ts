@@ -24,9 +24,11 @@ describe('discover detail modal host contract', () => {
     expect(homeSource).toContain("import { PublicationDetailDialog } from '@/components/discover';");
     expect(homeSource).toContain('const [activePublicationId, setActivePublicationId] = useState<string | null>(null);');
     expect(homeSource).toContain('const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);');
-    expect(homeSource).toContain('onOpenDetail={(publicationId) => {');
+    expect(homeSource).toContain('const handleOpenPublication = useCallback((publicationId: string) => {');
     expect(homeSource).toContain('setActivePublicationId(publicationId);');
     expect(homeSource).toContain('setIsPublicationDialogOpen(true);');
+    expect(homeSource).toContain('onOpenDetail={handleOpenPublication}');
+    expect(homeSource).toContain('layout="discover"');
     expect(homeSource).toContain('<PublicationDetailDialog');
     expect(homeSource).toContain('open={isPublicationDialogOpen}');
     expect(homeSource).toContain('onOpenChange={setIsPublicationDialogOpen}');
@@ -35,14 +37,16 @@ describe('discover detail modal host contract', () => {
   });
 
   it('mounts the shared publication detail dialog on the discover feed', () => {
-    expect(discoverSource).toContain("import { PublicationDetailDialog } from '@/components/discover';");
+    expect(discoverSource).toContain("import { PublicationCard, PublicationDetailDialog } from '@/components/discover';");
     expect(discoverSource).toContain('const [activePublicationId, setActivePublicationId] = useState<string | null>(null);');
     expect(discoverSource).toContain('const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);');
     expect(discoverSource).toContain('const handleOpenPublication = useCallback((publicationId: string) => {');
     expect(discoverSource).toContain('setActivePublicationId(publicationId);');
     expect(discoverSource).toContain('setIsPublicationDialogOpen(true);');
     expect(discoverSource).toContain('}, []);');
-    expect(discoverSource).toContain('<PublicationCard key={pub.id} publication={pub} onOpenDetail={handleOpenPublication} />');
+    expect(discoverSource).toContain('<PublicationCard');
+    expect(discoverSource).toContain('onOpenDetail={handleOpenPublication}');
+    expect(discoverSource).toContain('layout="discover"');
     expect(discoverSource).toContain('<PublicationDetailDialog');
     expect(discoverSource).toContain('open={isPublicationDialogOpen}');
     expect(discoverSource).toContain('onOpenChange={setIsPublicationDialogOpen}');
@@ -54,16 +58,17 @@ describe('discover detail modal host contract', () => {
     expect(profileSource).toContain("import { PublicationDetailDialog } from '@/components/discover';");
     expect(profileSource).toContain('const [activePublicationId, setActivePublicationId] = useState<string | null>(null);');
     expect(profileSource).toContain('const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);');
-    expect(profileSource).toContain('onOpenDetail={(publicationId) => {');
+    expect(profileSource).toContain('const handleOpenPublication = useCallback((publicationId: string) => {');
     expect(profileSource).toContain('setActivePublicationId(publicationId);');
     expect(profileSource).toContain('setIsPublicationDialogOpen(true);');
+    expect(profileSource).toContain('onOpenDetail={handleOpenPublication}');
+    expect(profileSource).toContain('layout="discover"');
     expect(profileSource).toContain('<PublicationDetailDialog');
     expect(profileSource).toContain('open={isPublicationDialogOpen}');
     expect(profileSource).toContain('onOpenChange={setIsPublicationDialogOpen}');
     expect(profileSource).toContain('publicationId={activePublicationId}');
     expect(profileSource).toContain('onPublicationChange={setActivePublicationId}');
     expect(profileSource).toContain('publication={pub}');
-    expect(profileSource).toContain('onOpenDetail={(publicationId) => {');
   });
 
   it('mounts the shared publication detail dialog on the creator profile page', () => {
@@ -74,7 +79,9 @@ describe('discover detail modal host contract', () => {
     expect(userProfileSource).toContain('setActivePublicationId(publicationId);');
     expect(userProfileSource).toContain('setIsPublicationDialogOpen(true);');
     expect(userProfileSource).toContain('}, []);');
-    expect(userProfileSource).toContain('<PublicationCard key={pub.id} publication={pub} onOpenDetail={handleOpenPublication} />');
+    expect(userProfileSource).toContain('<PublicationCard');
+    expect(userProfileSource).toContain('onOpenDetail={handleOpenPublication}');
+    expect(userProfileSource).toContain('layout="discover"');
     expect(userProfileSource).toContain('<PublicationDetailDialog');
     expect(userProfileSource).toContain('open={isPublicationDialogOpen}');
     expect(userProfileSource).toContain('onOpenChange={setIsPublicationDialogOpen}');

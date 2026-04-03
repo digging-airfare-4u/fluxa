@@ -28,7 +28,7 @@ describe('publication detail dialog contract', () => {
     expect(dialogSource).toContain('onOpenChange(nextOpen);');
     expect(dialogSource).toContain('<Dialog open={open} onOpenChange={handleOpenChange}>');
     expect(dialogSource).toContain('<PublicationDetailContent');
-    expect(contentSource).toContain('max-h-[90vh]');
+    expect(contentSource).toContain('h-[85vh]');
     expect(contentSource).toContain('overflow-y-auto');
   });
 
@@ -47,7 +47,10 @@ describe('publication detail dialog contract', () => {
     expect(contentSource).toContain('setAuthor(null);');
     expect(contentSource).toContain('setRelatedWorks([]);');
     expect(contentSource).toContain('onOpenPublication');
-    expect(contentSource).toContain('<PublicationCard key={item.id} publication={item} onOpenDetail={onOpenPublication} />');
+    expect(contentSource).toContain('<PublicationCard');
+    expect(contentSource).toContain('publication={item}');
+    expect(contentSource).toContain('onOpenDetail={onOpenPublication}');
+    expect(contentSource).toContain('layout="discover"');
   });
 
   it('renders an inline generic error state for load failures without reusing the not found state', () => {

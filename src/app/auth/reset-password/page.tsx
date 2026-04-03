@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n/hooks';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const t = useT('auth');
   const tCommon = useT('common');
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState('');
@@ -50,17 +51,17 @@ export default function ResetPasswordPage() {
     setError(null);
 
     if (!password) {
-      setError('请填写新密码');
+      setError(t('errors.password_required'));
       return;
     }
 
     if (password.length < 6) {
-      setError('密码至少需要 6 个字符');
+      setError(t('errors.password_too_short'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError(t('errors.password_mismatch'));
       return;
     }
 
@@ -70,18 +71,18 @@ export default function ResetPasswordPage() {
       const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
-        setError(error.message);
+        setError(t('errors.generic_error'));
         return;
       }
 
       setSuccess(true);
       setTimeout(() => router.push('/app'), 2000);
     } catch {
-      setError('操作失败，请重试');
+      setError(t('errors.generic_error'));
     } finally {
       setIsLoading(false);
     }
-  }, [password, confirmPassword, router]);
+  }, [password, confirmPassword, router, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative">
@@ -101,10 +102,10 @@ export default function ResetPasswordPage() {
             className="size-16 rounded-2xl mx-auto mb-4"
           />
           <h1 className="text-3xl font-bold text-[#1A1A1A] dark:text-white">
-            重置密码
+            {t('reset.title')}
           </h1>
           <p className="mt-2 text-muted-foreground">
-            请输入你的新密码
+            {t('reset.subtitle')}
           </p>
         </div>
 
@@ -113,26 +114,26 @@ export default function ResetPasswordPage() {
             {success ? (
               <div className="text-center space-y-4">
                 <div className="p-3 rounded-xl text-sm bg-green-500/10 border border-green-500/20 text-green-500">
-                  密码重置成功！正在跳转...
+                  {t('reset.success')}
                 </div>
               </div>
             ) : !ready ? (
               <div className="text-center space-y-4">
                 <Loader2 className="size-6 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">正在验证重置链接...</p>
+                <p className="text-sm text-muted-foreground">{t('reset.validating')}</p>
                 <Button
                   variant="link"
                   onClick={() => router.push('/auth')}
                   className="text-sm text-primary"
                 >
-                  返回登录
+                  {t('reset.back_to_login')}
                 </Button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label htmlFor="new-password" className="block text-sm font-medium mb-2 text-muted-foreground">
-                    新密码
+                    {t('reset.password_label')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -141,7 +142,7 @@ export default function ResetPasswordPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="至少 6 个字符"
+                      placeholder={t('reset.password_placeholder')}
                       className="pl-12 pr-12 h-12"
                       disabled={isLoading}
                     />
@@ -159,7 +160,7 @@ export default function ResetPasswordPage() {
 
                 <div>
                   <label htmlFor="confirm-new-password" className="block text-sm font-medium mb-2 text-muted-foreground">
-                    确认新密码
+                    {t('reset.confirm_password_label')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -168,7 +169,7 @@ export default function ResetPasswordPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="再次输入新密码"
+                      placeholder={t('reset.confirm_password_placeholder')}
                       className="pl-12 h-12"
                       disabled={isLoading}
                     />
@@ -192,10 +193,10 @@ export default function ResetPasswordPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="size-5 animate-spin mr-2" />
-                      提交中...
+                      {t('reset.submitting')}
                     </>
                   ) : (
-                    '重置密码'
+                    t('reset.submit')
                   )}
                 </Button>
               </form>

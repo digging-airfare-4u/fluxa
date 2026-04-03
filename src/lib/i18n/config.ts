@@ -22,6 +22,7 @@ export const namespaces = [
   'home',
   'points',
   'errors',
+  'providerConfig',
 ] as const;
 
 export type Namespace = (typeof namespaces)[number];

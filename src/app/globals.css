@@ -816,54 +816,128 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Base toolbar appearance (shared between vertical and horizontal) */
 .editor-toolbar {
-  @apply fixed rounded-xl flex items-center gap-0.5;
-  background: var(--color-overlay-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-lg);
+  @apply fixed flex items-center rounded-[28px];
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.dark .editor-toolbar {
+  background: rgba(26, 16, 40, 0.86);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
 /* Vertical mode: left sidebar (legacy default) */
 .editor-toolbar--vertical {
-  @apply w-10 h-auto top-1/2 -translate-y-1/2
-         flex-col py-1.5;
+  @apply h-auto top-1/2 -translate-y-1/2
+         flex-col px-2 py-2.5;
   left: 16px;
-  transition: background 0.2s ease, border-color 0.2s ease, left 0.3s ease;
+  gap: 8px;
+  transition: background 0.2s ease, border-color 0.2s ease, left 0.3s ease, box-shadow 0.2s ease;
 }
 
 /* Horizontal mode: bottom-center floating bar */
 .editor-toolbar--horizontal {
-  @apply w-auto h-10 bottom-4 left-1/2 -translate-x-1/2
-         flex-row px-1.5;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  @apply w-auto bottom-4 left-1/2 -translate-x-1/2
+         flex-row px-2.5 py-1.5;
+  gap: 8px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.tool-button {
-  @apply w-7 h-7 rounded-lg
-         flex items-center justify-center
-         transition-all duration-200 cursor-pointer;
-  color: var(--color-text-secondary);
+.editor-toolbar__group {
+  @apply flex items-center;
+  gap: 6px;
 }
 
-.tool-button:hover {
-  background: rgba(124, 58, 237, 0.1);
-  color: var(--color-primary-600);
+.editor-toolbar--vertical .editor-toolbar__group {
+  @apply flex-col;
 }
 
-.dark .tool-button:hover {
-  background: rgba(124, 58, 237, 0.15);
-  color: var(--color-primary-400);
+.editor-toolbar--horizontal .editor-toolbar__group {
+  gap: 6px;
 }
 
-.tool-button.active {
-  background: rgba(124, 58, 237, 0.15);
-  color: var(--color-primary-600);
+.editor-toolbar__divider {
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.1);
 }
 
-.dark .tool-button.active {
-  background: rgba(124, 58, 237, 0.2);
-  color: var(--color-primary-400);
+.editor-toolbar--horizontal .editor-toolbar__divider {
+  width: 1px;
+  height: 26px;
+  margin-inline: 2px;
+}
+
+.editor-toolbar--vertical .editor-toolbar__divider {
+  width: 30px;
+  height: 1px;
+  margin-block: 2px;
+}
+
+.dark .editor-toolbar__divider {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.editor-toolbar__button {
+  @apply relative inline-flex items-center justify-center rounded-[18px] outline-none transition-all duration-200;
+  width: 48px;
+  height: 48px;
+  color: #374151;
+}
+
+.editor-toolbar--horizontal .editor-toolbar__button {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+}
+
+.editor-toolbar__button:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+.editor-toolbar__button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
+}
+
+.editor-toolbar__button--active {
+  background: #2f2f2f;
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18);
+}
+
+.editor-toolbar__button--active:hover {
+  background: #2f2f2f;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.dark .editor-toolbar__button {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.dark .editor-toolbar__button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.dark .editor-toolbar__button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.dark .editor-toolbar__button--active {
+  background: rgba(255, 255, 255, 0.96);
+  color: #111827;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+}
+
+.dark .editor-toolbar__button--active:hover {
+  background: rgba(255, 255, 255, 0.96);
+  color: #111827;
 }
 
 /* Top toolbar */
@@ -881,14 +955,12 @@ h1, h2, h3, h4, h5, h6 {
 .canvas-container {
   @apply flex-1 overflow-hidden relative;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 18% 18%, var(--color-canvas-glow-primary) 0%, transparent 30%),
-    radial-gradient(circle at 82% 14%, var(--color-canvas-glow-secondary) 0%, transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    var(--color-canvas-bg);
+  /* Canvas decorative background is temporarily disabled. */
+  background: var(--color-canvas-bg);
   transition: background 0.2s ease;
 }
 
+/*
 .canvas-container::before {
   content: '';
   position: absolute;
@@ -909,8 +981,9 @@ h1, h2, h3, h4, h5, h6 {
     radial-gradient(circle at center, transparent 55%, var(--color-canvas-vignette) 100%);
   opacity: 0.9;
 }
+*/
 
-.canvas-container > * {
+.canvas-container > canvas {
   position: relative;
   z-index: 1;
 }

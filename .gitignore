@@ -1,5 +1,6 @@
 # Dependencies
 node_modules
+node_modules.broken
 .pnpm-store
 
 # Next.js
@@ -41,6 +42,7 @@ Thumbs.db
 
 # Testing
 coverage
+docs
 
 # Local git worktrees
 .worktrees

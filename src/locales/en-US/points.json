@@ -55,6 +55,67 @@
     "done": "Done",
     "retry": "Retry"
   },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "description": "Best for exploring the product on your own",
+      "button": "Get Started"
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Best for professional designers and creators",
+      "button": "Upgrade to Pro"
+    },
+    "team": {
+      "name": "Team",
+      "description": "Best for team collaboration and businesses",
+      "button": "Contact Sales"
+    }
+  },
+  "plan_actions": {
+    "contact_sales": "Contact Sales",
+    "select": "Select"
+  },
+  "plan_features": {
+    "initial_points": "{count} starter points",
+    "no_watermark_export": "Watermark-free export",
+    "priority_queue": "Priority generation queue",
+    "basic_ai_models": "Basic AI models",
+    "community_support": "Community support",
+    "all_ai_models": "All AI models",
+    "hd_export": "HD export",
+    "priority_support": "Priority support",
+    "team_collaboration": "Team collaboration",
+    "dedicated_support": "Dedicated support",
+    "api_access": "API access"
+  },
+  "profile": {
+    "balance_title": "Points Balance",
+    "team": "Team",
+    "pro": "Pro",
+    "free": "Free",
+    "today_spent": "Spent Today",
+    "unit": "pts"
+  },
+  "rules": {
+    "title": "Model Costs and Points Rules",
+    "subtitle": "Understand how different AI models consume points and how to earn more.",
+    "cost_title": "Points Usage",
+    "not_available": "Not yet available",
+    "export_title": "Export Image",
+    "export_format": "PNG/JPG format",
+    "earn_title": "How to Earn Points",
+    "registration_title": "New User Signup",
+    "registration_desc": "Granted on your first registration",
+    "daily_login_title": "Daily Login",
+    "daily_login_desc": "Your first login each day",
+    "upgrade_title": "Upgrade Membership",
+    "upgrade_desc": "Unlock more starter points",
+    "recommended": "Recommended",
+    "note_valid_forever": "Points never expire",
+    "note_upgrade_benefits": "Upgrade membership to unlock more starter points and exclusive perks",
+    "note_more_coming": "More ways to earn points are coming soon"
+  },
   "transaction": {
     "balance_after": "Balance: {balance}",
     "empty": "No transactions yet",

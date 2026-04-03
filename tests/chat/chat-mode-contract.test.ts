@@ -33,6 +33,15 @@ describe('chat mode contract', () => {
     expect(source).toContain('onPendingUpdated: updateMessage');
   });
 
+  it('forces agent mode when entering the project chat panel', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/chat/ChatPanel.tsx'),
+      'utf8',
+    );
+
+    expect(source).toMatch(/useEffect\(\(\) => \{\s*setChatMode\('agent'\);\s*\}, \[conversationId, setChatMode\]\);/);
+  });
+
   it('does not forward the hidden agent brain selection in agent mode requests', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/chat/ChatPanel.tsx'),

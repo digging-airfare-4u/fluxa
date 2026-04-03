@@ -17,22 +17,21 @@ describe('chat mode store', () => {
     });
   });
 
-  it('defaults to classic mode and persists agent mode changes', async () => {
-    const { useChatStore, CHAT_MODE_STORAGE_KEY } = await import('@/lib/store/useChatStore');
+  it('defaults to agent mode and allows manual mode changes within the session', async () => {
+    const { useChatStore } = await import('@/lib/store/useChatStore');
 
     useChatStore.getState().reset();
-    expect(useChatStore.getState().chatMode).toBe('classic');
-
-    useChatStore.getState().setChatMode('agent');
-
     expect(useChatStore.getState().chatMode).toBe('agent');
-    expect(window.localStorage.getItem(CHAT_MODE_STORAGE_KEY)).toBe('agent');
+
+    useChatStore.getState().setChatMode('classic');
+
+    expect(useChatStore.getState().chatMode).toBe('classic');
   });
 
-  it('restores chat mode from persisted storage during reset', async () => {
-    const { CHAT_MODE_STORAGE_KEY, useChatStore } = await import('@/lib/store/useChatStore');
+  it('resets back to agent mode after switching to classic', async () => {
+    const { useChatStore } = await import('@/lib/store/useChatStore');
 
-    window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, 'agent');
+    useChatStore.getState().setChatMode('classic');
     useChatStore.getState().reset();
 
     expect(useChatStore.getState().chatMode).toBe('agent');

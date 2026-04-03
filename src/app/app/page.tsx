@@ -4,15 +4,15 @@
  * Home Page - Fluxa homepage (Lovart style)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { useT } from '@/lib/i18n/hooks';
 import { 
   Plus, Home, FolderOpen, Compass, User, Info, Settings,
-  Image as ImageIcon, Star, PenTool, ShoppingBag, Video,
-  FileText, ShieldCheck
+  Image as ImageIcon, Star, PenTool, ShoppingBag,
+  FileText, Loader2, ShieldCheck
 } from 'lucide-react';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import { HomeInput } from '@/components/home/HomeInput';
@@ -26,12 +26,19 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Skeleton } from '@/components/ui/skeleton';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { PublicationDetailDialog } from '@/components/discover';
+import { ResponsiveMasonry } from '@/components/discover/ResponsiveMasonry';
 import {
   fetchRecentProjectsFromOps,
   createProject,
   deleteProject
 } from '@/lib/supabase/queries/projects';
-import { fetchGalleryPublications, type GalleryPublication } from '@/lib/supabase/queries/publications';
+import {
+  attachPublicationCanvasDimensions,
+  fetchCategories,
+  fetchGalleryPublications,
+  type Category,
+  type GalleryPublication,
+} from '@/lib/supabase/queries/publications';
 import { cn } from '@/lib/utils';
 import { isModelConfigEnabled as checkModelConfigEnabled } from '@/lib/observability/feature-flags';
 
@@ -40,10 +47,10 @@ const QUICK_TAGS = [
   { id: 'branding', label: 'Branding', icon: Star },
   { id: 'illustration', label: 'Illustration', icon: PenTool },
   { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag },
-  { id: 'video', label: 'Video', icon: Video },
 ];
 
-
+const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-[24rem]', 'h-[16rem]', 'h-[22rem]', 'h-[28rem]'] as const;
+const HOME_INSPIRATION_PAGE_SIZE = 12;
 
 export default function HomePage() {
   const router = useRouter();
@@ -58,10 +65,14 @@ export default function HomePage() {
   const [settingsOpen, setSettingsOpen] = useState(searchParams.get('settings') === 'true');
   const [isModelConfigEnabled, setIsModelConfigEnabled] = useState(false);
   const [inspirationItems, setInspirationItems] = useState<GalleryPublication[]>([]);
+  const [inspirationCategories, setInspirationCategories] = useState<Category[]>([]);
   const [isInspirationLoading, setIsInspirationLoading] = useState(true);
   const [inspirationError, setInspirationError] = useState(false);
+  const [hasMoreInspiration, setHasMoreInspiration] = useState(true);
+  const [isFetchingMoreInspiration, setIsFetchingMoreInspiration] = useState(false);
   const [activePublicationId, setActivePublicationId] = useState<string | null>(null);
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
+  const inspirationSentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -90,21 +101,48 @@ export default function HomePage() {
     }
   }, [t]);
 
-  const loadInspiration = useCallback(async () => {
+  const loadInspiration = useCallback(async (
+    append = false,
+    cursor?: { publishedAt: string; id: string },
+  ) => {
     try {
-      setIsInspirationLoading(true);
-      setInspirationError(false);
-      const publications = await fetchGalleryPublications({
-        sortBy: 'latest',
-        limit: 6,
-      });
-      setInspirationItems(publications);
+      if (append) {
+        setIsFetchingMoreInspiration(true);
+      } else {
+        setIsInspirationLoading(true);
+        setInspirationError(false);
+      }
+
+      const [publications, categories] = await Promise.all([
+        fetchGalleryPublications({
+          sortBy: 'latest',
+          cursorPublishedAt: cursor?.publishedAt,
+          cursorId: cursor?.id,
+          limit: HOME_INSPIRATION_PAGE_SIZE,
+        }),
+        append ? Promise.resolve(null) : fetchCategories(),
+      ]);
+
+      const publicationsWithDimensions = await attachPublicationCanvasDimensions(publications);
+
+      setInspirationItems((previous) => append ? [...previous, ...publicationsWithDimensions] : publicationsWithDimensions);
+      setHasMoreInspiration(publications.length === HOME_INSPIRATION_PAGE_SIZE);
+
+      if (categories) {
+        setInspirationCategories(categories.slice(0, 8));
+      }
     } catch (err) {
       console.error('Failed to load inspiration feed:', err);
-      setInspirationError(true);
-      setInspirationItems([]);
+      if (append) {
+        setHasMoreInspiration(false);
+      } else {
+        setInspirationError(true);
+        setInspirationItems([]);
+        setInspirationCategories([]);
+      }
     } finally {
       setIsInspirationLoading(false);
+      setIsFetchingMoreInspiration(false);
     }
   }, []);
 
@@ -115,6 +153,37 @@ export default function HomePage() {
   useEffect(() => {
     void loadInspiration();
   }, [loadInspiration]);
+
+  const loadMoreInspiration = useCallback(() => {
+    if (isFetchingMoreInspiration || !hasMoreInspiration || inspirationItems.length === 0) return;
+
+    const lastPublication = inspirationItems[inspirationItems.length - 1];
+    void loadInspiration(true, {
+      publishedAt: lastPublication.published_at,
+      id: lastPublication.id,
+    });
+  }, [hasMoreInspiration, inspirationItems, isFetchingMoreInspiration, loadInspiration]);
+
+  useEffect(() => {
+    if (isInspirationLoading || !hasMoreInspiration) return;
+
+    const sentinel = inspirationSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreInspiration();
+        }
+      },
+      { rootMargin: '240px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreInspiration, isInspirationLoading, loadMoreInspiration]);
+
+  const shouldShowInspirationPagination = inspirationItems.length > 0 && (hasMoreInspiration || isFetchingMoreInspiration);
 
   const handlePromptSubmit = useCallback(async (prompt: string) => {
     // Open tab synchronously so the browser trusts the user gesture
@@ -169,13 +238,29 @@ export default function HomePage() {
     handlePromptSubmit(prompt);
   }, [handlePromptSubmit, t]);
 
+  const handleOpenPublication = useCallback((publicationId: string) => {
+    setActivePublicationId(publicationId);
+    setIsPublicationDialogOpen(true);
+  }, []);
+
+  const handleOpenDiscover = useCallback((categorySlug?: string) => {
+    if (!categorySlug) {
+      router.push('/app/discover');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set('category', categorySlug);
+    router.push(`/app/discover?${params.toString()}`);
+  }, [router]);
+
   // Show fullscreen loading on initial load
   if (isLoading) {
     return <FullscreenLoading />;
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
+    <div className="min-h-screen bg-white dark:bg-[#0F0A1F]">
       {/* Top left logo */}
       <div className="fixed top-4 left-4 z-50">
         <Image
@@ -188,57 +273,57 @@ export default function HomePage() {
       </div>
 
       {/* Left floating nav */}
-      <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2">
+      <div className="fixed left-4 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
         {/* New project button - highlighted */}
         <button
           onClick={handleNewProject}
           disabled={isCreating}
           className={cn(
-            "size-11 rounded-full flex items-center justify-center transition-all",
+            "flex size-14 items-center justify-center rounded-full transition-all",
             "bg-[#1A1A1A] dark:bg-white text-white dark:text-black",
             "hover:scale-105 shadow-lg"
           )}
         >
-          <Plus className="size-5" />
+          <Plus className="size-6" />
         </button>
 
         {/* Nav buttons */}
-        <div className="flex flex-col gap-1 p-1.5 rounded-2xl bg-white dark:bg-[#1A1028] shadow-md border border-black/5 dark:border-white/10">
-          <button className="size-9 rounded-xl flex items-center justify-center text-[#1A1A1A] dark:text-white bg-black/5 dark:bg-white/10">
-            <Home className="size-4" />
+        <div className="flex flex-col gap-1.5 rounded-[28px] border border-black/5 bg-white p-2 dark:border-white/10 dark:bg-[#1A1028]">
+          <button className="flex size-11 items-center justify-center rounded-2xl bg-black/5 text-[#1A1A1A] dark:bg-white/10 dark:text-white">
+            <Home className="size-5" />
           </button>
           <button
             onClick={() => router.push('/app/discover')}
-            className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="flex size-11 items-center justify-center rounded-2xl text-[#666] transition-colors hover:bg-black/5 hover:text-[#1A1A1A] dark:text-[#888] dark:hover:bg-white/5 dark:hover:text-white"
           >
-            <Compass className="size-4" />
+            <Compass className="size-5" />
           </button>
           <button 
             onClick={() => router.push('/app/projects')}
-            className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="flex size-11 items-center justify-center rounded-2xl text-[#666] transition-colors hover:bg-black/5 hover:text-[#1A1A1A] dark:text-[#888] dark:hover:bg-white/5 dark:hover:text-white"
           >
-            <FolderOpen className="size-4" />
+            <FolderOpen className="size-5" />
           </button>
           <button
             onClick={() => setProfileOpen(true)}
-            className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="flex size-11 items-center justify-center rounded-2xl text-[#666] transition-colors hover:bg-black/5 hover:text-[#1A1A1A] dark:text-[#888] dark:hover:bg-white/5 dark:hover:text-white"
           >
-            <User className="size-4" />
+            <User className="size-5" />
           </button>
           {isModelConfigEnabled && (
             <button
               onClick={() => setSettingsOpen(true)}
-              className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="flex size-11 items-center justify-center rounded-2xl text-[#666] transition-colors hover:bg-black/5 hover:text-[#1A1A1A] dark:text-[#888] dark:hover:bg-white/5 dark:hover:text-white"
             >
-              <Settings className="size-4" />
+              <Settings className="size-5" />
             </button>
           )}
           
           {/* Info button with popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <button className="size-9 rounded-xl flex items-center justify-center text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                <Info className="size-4" />
+              <button className="flex size-11 items-center justify-center rounded-2xl text-[#666] transition-colors hover:bg-black/5 hover:text-[#1A1A1A] dark:text-[#888] dark:hover:bg-white/5 dark:hover:text-white">
+                <Info className="size-5" />
               </button>
             </PopoverTrigger>
             <PopoverContent side="right" align="end" className="w-40 p-1.5">
@@ -300,7 +385,7 @@ export default function HomePage() {
                       height={192}
                       className="w-48 h-48 object-contain"
                     />
-                    <p className="text-xs text-center text-muted-foreground mt-1">扫码加入微信群</p>
+                    <p className="text-xs text-center text-muted-foreground mt-1">{tCommon('social.wechat_group')}</p>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -318,72 +403,70 @@ export default function HomePage() {
       </div>
       
       {/* Main content */}
-      <main className="px-6 py-8 ml-16">
-        <div className="max-w-5xl mx-auto pt-16 pb-8">
-          {/* Hero section */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Image
-                src="/logo.png" 
-                alt={tCommon('accessibility.logo_alt')} 
-                width={40}
-                height={40}
-                className="size-10 rounded-xl"
+      <main className="ml-16 px-6 py-8">
+        <div className="mx-auto max-w-[1280px] space-y-12 pb-16 pt-10">
+          <section className="mx-auto flex min-h-[54vh] max-w-[72rem] flex-col justify-center">
+            <div className="mb-9 text-center">
+              <div className="mb-4 flex items-center justify-center gap-3">
+                <Image
+                  src="/logo.png"
+                  alt={tCommon('accessibility.logo_alt')}
+                  width={48}
+                  height={48}
+                  className="size-12 rounded-2xl"
+                />
+                <h1 className="text-4xl font-heading font-bold tracking-tight text-[#1A1A1A] dark:text-white sm:text-[3.4rem]">
+                  Fluxa
+                </h1>
+              </div>
+              <p className="mx-auto max-w-2xl text-base leading-7 text-[#666] dark:text-[#888] sm:text-lg">
+                {t('hero.tagline')}
+              </p>
+            </div>
+
+            <div className="mb-5 flex justify-center">
+              <HomeInput
+                onSubmit={handlePromptSubmit}
+                isLoading={isCreating}
               />
-              <h1 className="text-3xl font-heading font-bold text-[#1A1A1A] dark:text-white">
-                Fluxa
-              </h1>
             </div>
-            <p className="text-[#666] dark:text-[#888]">
-              {t('hero.tagline')}
-            </p>
-          </div>
-          
-          {/* Input section */}
-          <div className="flex justify-center mb-4">
-            <HomeInput 
-              onSubmit={handlePromptSubmit}
-              isLoading={isCreating}
-            />
-          </div>
-          
-          {/* Quick tags - flat style with icons */}
-          <div className="flex justify-center gap-2 mb-12 flex-wrap">
-            {QUICK_TAGS.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => handleTagClick(tag.id)}
-                className={cn(
-                  "h-8 px-3 rounded-full flex items-center gap-1.5 text-sm transition-all",
-                  "bg-white dark:bg-[#1A1028] border border-black/10 dark:border-white/10",
-                  "text-[#444] dark:text-[#aaa] hover:border-black/20 dark:hover:border-white/20",
-                  "hover:shadow-sm"
-                )}
-              >
-                <tag.icon className="size-3.5" />
-                {tag.label}
-              </button>
-            ))}
-          </div>
-          
-          {/* Error message */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl text-red-500 text-sm text-center max-w-md mx-auto bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
-              {error}
+
+            <div className="mb-6 flex flex-wrap justify-center gap-3">
+              {QUICK_TAGS.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => handleTagClick(tag.id)}
+                  className={cn(
+                    'h-10 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-[#444] transition-all hover:border-black/20 hover:shadow-sm dark:border-white/10 dark:bg-[#1A1028] dark:text-[#AAA] dark:hover:border-white/20',
+                    'flex items-center gap-1.5',
+                  )}
+                >
+                  <tag.icon className="size-4" />
+                  {tag.label}
+                </button>
+              ))}
             </div>
-          )}
-          
-          {/* Recent projects section */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
+
+            {error ? (
+              <div className="mx-auto mb-2 max-w-md rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm text-red-500 dark:border-red-500/20 dark:bg-red-500/10">
+                {error}
+              </div>
+            ) : null}
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-[#1A1A1A] dark:text-white">
                 {t('dashboard.recent_projects')}
               </h2>
-              {projects.length > 3 && (
-                <button className="text-sm text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white transition-colors flex items-center gap-1">
+              {projects.length > 3 ? (
+                <button
+                  onClick={() => router.push('/app/projects')}
+                  className="flex items-center gap-1 text-sm text-[#666] transition-colors hover:text-[#1A1A1A] dark:text-[#888] dark:hover:text-white"
+                >
                   {t('dashboard.see_all')} <span>›</span>
                 </button>
-              )}
+              ) : null}
             </div>
 
             <ProjectGrid
@@ -392,61 +475,101 @@ export default function HomePage() {
               onDeleteProject={handleDeleteProject}
               isLoading={isLoading}
             />
-          </div>
+          </section>
 
-          {/* Inspiration section */}
-          <div className="mt-12">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-[#1A1A1A] dark:text-white">
-                  {tCommon('discover.title')}
-                </h2>
-                <p className="text-sm text-[#666] dark:text-[#888] mt-1">
-                  {tCommon('discover.sort_latest')}
-                </p>
-              </div>
-              <button
-                onClick={() => router.push('/app/discover')}
-                className="text-sm text-[#666] dark:text-[#888] hover:text-[#1A1A1A] dark:hover:text-white transition-colors flex items-center gap-1"
-              >
-                {t('dashboard.see_all')} <span>›</span>
-              </button>
+          <section className="space-y-5">
+            <div className="space-y-4">
+              <h2 className="text-[2rem] font-semibold tracking-tight text-[#1E1A16] dark:text-white">
+                {tCommon('discover.title')}
+              </h2>
+
+              {inspirationCategories.length > 0 ? (
+                <div className="overflow-x-auto pb-1">
+                  <div className="flex min-w-max items-center gap-5 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDiscover()}
+                      className="rounded-xl bg-[#F3F1ED] px-4 py-2 font-medium text-[#1E1A16] transition-colors dark:bg-white/10 dark:text-white"
+                    >
+                      {tCommon('discover.all_categories')}
+                    </button>
+
+                    {inspirationCategories.map((category) => (
+                      <button
+                        key={category.slug}
+                        type="button"
+                        onClick={() => handleOpenDiscover(category.slug)}
+                        className="whitespace-nowrap py-2 font-medium text-[#6F685E] transition-colors hover:text-[#1E1A16] dark:text-white/60 dark:hover:text-white"
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {isInspirationLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="rounded-2xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-sm">
-                    <Skeleton className="aspect-[4/3]" />
-                    <div className="p-3">
-                      <Skeleton className="h-4 w-3/4 mb-1" />
-                      <Skeleton className="h-3 w-1/2" />
+              <div className="columns-2 lg:columns-3 xl:columns-4 gap-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="mb-5 break-inside-avoid">
+                    <Skeleton
+                      className={cn(
+                        'w-full rounded-[18px] bg-[#F3F1ED] dark:bg-white/10',
+                        HOME_INSPIRATION_SKELETON_HEIGHTS[i % HOME_INSPIRATION_SKELETON_HEIGHTS.length],
+                      )}
+                    />
+                    <div className="flex items-center justify-between gap-3 px-1 py-3">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="size-7 rounded-full" />
+                        <Skeleton className="h-4 w-20 rounded-full" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-10 rounded-full" />
+                        <Skeleton className="h-4 w-8 rounded-full" />
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : inspirationItems.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                {inspirationItems.map((publication) => (
-                  <PublicationCard
-                    key={publication.id}
-                    publication={publication}
-                    compact
-                    onOpenDetail={(publicationId) => {
-                      setActivePublicationId(publicationId);
-                      setIsPublicationDialogOpen(true);
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <ResponsiveMasonry
+                  items={inspirationItems}
+                  getItemKey={(publication) => publication.id}
+                  renderItem={(publication) => (
+                    <PublicationCard
+                      publication={publication}
+                      onOpenDetail={handleOpenPublication}
+                      layout="discover"
+                    />
+                  )}
+                />
+
+                {shouldShowInspirationPagination ? (
+                  <div ref={inspirationSentinelRef} className="flex min-h-[88px] items-center justify-center py-6">
+                    <button
+                      type="button"
+                      onClick={loadMoreInspiration}
+                      disabled={isFetchingMoreInspiration}
+                      className="inline-flex h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-5 text-sm font-medium text-[#4B463F] shadow-sm transition-colors hover:border-black/20 hover:text-[#1E1A16] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:border-white/20 dark:hover:text-white"
+                    >
+                      {isFetchingMoreInspiration ? (
+                        <Loader2 className="size-4 animate-spin text-[#7B7469] dark:text-white/55" />
+                      ) : null}
+                      {isFetchingMoreInspiration ? tCommon('actions.loading') : tCommon('discover.load_more')}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
-              <div className="rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1A1028] p-6 text-center">
+              <div className="rounded-[24px] border border-dashed border-black/10 bg-[#FBFAF7] p-8 text-center dark:border-white/10 dark:bg-white/5">
                 <p className="text-sm text-[#666] dark:text-[#888]">
                   {inspirationError ? t('errors.load_failed') : tCommon('discover.empty_description')}
                 </p>
               </div>
             )}
-          </div>
+          </section>
         </div>
       </main>
 

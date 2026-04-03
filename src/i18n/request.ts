@@ -25,6 +25,7 @@ export default getRequestConfig(async () => {
     home: (await import(`@/locales/${locale}/home.json`)).default,
     points: (await import(`@/locales/${locale}/points.json`)).default,
     errors: (await import(`@/locales/${locale}/errors.json`)).default,
+    providerConfig: (await import(`@/locales/${locale}/providerConfig.json`)).default,
   };
 
   return {

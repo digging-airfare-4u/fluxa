@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase/client';
 import Image from 'next/image';
 import { ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { cn } from '@/lib/utils';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput, ChatInputRef } from './ChatInput';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,23 @@ interface ChatPanelProps {
   initialPrompt?: string;
 }
 
+const DEFAULT_PANEL_WIDTH = 420;
+const MIN_PANEL_WIDTH = 320;
+const FALLBACK_MIN_PANEL_WIDTH = 280;
+const MAX_PANEL_WIDTH = 720;
+const MIN_VIEWPORT_REMAINDER = 48;
+const RESIZE_KEYBOARD_STEP = 24;
+
+function clampPanelWidth(width: number, viewportWidth: number): number {
+  const maxWidth = Math.min(
+    MAX_PANEL_WIDTH,
+    Math.max(FALLBACK_MIN_PANEL_WIDTH, viewportWidth - MIN_VIEWPORT_REMAINDER),
+  );
+  const minWidth = Math.min(MIN_PANEL_WIDTH, maxWidth);
+
+  return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
 export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({
   conversationId,
   projectId,
@@ -82,9 +100,13 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [draftMessage, setDraftMessage] = useState('');
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<ChatInputRef>(null);
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   // Use chat hook for message management
   const {
@@ -161,6 +183,10 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     },
   }), []);
 
+  useEffect(() => {
+    setChatMode('agent');
+  }, [conversationId, setChatMode]);
+
   // Load models on mount (system + user BYOK)
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +237,19 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     };
   }, [setModels, setSelectableModels, setSelectedAgentModel]);
 
+  useEffect(() => {
+    const syncPanelWidth = () => {
+      setPanelWidth((currentWidth) => clampPanelWidth(currentWidth, window.innerWidth));
+    };
+
+    syncPanelWidth();
+    window.addEventListener('resize', syncPanelWidth);
+
+    return () => {
+      window.removeEventListener('resize', syncPanelWidth);
+    };
+  }, []);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -243,6 +282,27 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   const handleRetry = useCallback(() => {
     clearError();
   }, [clearError]);
+
+  const handleResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: panelWidth,
+    };
+    setIsResizing(true);
+  }, [panelWidth]);
+
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
+    }
+
+    event.preventDefault();
+
+    const delta = event.key === 'ArrowLeft' ? RESIZE_KEYBOARD_STEP : -RESIZE_KEYBOARD_STEP;
+    setPanelWidth((currentWidth) => clampPanelWidth(currentWidth + delta, window.innerWidth));
+  }, []);
 
   const handleSendMessage = useCallback(async (
     content: string,
@@ -390,6 +450,50 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     messages,
     generationPhase,
   );
+  const starterPrompts = [
+    ...(chatMode === 'classic'
+      ? ['poster', 'product', 'social', 'ecommerce', 'landing', 'invitation']
+      : ['directions', 'layout', 'copy', 'artDirection', 'campaign', 'reference'])
+  ].map((key) => ({
+    key,
+    title: t(`starter_prompts.${chatMode}.${key}.title`),
+    prompt: t(`starter_prompts.${chatMode}.${key}.prompt`),
+  }));
+
+  useEffect(() => {
+    if (!isResizing) {
+      return undefined;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState) {
+        return;
+      }
+
+      const nextWidth = resizeState.startWidth + (resizeState.startX - event.clientX);
+      setPanelWidth(clampPanelWidth(nextWidth, window.innerWidth));
+    };
+
+    const handlePointerUp = () => {
+      resizeStateRef.current = null;
+      setIsResizing(false);
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isResizing]);
 
   if (isCollapsed) {
     return (
@@ -408,122 +512,180 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   }
 
   return (
-    <div 
-      className={`fixed top-4 right-4 bottom-4 w-[420px] max-w-[calc(100vw-2rem)] z-40 flex flex-col rounded-xl overflow-hidden bg-white dark:bg-[#1A1028] shadow-xl border border-black/10 dark:border-white/10 ${isAnimating ? 'animate-slide-out-right pointer-events-none' : 'animate-slide-in-right'}`}
+    <div
+      className={cn(
+        'fixed inset-y-0 right-0 z-40',
+        isAnimating ? 'animate-slide-out-right pointer-events-none' : 'animate-slide-in-right',
+      )}
+      style={{ width: panelWidth }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt={t('panel.title')} width={20} height={20} className="size-5" />
-          <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">{t('panel.title')}</h2>
-        </div>
-        <div className="flex items-center gap-0">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-                onClick={() => setIsShareOpen(true)}
-                aria-label="Share"
-              >
-                <Share2 className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>分享</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all" onClick={handleToggleCollapse}>
-                <ChevronRight className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('panel.collapse')}</TooltipContent>
-          </Tooltip>
-        </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('panel.resize')}
+        tabIndex={0}
+        title={t('panel.resize')}
+        onPointerDown={handleResizeStart}
+        onKeyDown={handleResizeKeyDown}
+        className="absolute inset-y-0 left-0 z-10 flex w-4 -translate-x-1/2 cursor-col-resize items-center justify-center touch-none"
+      >
+        <span
+          className={cn(
+            'h-14 w-1 rounded-full bg-slate-200/90 transition-colors dark:bg-white/10',
+            isResizing
+              ? 'bg-slate-400 dark:bg-white/40'
+              : 'hover:bg-slate-300 dark:hover:bg-white/20',
+          )}
+        />
       </div>
 
-      {/* Messages area */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <Skeleton variant="image" className="w-12 h-12 rounded-xl" />
-              <Skeleton variant="text" className="w-24 h-4" />
+      <div className="flex h-full flex-col overflow-hidden border-l border-black/10 bg-white shadow-[-16px_0_32px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#1A1028]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2">
+          <div className="flex items-center gap-2">
+            <Image src="/logo.png" alt={t('panel.title')} width={20} height={20} className="size-5" />
+            <h2 className="text-sm font-medium text-[#1A1A1A] dark:text-white">{t('panel.title')}</h2>
+          </div>
+          <div className="flex items-center gap-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                  onClick={() => setIsShareOpen(true)}
+                  aria-label="Share"
+                >
+                  <Share2 className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>分享</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 rounded text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all" onClick={handleToggleCollapse}>
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('panel.collapse')}</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Messages area */}
+        <div ref={messagesContainerRef} className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3">
+                <Skeleton variant="image" className="w-12 h-12 rounded-xl" />
+                <Skeleton variant="text" className="w-24 h-4" />
+              </div>
             </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in-slow">
-            <Image src="/logo.png" alt={t('panel.title')} width={64} height={64} className="size-16 rounded-2xl mb-4" />
-            <h3 className="font-semibold mb-2">{t('empty_state.title')}</h3>
-            <p className="text-sm text-muted-foreground max-w-[240px]">{t('empty_state.description')}</p>
-          </div>
-        ) : (
-          <>
-            {messages.map((message) => {
-              if (!shouldRenderMessageInTranscript(message, generationPhase)) {
-                return null;
-              }
+          ) : messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center animate-fade-in-slow">
+              <p className="text-sm text-muted-foreground max-w-[240px]">{t('empty_state.description')}</p>
+              <div className="mt-5 w-full max-w-[320px]">
+                <div className="mb-3 px-1 text-left">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/55">
+                    {t('empty_state.suggestions_title')}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/50">
+                    {t('empty_state.suggestions_hint')}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {starterPrompts.map((prompt) => (
+                    <button
+                      key={prompt.key}
+                      type="button"
+                      title={prompt.prompt}
+                      onClick={() => setDraftMessage(prompt.prompt)}
+                      className={cn(
+                        'min-h-[104px] rounded-2xl border border-slate-200/90 bg-white/90 p-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-all',
+                        'hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white',
+                        'dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:hover:bg-white/[0.06]',
+                      )}
+                    >
+                      <span className="block text-[12px] font-semibold leading-5 text-slate-800 dark:text-white">
+                        {prompt.title}
+                      </span>
+                      <span className="mt-1.5 block text-[11px] leading-[1.45] text-slate-500 dark:text-white/58">
+                        {prompt.prompt}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map((message) => {
+                if (!shouldRenderMessageInTranscript(message, generationPhase)) {
+                  return null;
+                }
 
-              return (
-                <ChatMessage
-                  key={(message.metadata as { clientKey?: string } | undefined)?.clientKey ?? message.id}
-                  message={message}
-                  onImageClick={handleImageClick}
-                  onAddToCanvas={handleAddToCanvas}
-                />
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </>
+                return (
+                  <ChatMessage
+                    key={(message.metadata as { clientKey?: string } | undefined)?.clientKey ?? message.id}
+                    message={message}
+                    onImageClick={handleImageClick}
+                    onAddToCanvas={handleAddToCanvas}
+                  />
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="px-4 py-2">
+            <InlineError
+              message={error}
+              onRetry={handleRetry}
+              onDismiss={() => {
+                clearError();
+              }}
+              autoDismiss={false}
+            />
+          </div>
         )}
+
+        {showGeneratingIndicatorNearInput && (
+          <div className="px-4 pt-2 pb-0">
+            <GeneratingPlaceholder />
+          </div>
+        )}
+
+        {/* Input area */}
+        <ChatInput
+          ref={chatInputRef}
+          onSend={handleSendMessage}
+          onCancel={isGenerating ? handleStopGeneration : undefined}
+          onLocateImage={handleLocateInputImage}
+          disabled={isLoading}
+          isLoading={isGenerating}
+          isBusy={isGenerating}
+          chatMode={chatMode}
+          onChatModeChange={setChatMode}
+          selectedModel={selectedModel}
+          selectedAgentModel={selectedAgentModel}
+          selectedAgentImageModel={selectedAgentImageModel}
+          onModelChange={setSelectedModel}
+          onAgentModelChange={setSelectedAgentModel}
+          onAgentImageModelChange={setSelectedAgentImageModel}
+          selectedResolution={selectedResolution}
+          onResolutionChange={setSelectedResolution}
+          selectedAspectRatio={selectedAspectRatio}
+          onAspectRatioChange={setSelectedAspectRatio}
+          membershipLevel={membershipLevel}
+          projectId={projectId}
+          value={draftMessage}
+          onValueChange={setDraftMessage}
+          resolutionModelName={chatMode === 'agent' ? selectedAgentImageModel : selectedModel}
+        />
       </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="px-4 py-2">
-          <InlineError
-            message={error}
-            onRetry={handleRetry}
-            onDismiss={() => {
-              clearError();
-            }}
-            autoDismiss={false}
-          />
-        </div>
-      )}
-
-      {showGeneratingIndicatorNearInput && (
-        <div className="px-4 pt-2 pb-0">
-          <GeneratingPlaceholder />
-        </div>
-      )}
-
-      {/* Input area */}
-      <ChatInput
-        ref={chatInputRef}
-        onSend={handleSendMessage}
-        onCancel={isGenerating ? handleStopGeneration : undefined}
-        onLocateImage={handleLocateInputImage}
-        disabled={isLoading}
-        isLoading={isGenerating}
-        isBusy={isGenerating}
-        chatMode={chatMode}
-        onChatModeChange={setChatMode}
-        selectedModel={selectedModel}
-        selectedAgentModel={selectedAgentModel}
-        selectedAgentImageModel={selectedAgentImageModel}
-        onModelChange={setSelectedModel}
-        onAgentModelChange={setSelectedAgentModel}
-        onAgentImageModelChange={setSelectedAgentImageModel}
-        selectedResolution={selectedResolution}
-        onResolutionChange={setSelectedResolution}
-        selectedAspectRatio={selectedAspectRatio}
-        onAspectRatioChange={setSelectedAspectRatio}
-        membershipLevel={membershipLevel}
-        projectId={projectId}
-        resolutionModelName={chatMode === 'agent' ? selectedAgentImageModel : selectedModel}
-      />
 
       <ShareDialog
         open={isShareOpen}

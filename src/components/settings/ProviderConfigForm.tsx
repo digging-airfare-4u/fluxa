@@ -18,6 +18,7 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,10 @@ import {
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import type { ProviderType, ProviderModelType } from '@/lib/api/provider-configs';
-import { getProviderConfigFormMeta } from './provider-config-form-meta';
+import {
+  getProviderConfigFormMeta,
+  type ProviderConfigFormTranslate,
+} from './provider-config-form-meta';
 
 // ============================================================================
 // Types
@@ -115,6 +119,8 @@ export function ProviderConfigForm({
   onTest,
   onCancel,
 }: ProviderConfigFormProps) {
+  const t = useTranslations('providerConfig');
+  const translateMeta = t as unknown as ProviderConfigFormTranslate;
   const isEditing = !!configId;
   const ProviderIcon = provider === 'volcengine' ? Cloud : KeyRound;
   const isAnthropicCompatible = provider === 'anthropic-compatible';
@@ -122,7 +128,7 @@ export function ProviderConfigForm({
   // Form state
   const [modelType, setModelType] = useState<ProviderModelType>(initialValues?.modelType ?? (isAnthropicCompatible ? 'chat' : 'image'));
   const resolvedModelType = isAnthropicCompatible ? 'chat' : modelType;
-  const meta = getProviderConfigFormMeta(provider, resolvedModelType);
+  const meta = getProviderConfigFormMeta(provider, resolvedModelType, translateMeta);
   const [apiKey, setApiKey] = useState(initialValues?.apiKey ?? '');
   const [apiUrl, setApiUrl] = useState(initialValues?.apiUrl ?? '');
   const [modelName, setModelName] = useState(initialValues?.modelName ?? '');
@@ -142,21 +148,21 @@ export function ProviderConfigForm({
     const errs: FormErrors = {};
 
     if (!isEditing && !apiKey.trim()) {
-      errs.apiKey = 'API Key 不能为空';
+      errs.apiKey = t('validation.api_key_required');
     }
     if (!apiUrl.trim()) {
-      errs.apiUrl = 'API URL 不能为空';
+      errs.apiUrl = t('validation.api_url_required');
     }
     if (!modelName.trim()) {
-      errs.modelName = '模型名称不能为空';
+      errs.modelName = t('validation.model_name_required');
     }
     if (!displayName.trim()) {
-      errs.displayName = '显示名称不能为空';
+      errs.displayName = t('validation.display_name_required');
     }
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
-  }, [isEditing, apiKey, apiUrl, modelName, displayName]);
+  }, [isEditing, apiKey, apiUrl, modelName, displayName, t]);
 
   const runConnectivityTest = useCallback(async (): Promise<boolean> => {
     setTestStatus('testing');
@@ -173,13 +179,13 @@ export function ProviderConfigForm({
 
     if (!result.success) {
       setTestStatus('failed');
-      setTestError(result.error?.message ?? '连接测试失败');
+      setTestError(result.error?.message ?? t('errors.connection_test_failed'));
       return false;
     }
 
     setTestStatus('success');
     return true;
-  }, [onTest, provider, apiUrl, apiKey, modelName, configId]);
+  }, [onTest, provider, apiUrl, apiKey, modelName, configId, t]);
 
   // ---- Test + Save flow ----
   const handleSave = useCallback(async () => {
@@ -203,12 +209,12 @@ export function ProviderConfigForm({
       });
     } catch (err) {
       console.error('[Settings] ProviderConfigForm save error:', err);
-      setSaveError(err instanceof Error ? err.message : '保存失败');
+      setSaveError(err instanceof Error ? err.message : t('errors.save_failed'));
       setTestStatus('idle');
     } finally {
       setIsSaving(false);
     }
-  }, [validate, runConnectivityTest, onSave, apiUrl, apiKey, modelName, displayName, provider, resolvedModelType]);
+  }, [validate, runConnectivityTest, onSave, apiUrl, apiKey, modelName, displayName, provider, resolvedModelType, t]);
 
   const handleTestOnly = useCallback(async () => {
     if (!validate()) return;
@@ -217,10 +223,10 @@ export function ProviderConfigForm({
       await runConnectivityTest();
     } catch (err) {
       console.error('[Settings] ProviderConfigForm test error:', err);
-      setSaveError(err instanceof Error ? err.message : '测试失败');
+      setSaveError(err instanceof Error ? err.message : t('errors.test_failed'));
       setTestStatus('idle');
     }
-  }, [validate, runConnectivityTest]);
+  }, [validate, runConnectivityTest, t]);
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
@@ -230,12 +236,12 @@ export function ProviderConfigForm({
       await onDelete();
     } catch (err) {
       console.error('[Settings] ProviderConfigForm delete error:', err);
-      setSaveError(err instanceof Error ? err.message : '删除失败');
+      setSaveError(err instanceof Error ? err.message : t('errors.delete_failed'));
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
-  }, [onDelete]);
+  }, [onDelete, t]);
 
   // ---- Toggle ----
   const handleToggle = useCallback(async (checked: boolean) => {
@@ -262,7 +268,7 @@ export function ProviderConfigForm({
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base">{meta.title}</CardTitle>
                 <Badge variant={isEditing ? 'secondary' : 'outline'} className="text-[10px]">
-                  {isEditing ? '编辑中' : '新配置'}
+                  {isEditing ? t('form.editing') : t('form.new_config')}
                 </Badge>
               </div>
               <CardDescription>{meta.description}</CardDescription>
@@ -275,16 +281,14 @@ export function ProviderConfigForm({
         <CardHeader className="px-4 py-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
-            <CardTitle className="text-sm">连接信息</CardTitle>
+            <CardTitle className="text-sm">{t('form.connection_info_title')}</CardTitle>
           </div>
-          <CardDescription>
-            先验证 API Key、Endpoint 和模型名，再保存为平台共享配置。
-          </CardDescription>
+          <CardDescription>{t('form.connection_info_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-0 space-y-4">
           {!isAnthropicCompatible && (
             <div className="space-y-2">
-              <Label>用途</Label>
+              <Label>{t('form.usage_label')}</Label>
               <div className="inline-flex rounded-lg border bg-muted/20 p-1">
                 {(['image', 'chat'] as const).map((value) => (
                   <button
@@ -298,7 +302,7 @@ export function ProviderConfigForm({
                         : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
-                    {value === 'image' ? '图像生成' : '聊天 / Agent Brain'}
+                    {value === 'image' ? t('form.usage_image') : t('form.usage_chat')}
                   </button>
                 ))}
               </div>
@@ -309,11 +313,9 @@ export function ProviderConfigForm({
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">
                 <div className="space-y-0.5">
                   <Label htmlFor="config-enabled" className="text-sm font-medium">
-                    启用此配置
+                    {t('form.enabled_title')}
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    关闭后会保留凭据，但不会参与模型选择。
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t('form.enabled_desc')}</p>
                 </div>
                 <Switch
                   id="config-enabled"
@@ -327,12 +329,17 @@ export function ProviderConfigForm({
 
           <div className="space-y-1.5">
             <Label htmlFor="api-key">
-              API Key {isEditing && <span className="text-muted-foreground font-normal">(留空保留原 Key)</span>}
+              {t('form.api_key_label')}{' '}
+              {isEditing && (
+                <span className="text-muted-foreground font-normal">
+                  ({t('form.api_key_keep_existing')})
+                </span>
+              )}
             </Label>
             <Input
               id="api-key"
               type="password"
-              placeholder={isEditing && maskedKey ? maskedKey : '输入 API Key'}
+              placeholder={isEditing && maskedKey ? maskedKey : t('form.api_key_placeholder')}
               value={apiKey}
               onChange={(e) => {
                 setApiKey(e.target.value);
@@ -345,7 +352,7 @@ export function ProviderConfigForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="api-url">API URL / Endpoint</Label>
+            <Label htmlFor="api-url">{t('form.api_url_label')}</Label>
             <Input
               id="api-url"
               type="url"
@@ -362,7 +369,7 @@ export function ProviderConfigForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="model-name">模型名称</Label>
+            <Label htmlFor="model-name">{t('form.model_name_label')}</Label>
             <Input
               id="model-name"
               placeholder={meta.modelNamePlaceholder}
@@ -381,14 +388,12 @@ export function ProviderConfigForm({
 
       <Card className="gap-0 py-0">
         <CardHeader className="px-4 py-4">
-          <CardTitle className="text-sm">显示设置</CardTitle>
-          <CardDescription>
-            用于在模型选择器和设置面板里区分不同配置。
-          </CardDescription>
+          <CardTitle className="text-sm">{t('form.display_title')}</CardTitle>
+          <CardDescription>{t('form.display_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-0">
           <div className="space-y-1.5">
-            <Label htmlFor="display-name">显示名称</Label>
+            <Label htmlFor="display-name">{t('form.display_name_label')}</Label>
             <Input
               id="display-name"
               placeholder={meta.displayNamePlaceholder}
@@ -408,7 +413,7 @@ export function ProviderConfigForm({
       {testStatus === 'success' && (
         <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-sm text-green-600 dark:text-green-400">
           <CheckCircle2 className="size-4" />
-          连接测试通过
+          {t('form.test_success')}
         </div>
       )}
       {testStatus === 'failed' && testError && (
@@ -436,21 +441,21 @@ export function ProviderConfigForm({
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="size-3.5 mr-1" />
-                删除
+                {t('form.delete')}
               </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onCancel} disabled={isSubmitting}>
-              取消
+              {t('form.cancel')}
             </Button>
             <Button variant="outline" size="sm" onClick={handleTestOnly} disabled={isSubmitting || isDeleting}>
               {isTesting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
-              测试连接
+              {t('form.test_connection')}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={isSubmitting}>
               {isSaving && <Loader2 className="size-3.5 mr-1 animate-spin" />}
-              {isSaving ? '保存中...' : '测试并保存'}
+              {isSaving ? t('form.saving') : t('form.test_and_save')}
             </Button>
           </div>
         </CardFooter>
@@ -460,20 +465,18 @@ export function ProviderConfigForm({
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              删除后将移除此配置及其存储的凭据，此操作不可撤销。
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('form.delete_confirm_title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('form.delete_confirm_desc')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('form.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
               className={cn(buttonVariants({ variant: 'destructive' }))}
             >
               {isDeleting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
-              确认删除
+              {t('form.confirm_delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

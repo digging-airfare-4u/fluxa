@@ -19,6 +19,7 @@ import {
   Settings2,
   Sparkles,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -73,10 +74,21 @@ type EditingState =
   | { type: 'new'; provider: ProviderType }
   | { type: 'edit'; config: UserProviderConfig };
 
-function getProviderLabel(provider: ProviderType): string {
-  if (provider === 'volcengine') return 'Volcengine';
-  if (provider === 'anthropic-compatible') return 'Anthropic-Compatible';
-  return 'OpenAI-Compatible';
+type ProviderConfigTranslate = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
+
+function getProviderLabel(provider: ProviderType, t: ProviderConfigTranslate): string {
+  if (provider === 'volcengine') return t('providers.volcengine.title');
+  if (provider === 'anthropic-compatible') return t('providers.anthropic_compatible.title');
+  return t('providers.openai_compatible.title');
+}
+
+function getModelDefaultLabel(key: ModelDefaultKey, t: ProviderConfigTranslate): string {
+  if (key === 'default_chat_model') return t('defaults.default_chat_model');
+  if (key === 'default_image_model') return t('defaults.default_image_model');
+  return t('defaults.agent_default_brain_model');
 }
 
 // ============================================================================
@@ -84,11 +96,29 @@ function getProviderLabel(provider: ProviderType): string {
 // ============================================================================
 
 /** Status badge for a config item */
-function ConfigStatusBadge({ config }: { config: UserProviderConfig }) {
+function ConfigStatusBadge({
+  config,
+  t,
+}: {
+  config: UserProviderConfig;
+  t: ProviderConfigTranslate;
+}) {
   if (!config.is_enabled) {
-    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">已禁用</Badge>;
+    return (
+      <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+        {t('statuses.disabled')}
+      </Badge>
+    );
   }
-  return <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500/30 text-green-600 dark:text-green-400">已配置</Badge>;
+
+  return (
+    <Badge
+      variant="outline"
+      className="border-green-500/30 px-1.5 py-0 text-[10px] text-green-600 dark:text-green-400"
+    >
+      {t('statuses.configured')}
+    </Badge>
+  );
 }
 
 /** Single config list item */
@@ -97,34 +127,42 @@ function ConfigItem({
   onEdit,
   onToggle,
   readOnly = false,
+  t,
 }: {
   config: UserProviderConfig;
   onEdit: () => void;
   onToggle: (enabled: boolean) => void;
   readOnly?: boolean;
+  t: ProviderConfigTranslate;
 }) {
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors',
-        readOnly ? 'cursor-default' : 'hover:bg-muted/50 cursor-pointer',
+        'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+        readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-muted/50',
         !config.is_enabled && 'opacity-60',
       )}
       onClick={readOnly ? undefined : onEdit}
       role={readOnly ? undefined : 'button'}
       tabIndex={readOnly ? undefined : 0}
-      onKeyDown={readOnly ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') onEdit(); }}
+      onKeyDown={
+        readOnly
+          ? undefined
+          : (e) => {
+              if (e.key === 'Enter' || e.key === ' ') onEdit();
+            }
+      }
     >
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">{config.display_name}</span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {config.model_type === 'chat' ? '聊天' : '图像'}
+          <span className="truncate text-sm font-medium">{config.display_name}</span>
+          <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+            {config.model_type === 'chat' ? t('model_types.chat') : t('model_types.image')}
           </Badge>
-          <ConfigStatusBadge config={config} />
+          <ConfigStatusBadge config={config} t={t} />
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-muted-foreground truncate">{config.model_name}</span>
+        <div className="mt-0.5 flex items-center gap-2">
+          <span className="truncate text-xs text-muted-foreground">{config.model_name}</span>
           <span className="text-xs text-muted-foreground">·</span>
           <span className="text-xs text-muted-foreground">{config.api_key_masked}</span>
         </div>
@@ -133,11 +171,10 @@ function ConfigItem({
         checked={config.is_enabled}
         disabled={readOnly}
         onCheckedChange={(checked) => {
-          // Stop propagation so clicking the switch doesn't trigger edit
           onToggle(checked);
         }}
         onClick={(e) => e.stopPropagation()}
-        aria-label={`${config.is_enabled ? '禁用' : '启用'} ${config.display_name}`}
+        aria-label={`${config.is_enabled ? t('actions.disable') : t('actions.enable')} ${config.display_name}`}
       />
     </div>
   );
@@ -163,7 +200,7 @@ function ProviderSection({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className="gap-0 py-0 overflow-hidden">
+      <Card className="overflow-hidden py-0">
         <CardHeader className="px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <CollapsibleTrigger asChild>
@@ -193,7 +230,7 @@ function ProviderSection({
           </div>
         </CardHeader>
         <CollapsibleContent>
-          <CardContent className="px-4 pb-4 pt-0 space-y-2">{children}</CardContent>
+          <CardContent className="space-y-2 px-4 pb-4 pt-0">{children}</CardContent>
         </CollapsibleContent>
       </Card>
     </Collapsible>
@@ -208,16 +245,15 @@ function ProviderSection({
 const SYSTEM_DEFAULTS: Record<ModelDefaultKey, string | null> = {
   default_chat_model: 'doubao-seed-1-6-vision-250815',
   default_image_model: 'gemini-2.5-flash-image',
-  agent_default_brain_model: null, // falls back to default_chat_model
+  agent_default_brain_model: null,
 };
 
-const MODEL_DEFAULT_LABELS: Record<ModelDefaultKey, string> = {
-  default_chat_model: '默认聊天模型',
-  default_image_model: '默认图片模型',
-  agent_default_brain_model: 'Agent Brain 模型',
-};
-
-export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: ProviderConfigPanelProps) {
+export function ProviderConfigPanel({
+  open,
+  onOpenChange,
+  onConfigsChange,
+}: ProviderConfigPanelProps) {
+  const t = useTranslations('providerConfig') as unknown as ProviderConfigTranslate;
   const [configs, setConfigs] = useState<UserProviderConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editing, setEditing] = useState<EditingState>({ type: 'none' });
@@ -232,7 +268,6 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
   const [editingDefaultValue, setEditingDefaultValue] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
 
-  // ---- Load configs ----
   const loadConfigs = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -247,11 +282,11 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
     } catch (err) {
       console.error('[Settings] Failed to load provider configs:', err);
       setCanManage(false);
-      setError('加载配置失败');
+      setError(t('panel.load_failed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (open) {
@@ -260,17 +295,15 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
     }
   }, [open, loadConfigs]);
 
-  // ---- Grouped configs ----
   const volcengineConfigs = configs.filter((c) => c.provider === 'volcengine');
   const openaiCompatibleConfigs = configs.filter((c) => c.provider === 'openai-compatible');
   const anthropicCompatibleConfigs = configs.filter((c) => c.provider === 'anthropic-compatible');
 
-  // ---- Handlers ----
   const handleToggle = useCallback(async (id: string, enabled: boolean) => {
     try {
       await updateProviderEnabled(id, enabled);
       setConfigs((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, is_enabled: enabled } : c)),
+        prev.map((config) => (config.id === id ? { ...config, is_enabled: enabled } : config)),
       );
     } catch (err) {
       console.error('[Settings] Toggle failed:', err);
@@ -279,17 +312,13 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
 
   const handleSave = useCallback(
     async (values: ProviderConfigFormValues) => {
-      let savedConfig: UserProviderConfig;
-
       if (editing.type === 'new') {
         const created = await createProviderConfig(values);
-        savedConfig = created;
         setConfigs((prev) => [...prev, created]);
       } else if (editing.type === 'edit') {
         const updated = await updateProviderConfig(editing.config.id, values);
-        savedConfig = updated;
         setConfigs((prev) =>
-          prev.map((c) => (c.id === updated.id ? updated : c)),
+          prev.map((config) => (config.id === updated.id ? updated : config)),
         );
       } else {
         return;
@@ -301,19 +330,22 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
     [editing, onConfigsChange],
   );
 
-  const handleDelete = useCallback(
-    async () => {
-      if (editing.type !== 'edit') return;
-      await deleteProviderConfig(editing.config.id);
-      setConfigs((prev) => prev.filter((c) => c.id !== editing.config.id));
-      setEditing({ type: 'none' });
-      onConfigsChange?.();
-    },
-    [editing, onConfigsChange],
-  );
+  const handleDelete = useCallback(async () => {
+    if (editing.type !== 'edit') return;
+    await deleteProviderConfig(editing.config.id);
+    setConfigs((prev) => prev.filter((config) => config.id !== editing.config.id));
+    setEditing({ type: 'none' });
+    onConfigsChange?.();
+  }, [editing, onConfigsChange]);
 
   const handleTest = useCallback(
-    async (params: { provider: ProviderType; apiUrl: string; apiKey?: string; modelName: string; configId?: string }) => {
+    async (params: {
+      provider: ProviderType;
+      apiUrl: string;
+      apiKey?: string;
+      modelName: string;
+      configId?: string;
+    }) => {
       return testProviderConnection(params);
     },
     [],
@@ -346,31 +378,30 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
     }
   }, []);
 
-  // ---- Render ----
   const isEditingForm = editing.type !== 'none';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0">
-        <DialogHeader className="sticky top-0 z-10 bg-background px-6 py-4 border-b">
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto p-0">
+        <DialogHeader className="sticky top-0 z-10 border-b bg-background px-6 py-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
               <Settings2 className="size-5 text-muted-foreground" />
-              Provider 配置
+              {t('panel.title')}
             </DialogTitle>
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-4 space-y-6">
+        <div className="space-y-6 px-6 py-4">
           {error && (
-            <div className="p-3 rounded-lg text-sm text-destructive bg-destructive/10 border border-destructive/20">
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
           {!isLoading && !canManage && (
-            <div className="p-3 rounded-lg text-sm text-muted-foreground bg-muted/40 border">
-              当前账号没有 Provider 管理权限。下面展示的是平台已开放的共享配置，只有超级管理员可以新增、编辑、启用或删除。
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              {t('panel.no_permission')}
             </div>
           )}
 
@@ -379,9 +410,8 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
           ) : isEditingForm ? (
-            /* ---- Form view ---- */
             <div>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="mb-4 flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -389,17 +419,25 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                   onClick={() => setEditing({ type: 'none' })}
                 >
                   <ArrowLeft className="mr-1 size-4" />
-                  返回
+                  {t('panel.back')}
                 </Button>
                 <span className="text-sm font-medium">
                   {editing.type === 'new'
-                    ? `新增 ${getProviderLabel(editing.provider)} 配置`
-                    : `编辑 ${editing.type === 'edit' ? editing.config.display_name : ''}`}
+                    ? t('panel.create_title', { provider: getProviderLabel(editing.provider, t) })
+                    : t('panel.edit_title', {
+                        name: editing.type === 'edit' ? editing.config.display_name : '',
+                      })}
                 </span>
               </div>
               <ProviderConfigForm
                 configId={editing.type === 'edit' ? editing.config.id : undefined}
-                provider={editing.type === 'new' ? editing.provider : editing.type === 'edit' ? (editing.config.provider as ProviderType) : 'openai-compatible'}
+                provider={
+                  editing.type === 'new'
+                    ? editing.provider
+                    : editing.type === 'edit'
+                      ? (editing.config.provider as ProviderType)
+                      : 'openai-compatible'
+                }
                 initialValues={
                   editing.type === 'edit'
                     ? {
@@ -425,135 +463,156 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
               />
             </div>
           ) : (
-            /* ---- List view ---- */
             <>
-              {/* Model Defaults section (super-admin only) */}
               {canManage && (
                 <ProviderSection
-                  title="默认模型"
-                  description="系统级模型默认配置"
+                  title={t('defaults.title')}
+                  description={t('defaults.description')}
                   icon={<Settings2 className="size-4" />}
                 >
-                  {(['default_chat_model', 'default_image_model', 'agent_default_brain_model'] as const).map((key) => {
-                    const isEditing = editingDefault === key;
-                    const currentValue = modelDefaults[key];
-                    const hintText = key === 'agent_default_brain_model'
-                      ? '跟随默认聊天模型'
-                      : `使用系统默认值 (${SYSTEM_DEFAULTS[key]})`;
+                  {(['default_chat_model', 'default_image_model', 'agent_default_brain_model'] as const).map(
+                    (key) => {
+                      const isEditingDefault = editingDefault === key;
+                      const currentValue = modelDefaults[key];
+                      const hintText =
+                        key === 'agent_default_brain_model'
+                          ? t('defaults.follow_default_chat_model')
+                          : t('defaults.use_system_default', {
+                              value: SYSTEM_DEFAULTS[key] ?? '',
+                            });
 
-                    return (
-                      <div key={key} className="flex items-center gap-2 px-3 py-2 rounded-lg border">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium mb-1">{MODEL_DEFAULT_LABELS[key]}</div>
-                          {isEditing ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                className="flex-1 text-xs px-2 py-1 rounded border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                                value={editingDefaultValue}
-                                onChange={(e) => setEditingDefaultValue(e.target.value)}
-                                placeholder={hintText}
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveDefault(key, editingDefaultValue);
-                                  if (e.key === 'Escape') setEditingDefault(null);
-                                }}
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                disabled={savingDefault}
-                                onClick={() => handleSaveDefault(key, editingDefaultValue)}
-                              >
-                                {savingDefault ? <Loader2 className="size-3 animate-spin" /> : '保存'}
-                              </Button>
-                              {currentValue && (
+                      return (
+                        <div key={key} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 text-sm font-medium">
+                              {getModelDefaultLabel(key, t)}
+                            </div>
+                            {isEditingDefault ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                  value={editingDefaultValue}
+                                  onChange={(e) => setEditingDefaultValue(e.target.value)}
+                                  placeholder={hintText}
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveDefault(key, editingDefaultValue);
+                                    if (e.key === 'Escape') setEditingDefault(null);
+                                  }}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  disabled={savingDefault}
+                                  onClick={() => handleSaveDefault(key, editingDefaultValue)}
+                                >
+                                  {savingDefault ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    t('form.save')
+                                  )}
+                                </Button>
+                                {currentValue && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs text-destructive"
+                                    disabled={savingDefault}
+                                    onClick={() => handleResetDefault(key)}
+                                  >
+                                    {t('form.reset')}
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 px-2 text-xs text-destructive"
-                                  disabled={savingDefault}
-                                  onClick={() => handleResetDefault(key)}
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setEditingDefault(null)}
                                 >
-                                  重置
+                                  {t('form.cancel')}
                                 </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setEditingDefault(null)}
-                              >
-                                取消
-                              </Button>
-                            </div>
-                          ) : (
-                            <div
-                              className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                              onClick={() => {
-                                setEditingDefault(key);
-                                setEditingDefaultValue(currentValue ?? '');
-                              }}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
+                              </div>
+                            ) : (
+                              <div
+                                className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground"
+                                onClick={() => {
                                   setEditingDefault(key);
                                   setEditingDefaultValue(currentValue ?? '');
-                                }
-                              }}
-                            >
-                              {currentValue ? (
-                                <span className="text-foreground">{currentValue}</span>
-                              ) : (
-                                <span className="italic">{hintText}</span>
-                              )}
-                              <span className="ml-2 text-[10px] opacity-60">点击编辑</span>
-                            </div>
-                          )}
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    setEditingDefault(key);
+                                    setEditingDefaultValue(currentValue ?? '');
+                                  }
+                                }}
+                              >
+                                {currentValue ? (
+                                  <span className="text-foreground">{currentValue}</span>
+                                ) : (
+                                  <span className="italic">{hintText}</span>
+                                )}
+                                <span className="ml-2 text-[10px] opacity-60">
+                                  {t('defaults.click_to_edit')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    },
+                  )}
                 </ProviderSection>
               )}
 
-              {/* Gemini section (read-only) */}
               <ProviderSection
-                title="Gemini"
-                description="系统内置默认模型"
+                title={t('providers.gemini.title')}
+                description={t('providers.gemini.section_desc')}
                 icon={<Sparkles className="size-4 text-amber-500" />}
               >
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-amber-500" />
-                    <span className="text-sm font-medium">Gemini</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-600 dark:text-amber-400">
-                      内置
+                    <span className="text-sm font-medium">{t('providers.gemini.title')}</span>
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/30 px-1.5 py-0 text-[10px] text-amber-600 dark:text-amber-400"
+                    >
+                      {t('statuses.built_in')}
                     </Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500/30 text-green-600 dark:text-green-400">
-                    已配置
+                  <Badge
+                    variant="outline"
+                    className="border-green-500/30 px-1.5 py-0 text-[10px] text-green-600 dark:text-green-400"
+                  >
+                    {t('statuses.configured')}
                   </Badge>
                 </div>
               </ProviderSection>
 
-              {/* Volcengine section */}
               <ProviderSection
-                title="Volcengine / 豆包"
-                description={canManage ? '可添加多个共享配置' : '平台开放的共享配置'}
+                title={t('providers.volcengine.title')}
+                description={
+                  canManage
+                    ? t('providers.volcengine.section_manage_desc')
+                    : t('providers.volcengine.section_readonly_desc')
+                }
                 icon={<Cloud className="size-4" />}
-                action={canManage ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditing({ type: 'new', provider: 'volcengine' })}
-                  >
-                    <Plus className="size-3.5" />
-                    新增
-                  </Button>
-                ) : undefined}
+                action={
+                  canManage ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditing({ type: 'new', provider: 'volcengine' })}
+                    >
+                      <Plus className="size-3.5" />
+                      {t('panel.add')}
+                    </Button>
+                  ) : undefined
+                }
               >
                 {volcengineConfigs.map((config) => (
                   <ConfigItem
@@ -562,28 +621,34 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     onEdit={() => setEditing({ type: 'edit', config })}
                     onToggle={(enabled) => handleToggle(config.id, enabled)}
                     readOnly={!canManage}
+                    t={t}
                   />
                 ))}
                 {volcengineConfigs.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-1">暂无配置</p>
+                  <p className="py-1 text-xs text-muted-foreground">{t('panel.empty')}</p>
                 )}
               </ProviderSection>
 
-              {/* Custom OpenAI-Compatible section */}
               <ProviderSection
-                title="OpenAI-Compatible"
-                description={canManage ? '兼容 OpenAI 接口的共享服务' : '平台开放的共享配置'}
+                title={t('providers.openai_compatible.title')}
+                description={
+                  canManage
+                    ? t('providers.openai_compatible.section_manage_desc')
+                    : t('providers.openai_compatible.section_readonly_desc')
+                }
                 icon={<KeyRound className="size-4" />}
-                action={canManage ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditing({ type: 'new', provider: 'openai-compatible' })}
-                  >
-                    <Plus className="size-3.5" />
-                    新增
-                  </Button>
-                ) : undefined}
+                action={
+                  canManage ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditing({ type: 'new', provider: 'openai-compatible' })}
+                    >
+                      <Plus className="size-3.5" />
+                      {t('panel.add')}
+                    </Button>
+                  ) : undefined
+                }
               >
                 {openaiCompatibleConfigs.map((config) => (
                   <ConfigItem
@@ -592,28 +657,34 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     onEdit={() => setEditing({ type: 'edit', config })}
                     onToggle={(enabled) => handleToggle(config.id, enabled)}
                     readOnly={!canManage}
+                    t={t}
                   />
                 ))}
                 {openaiCompatibleConfigs.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-1">暂无配置</p>
+                  <p className="py-1 text-xs text-muted-foreground">{t('panel.empty')}</p>
                 )}
               </ProviderSection>
 
-              {/* Anthropic-Compatible section */}
               <ProviderSection
-                title="Anthropic-Compatible"
-                description={canManage ? 'Agent Brain 专用的 Anthropic Messages 兼容共享服务' : '平台开放的 Agent Brain 专用共享配置'}
+                title={t('providers.anthropic_compatible.title')}
+                description={
+                  canManage
+                    ? t('providers.anthropic_compatible.section_manage_desc')
+                    : t('providers.anthropic_compatible.section_readonly_desc')
+                }
                 icon={<KeyRound className="size-4" />}
-                action={canManage ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditing({ type: 'new', provider: 'anthropic-compatible' })}
-                  >
-                    <Plus className="size-3.5" />
-                    新增
-                  </Button>
-                ) : undefined}
+                action={
+                  canManage ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditing({ type: 'new', provider: 'anthropic-compatible' })}
+                    >
+                      <Plus className="size-3.5" />
+                      {t('panel.add')}
+                    </Button>
+                  ) : undefined
+                }
               >
                 {anthropicCompatibleConfigs.map((config) => (
                   <ConfigItem
@@ -622,10 +693,11 @@ export function ProviderConfigPanel({ open, onOpenChange, onConfigsChange }: Pro
                     onEdit={() => setEditing({ type: 'edit', config })}
                     onToggle={(enabled) => handleToggle(config.id, enabled)}
                     readOnly={!canManage}
+                    t={t}
                   />
                 ))}
                 {anthropicCompatibleConfigs.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-1">暂无配置</p>
+                  <p className="py-1 text-xs text-muted-foreground">{t('panel.empty')}</p>
                 )}
               </ProviderSection>
             </>

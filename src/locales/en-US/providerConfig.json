@@ -5,5 +5,111 @@
     "hint": "Possible reasons: config disabled, API key expired, or deleted",
     "later": "Later",
     "go_settings": "Go to Settings"
+  },
+  "panel": {
+    "title": "Provider Settings",
+    "load_failed": "Failed to load provider configs",
+    "no_permission": "This account can't manage provider configs. The list below shows shared configs already opened by the platform. Only super admins can add, edit, enable, or delete them.",
+    "back": "Back",
+    "create_title": "Add {provider} config",
+    "edit_title": "Edit {name}",
+    "add": "Add",
+    "empty": "No configs yet"
+  },
+  "statuses": {
+    "disabled": "Disabled",
+    "configured": "Configured",
+    "built_in": "Built-in"
+  },
+  "model_types": {
+    "chat": "Chat",
+    "image": "Image"
+  },
+  "providers": {
+    "volcengine": {
+      "title": "Volcengine / Doubao",
+      "section_manage_desc": "Add multiple shared configs",
+      "section_readonly_desc": "Shared configs opened by the platform",
+      "chat_desc": "For Volcengine or Doubao chat/reasoning models.",
+      "image_desc": "For Volcengine or Doubao image models.",
+      "chat_display_placeholder": "e.g. Doubao Brain",
+      "image_display_placeholder": "e.g. Doubao Seedream"
+    },
+    "openai_compatible": {
+      "title": "OpenAI-Compatible",
+      "section_manage_desc": "Shared services compatible with the OpenAI API",
+      "section_readonly_desc": "Shared configs opened by the platform",
+      "chat_desc": "For chat/reasoning services compatible with the OpenAI API.",
+      "image_desc": "For image services compatible with the OpenAI API.",
+      "chat_display_placeholder": "e.g. Custom Brain Service",
+      "image_display_placeholder": "e.g. Custom Image Service"
+    },
+    "anthropic_compatible": {
+      "title": "Anthropic-Compatible",
+      "section_manage_desc": "Anthropic Messages-compatible shared services for Agent Brain",
+      "section_readonly_desc": "Agent Brain shared configs opened by the platform",
+      "desc": "For Agent Brain services compatible with the Anthropic Messages API.",
+      "display_placeholder": "e.g. MiniMax Brain"
+    },
+    "gemini": {
+      "title": "Gemini",
+      "section_desc": "Built-in default models"
+    }
+  },
+  "defaults": {
+    "title": "Default Models",
+    "description": "System-wide default model settings",
+    "default_chat_model": "Default chat model",
+    "default_image_model": "Default image model",
+    "agent_default_brain_model": "Agent Brain model",
+    "follow_default_chat_model": "Follow the default chat model",
+    "use_system_default": "Use system default ({value})",
+    "click_to_edit": "Click to edit"
+  },
+  "form": {
+    "editing": "Editing",
+    "new_config": "New config",
+    "connection_info_title": "Connection Info",
+    "connection_info_desc": "Validate the API key, endpoint, and model name before saving this shared config.",
+    "usage_label": "Usage",
+    "usage_image": "Image Generation",
+    "usage_chat": "Chat / Agent Brain",
+    "enabled_title": "Enable this config",
+    "enabled_desc": "Turning it off keeps the credential stored, but it won't appear in model selection.",
+    "api_key_label": "API Key",
+    "api_key_keep_existing": "leave blank to keep the current key",
+    "api_key_placeholder": "Enter API key",
+    "api_url_label": "API URL / Endpoint",
+    "model_name_label": "Model Name",
+    "display_title": "Display Settings",
+    "display_desc": "Used to distinguish configs in the model selector and settings panel.",
+    "display_name_label": "Display Name",
+    "test_success": "Connection test passed",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "test_connection": "Test connection",
+    "test_and_save": "Test and save",
+    "saving": "Saving...",
+    "save": "Save",
+    "reset": "Reset",
+    "delete_confirm_title": "Delete config?",
+    "delete_confirm_desc": "This will remove the config and its stored credentials. This action can't be undone.",
+    "confirm_delete": "Delete"
+  },
+  "validation": {
+    "api_key_required": "API key is required",
+    "api_url_required": "API URL is required",
+    "model_name_required": "Model name is required",
+    "display_name_required": "Display name is required"
+  },
+  "errors": {
+    "connection_test_failed": "Connection test failed",
+    "save_failed": "Failed to save",
+    "test_failed": "Failed to test",
+    "delete_failed": "Failed to delete"
+  },
+  "actions": {
+    "enable": "Enable",
+    "disable": "Disable"
   }
 }

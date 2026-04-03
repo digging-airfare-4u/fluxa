@@ -7,11 +7,13 @@
     "settings": "Settings"
   },
   "dashboard": {
+    "all_projects": "All Projects",
     "empty_state": {
       "description": "Create your first design project",
       "title": "No projects yet"
     },
     "new_project": "New Project",
+    "project_count": "{count} projects",
     "recent_projects": "Recent Projects",
     "see_all": "See All",
     "title": "My Projects"
@@ -47,6 +49,9 @@
   "profile": {
     "title": "Profile"
   },
+  "menu": {
+    "settings": "Settings"
+  },
   "project_card": {
     "created_at": "Created {date}",
     "delete": "Delete",
@@ -66,8 +71,7 @@
       "default": "Design a creative work",
       "design": "Design a modern minimalist poster",
       "ecommerce": "Design an e-commerce product promotion image",
-      "illustration": "Create an illustration artwork",
-      "video": "Design a video cover thumbnail"
+      "illustration": "Create an illustration artwork"
     },
     "social": "Social Media"
   }

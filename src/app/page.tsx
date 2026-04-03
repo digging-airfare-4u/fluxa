@@ -8,13 +8,14 @@
 
 import { useEffect, useState } from 'react';
 import { motion, stagger, useAnimate, AnimatePresence } from 'motion/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Floating, { FloatingElement } from '@/components/ui/parallax-floating';
 import { GooeyText } from '@/components/ui/gooey-text-morphing';
 import { AuthDialog } from '@/components/auth';
 import { supabase } from '@/lib/supabase/client';
+import { storeReferralCodeLocally } from '@/lib/supabase/queries/referral-codes';
 
 // Shimmer SVG for blur placeholder - creates a gradient animation effect
 const shimmer = (w: number, h: number) => `
@@ -61,10 +62,19 @@ const introTexts = ['AI Design', 'Fluxa'];
 
 export default function LandingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [scope, animate] = useAnimate();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [showIntro, setShowIntro] = useState(true);
+  const refCode = searchParams.get('ref') ?? '';
+
+  // Persist referral code to localStorage (survives OAuth redirects)
+  useEffect(() => {
+    if (refCode) {
+      storeReferralCodeLocally(refCode);
+    }
+  }, [refCode]);
 
   // Auto-hide intro after animation completes
   useEffect(() => {
@@ -244,9 +254,10 @@ export default function LandingPage() {
       </div>
 
       {/* Auth Dialog */}
-      <AuthDialog 
-        open={showAuthDialog} 
-        onOpenChange={setShowAuthDialog} 
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        initialReferralCode={refCode}
       />
     </div>
   );

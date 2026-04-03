@@ -26,7 +26,7 @@ export function PublicationDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0 sm:max-w-6xl">
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 sm:max-w-5xl">
         <DialogTitle className="sr-only">Publication detail</DialogTitle>
         {publicationId ? (
           <PublicationDetailContent

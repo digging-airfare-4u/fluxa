@@ -8,17 +8,20 @@ describe('discover feed card layout contract', () => {
     'utf8'
   );
 
-  it('keeps discover as the denser browsing feed without changing query flow', () => {
-    expect(source).toMatch(/const\s+DISCOVER_SKELETON_HEIGHTS\s*=\s*\[[^\]]*'h-48'[^\]]*'h-64'[^\]]*'h-56'[^\]]*'h-72'[^\]]*\]\s+as\s+const/);
-    expect(source).toContain('DISCOVER_SKELETON_HEIGHTS[i % DISCOVER_SKELETON_HEIGHTS.length]');
-    expect(source).toContain('columns-2');
-    expect(source).toContain('sm:columns-3');
-    expect(source).toContain('md:columns-4');
-    expect(source).toContain('xl:columns-5');
-    expect(source).toContain('gap-3');
-    expect(source).toContain('sm:gap-4');
-    expect(source).toContain('pt-2');
-    expect(source).toContain('<PublicationCard key={pub.id} publication={pub} />');
+  it('turns discover into a content-first inspiration feed while preserving query flow', () => {
+    expect(source).toContain("const DISCOVER_SKELETON_HEIGHTS = ['h-[24rem]', 'h-[16rem]', 'h-[22rem]', 'h-[28rem]'] as const;");
+    expect(source).toContain('const [isSearchExpanded, setIsSearchExpanded] = useState(Boolean(paramSearch));');
+    expect(source).toContain('max-w-[1280px]');
+    expect(source).toContain("{t('discover.browse_subtitle')}");
+    expect(source).toContain('columns-2 lg:columns-3 xl:columns-4 gap-5');
+    expect(source).toContain('DISCOVER_SKELETON_HEIGHTS[index%DISCOVER_SKELETON_HEIGHTS.length]');
+    expect(source).toContain('overflow-x-auto pb-1');
+    expect(source).toContain('flex min-w-max items-center gap-5 text-sm');
+    expect(source).toContain('setIsSearchExpanded((current) => !current);');
+    expect(source).toContain('handleSortChange');
+    expect(source).toContain('ResponsiveMasonry');
+    expect(source).toContain('<PublicationCard');
+    expect(source).toContain('layout="discover"');
     expect(source).toContain('fetchGalleryPublications');
   });
 });

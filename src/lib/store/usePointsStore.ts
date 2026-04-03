@@ -176,7 +176,10 @@ export const usePointsStore = create<PointsStore>((set) => ({
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log(`[PointsStore] Subscribed to channel: ${channelName}`);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          set({ error: null });
+        } else if (status === 'TIMED_OUT') {
+          console.warn('[PointsStore] Subscription timed out for channel:', channelName);
+        } else if (status === 'CHANNEL_ERROR') {
           console.error(`[PointsStore] Subscription error:`, err);
           set({ error: 'Failed to subscribe to points updates' });
         }

@@ -72,7 +72,7 @@ export function AuthDialog({
         });
 
         if (error) {
-          setError(error.message);
+          setError(t('errors.generic_error'));
           return;
         }
 
@@ -86,7 +86,7 @@ export function AuthDialog({
     }
 
     if (!email || !password) {
-      setError(t('errors.email_required') + ' ' + t('errors.password_required'));
+      setError(t('errors.email_and_password_required'));
       return;
     }
 
@@ -115,7 +115,7 @@ export function AuthDialog({
           } else if (error.message.includes('Email not confirmed')) {
             setError(t('errors.email_not_confirmed'));
           } else {
-            setError(error.message);
+            setError(t('errors.generic_error'));
           }
           return;
         }
@@ -132,7 +132,6 @@ export function AuthDialog({
             emailRedirectTo: `${window.location.origin}${redirectTo}`,
             data: normalizedInviteCode
               ? {
-                  pending_invite_code: normalizedInviteCode,
                   pending_referral_code: normalizedInviteCode,
                 }
               : undefined,
@@ -143,7 +142,7 @@ export function AuthDialog({
           if (error.message.includes('already registered')) {
             setError(t('errors.email_already_registered'));
           } else {
-            setError(error.message);
+            setError(t('errors.generic_error'));
           }
           return;
         }
@@ -289,14 +288,14 @@ export function AuthDialog({
           {mode === 'register' && (
             <div>
               <label htmlFor="auth-invite-code" className="block text-sm font-medium mb-1.5 text-muted-foreground">
-                邀请码（选填）
+                {t('register.invite_code_label')}
               </label>
               <Input
                 id="auth-invite-code"
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="输入邀请码"
+                placeholder={t('register.invite_code_placeholder')}
                 className="h-10"
                 disabled={isLoading}
               />
@@ -363,7 +362,7 @@ export function AuthDialog({
                     redirectTo: `${window.location.origin}/auth/callback`,
                   },
                 });
-                if (error) setError(error.message);
+                if (error) setError(t('errors.generic_error'));
               }}
             >
               <svg className="size-4 mr-2" viewBox="0 0 24 24">

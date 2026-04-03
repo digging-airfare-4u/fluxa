@@ -55,6 +55,67 @@
     "done": "完成",
     "retry": "重试"
   },
+  "plans": {
+    "free": {
+      "name": "免费版",
+      "description": "适合个人用户体验",
+      "button": "开始使用"
+    },
+    "pro": {
+      "name": "专业版",
+      "description": "适合专业设计师和创作者",
+      "button": "升级专业版"
+    },
+    "team": {
+      "name": "团队版",
+      "description": "适合团队协作和企业用户",
+      "button": "联系我们"
+    }
+  },
+  "plan_actions": {
+    "contact_sales": "联系我们",
+    "select": "选择"
+  },
+  "plan_features": {
+    "initial_points": "{count} 初始点数",
+    "no_watermark_export": "无水印导出",
+    "priority_queue": "优先生成队列",
+    "basic_ai_models": "基础 AI 模型",
+    "community_support": "社区支持",
+    "all_ai_models": "所有 AI 模型",
+    "hd_export": "高清导出",
+    "priority_support": "优先客服支持",
+    "team_collaboration": "团队协作",
+    "dedicated_support": "专属客服",
+    "api_access": "API 访问"
+  },
+  "profile": {
+    "balance_title": "点数余额",
+    "team": "团队版",
+    "pro": "专业版",
+    "free": "免费版",
+    "today_spent": "今日消耗",
+    "unit": "点"
+  },
+  "rules": {
+    "title": "模型消耗与积分规则",
+    "subtitle": "了解不同 AI 模型的积分消耗和获取方式",
+    "cost_title": "积分消耗",
+    "not_available": "暂未开放",
+    "export_title": "导出图片",
+    "export_format": "PNG/JPG 格式",
+    "earn_title": "积分获取",
+    "registration_title": "新用户注册",
+    "registration_desc": "首次注册即送",
+    "daily_login_title": "每日登录",
+    "daily_login_desc": "每天首次登录",
+    "upgrade_title": "升级会员",
+    "upgrade_desc": "获取更多初始积分",
+    "recommended": "推荐",
+    "note_valid_forever": "积分永久有效，不会过期",
+    "note_upgrade_benefits": "升级会员可获得更多初始积分和专属权益",
+    "note_more_coming": "更多获取方式即将上线"
+  },
   "transaction": {
     "balance_after": "余额: {balance}",
     "empty": "暂无交易记录",

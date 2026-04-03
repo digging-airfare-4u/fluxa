@@ -7,12 +7,15 @@
 
 import { useEffect, useState } from 'react';
 import { Zap, Sparkles, ImageIcon, Download, Gift } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { getAIModels, type AIModel } from '@/lib/supabase/queries/ai-models';
 import { getMembershipConfigs } from '@/lib/supabase/queries/membership';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export function PointsRules() {
+  const t = useTranslations('points');
+  const locale = useLocale();
   const [models, setModels] = useState<AIModel[]>([]);
   const [registrationPoints, setRegistrationPoints] = useState(100);
   const [loading, setLoading] = useState(true);
@@ -42,9 +45,9 @@ export function PointsRules() {
   return (
     <div className="container py-16">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-2">模型消耗与积分规则</h2>
+        <h2 className="text-2xl font-bold text-center mb-2">{t('rules.title')}</h2>
         <p className="text-muted-foreground text-center mb-8">
-          了解不同 AI 模型的积分消耗和获取方式
+          {t('rules.subtitle')}
         </p>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -52,7 +55,7 @@ export function PointsRules() {
           <div className="rounded-xl border bg-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="size-5 text-primary" />
-              <h3 className="font-semibold">积分消耗</h3>
+              <h3 className="font-semibold">{t('rules.cost_title')}</h3>
             </div>
 
             {loading ? (
@@ -83,7 +86,7 @@ export function PointsRules() {
                         <p className="text-sm font-medium">{model.display_name}</p>
                         <p className="text-xs text-muted-foreground">
                           {model.description || model.provider}
-                          {!model.is_enabled && ' · 暂未开放'}
+                          {!model.is_enabled && ` · ${t('rules.not_available')}`}
                         </p>
                       </div>
                     </div>
@@ -101,8 +104,8 @@ export function PointsRules() {
                       <Download className="size-4 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">导出图片</p>
-                      <p className="text-xs text-muted-foreground">PNG/JPG 格式</p>
+                      <p className="text-sm font-medium">{t('rules.export_title')}</p>
+                      <p className="text-xs text-muted-foreground">{t('rules.export_format')}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-sm font-semibold">
@@ -118,7 +121,7 @@ export function PointsRules() {
           <div className="rounded-xl border bg-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <Gift className="size-5 text-primary" />
-              <h3 className="font-semibold">积分获取</h3>
+              <h3 className="font-semibold">{t('rules.earn_title')}</h3>
             </div>
 
             <div className="space-y-2">
@@ -129,12 +132,12 @@ export function PointsRules() {
                     <Gift className="size-4 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">新用户注册</p>
-                    <p className="text-xs text-muted-foreground">首次注册即送</p>
+                    <p className="text-sm font-medium">{t('rules.registration_title')}</p>
+                    <p className="text-xs text-muted-foreground">{t('rules.registration_desc')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 text-sm font-semibold text-green-500">
-                  +{registrationPoints}
+                  +{registrationPoints.toLocaleString(locale)}
                 </div>
               </div>
 
@@ -145,8 +148,8 @@ export function PointsRules() {
                     <Zap className="size-4 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">每日登录</p>
-                    <p className="text-xs text-muted-foreground">每天首次登录</p>
+                    <p className="text-sm font-medium">{t('rules.daily_login_title')}</p>
+                    <p className="text-xs text-muted-foreground">{t('rules.daily_login_desc')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 text-sm font-semibold text-green-500">
@@ -161,19 +164,19 @@ export function PointsRules() {
                     <Zap className="size-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">升级会员</p>
-                    <p className="text-xs text-muted-foreground">获取更多初始积分</p>
+                    <p className="text-sm font-medium">{t('rules.upgrade_title')}</p>
+                    <p className="text-xs text-muted-foreground">{t('rules.upgrade_desc')}</p>
                   </div>
                 </div>
-                <span className="text-xs text-primary font-medium">推荐</span>
+                <span className="text-xs text-primary font-medium">{t('rules.recommended')}</span>
               </div>
             </div>
 
             {/* 说明 */}
             <div className="mt-4 p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground">
-              <p>· 积分永久有效，不会过期</p>
-              <p>· 升级会员可获得更多初始积分和专属权益</p>
-              <p>· 更多获取方式即将上线</p>
+              <p>· {t('rules.note_valid_forever')}</p>
+              <p>· {t('rules.note_upgrade_benefits')}</p>
+              <p>· {t('rules.note_more_coming')}</p>
             </div>
           </div>
         </div>

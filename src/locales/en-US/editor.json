@@ -76,6 +76,13 @@
     "points_required": "Current balance: {current} points, required: {required} points",
     "error_processing": "Processing failed, please retry"
   },
+  "project": {
+    "back_home": "Back to Home",
+    "incomplete": "Project data is incomplete",
+    "load_denied": "We couldn't load this project. Check that it still exists and that you have access.",
+    "load_failed": "Failed to load project",
+    "not_found": "Project not found"
+  },
   "text_toolbar": {
     "align_center": "Center align",
     "align_left": "Left align",

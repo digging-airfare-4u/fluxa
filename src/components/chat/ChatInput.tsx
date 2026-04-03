@@ -39,6 +39,8 @@ interface ChatInputProps {
   isLoading?: boolean;
   isBusy?: boolean;
   placeholder?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   chatMode?: 'classic' | 'agent';
   onChatModeChange?: (mode: ChatMode) => void;
   selectedModel?: string;
@@ -63,6 +65,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   isLoading = false,
   isBusy = false,
   placeholder,
+  value: controlledValue,
+  onValueChange,
   chatMode = 'classic',
   onChatModeChange,
   selectedModel = '',
@@ -80,13 +84,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
 }, ref) {
   const t = useTranslations('chat');
   const tCommon = useTranslations('common');
-  const [message, setMessage] = useState('');
+  const [internalMessage, setInternalMessage] = useState('');
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [referencedImage, setReferencedImage] = useState<ReferencedImage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const chatModes: ChatMode[] = ['classic', 'agent'];
+  const message = typeof controlledValue === 'string' ? controlledValue : internalMessage;
   
   // Use provided placeholder or default from translations
   const inputPlaceholder = placeholder || t('input.placeholder');
@@ -96,6 +101,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   useImperativeHandle(ref, () => ({
     focus: () => textareaRef.current?.focus(),
   }), []);
+
+  const setMessageValue = useCallback((newValue: string) => {
+    if (typeof controlledValue === 'string') {
+      onValueChange?.(newValue);
+      return;
+    }
+
+    setInternalMessage(newValue);
+    onValueChange?.(newValue);
+  }, [controlledValue, onValueChange]);
 
   const loadMentionAssets = useCallback(async () => {
     if (!projectId) {
@@ -141,13 +156,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
         ? selectedAgentModel || undefined
         : selectedModel || undefined;
       onSend(trimmed, modelForSend, referencedImage || undefined);
-      setMessage('');
+      setMessageValue('');
       setReferencedImage(null);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }
-  }, [message, disabled, isLoading, isBusy, onSend, chatMode, selectedModel, selectedAgentModel, referencedImage]);
+  }, [message, disabled, isLoading, isBusy, onSend, chatMode, selectedModel, selectedAgentModel, referencedImage, setMessageValue]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle mention menu navigation
@@ -205,7 +220,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
       openMentionMenu();
     }
     
-    setMessage(newValue);
+    setMessageValue(newValue);
   };
 
   const handleInput = () => {
@@ -224,9 +239,19 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
     });
     setShowMentionMenu(false);
     // Remove @ from message if user typed it (anywhere in the message)
-    setMessage(prev => prev.replace(/@$/, '').replace(/@\s*$/, ''));
+    setMessageValue(message.replace(/@$/, '').replace(/@\s*$/, ''));
     textareaRef.current?.focus();
   };
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+  }, [message]);
 
   const canSend = message.trim().length > 0 && !disabled && !isLoading && !isBusy;
   const isInputDisabled = disabled || isBusy;

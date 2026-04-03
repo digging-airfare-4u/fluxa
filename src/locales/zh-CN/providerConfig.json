@@ -5,5 +5,111 @@
     "hint": "可能的原因：配置被禁用、API 密钥过期或已删除",
     "later": "稍后",
     "go_settings": "前往设置"
+  },
+  "panel": {
+    "title": "Provider 配置",
+    "load_failed": "加载配置失败",
+    "no_permission": "当前账号没有 Provider 管理权限。下面展示的是平台已开放的共享配置，只有超级管理员可以新增、编辑、启用或删除。",
+    "back": "返回",
+    "create_title": "新增 {provider} 配置",
+    "edit_title": "编辑 {name}",
+    "add": "新增",
+    "empty": "暂无配置"
+  },
+  "statuses": {
+    "disabled": "已禁用",
+    "configured": "已配置",
+    "built_in": "内置"
+  },
+  "model_types": {
+    "chat": "聊天",
+    "image": "图像"
+  },
+  "providers": {
+    "volcengine": {
+      "title": "Volcengine / 豆包",
+      "section_manage_desc": "可添加多个共享配置",
+      "section_readonly_desc": "平台开放的共享配置",
+      "chat_desc": "适用于火山引擎或豆包聊天/推理模型接入。",
+      "image_desc": "适用于火山引擎或豆包图像模型接入。",
+      "chat_display_placeholder": "例如：豆包 Brain",
+      "image_display_placeholder": "例如：豆包 Seedream"
+    },
+    "openai_compatible": {
+      "title": "OpenAI-Compatible",
+      "section_manage_desc": "兼容 OpenAI 接口的共享服务",
+      "section_readonly_desc": "平台开放的共享配置",
+      "chat_desc": "适用于兼容 OpenAI 接口协议的聊天/推理服务。",
+      "image_desc": "适用于兼容 OpenAI 接口协议的图像服务。",
+      "chat_display_placeholder": "例如：自定义 Brain 服务",
+      "image_display_placeholder": "例如：自定义图像服务"
+    },
+    "anthropic_compatible": {
+      "title": "Anthropic-Compatible",
+      "section_manage_desc": "Agent Brain 专用的 Anthropic Messages 兼容共享服务",
+      "section_readonly_desc": "平台开放的 Agent Brain 专用共享配置",
+      "desc": "适用于兼容 Anthropic Messages 接口协议的 Agent Brain 服务。",
+      "display_placeholder": "例如：MiniMax Brain"
+    },
+    "gemini": {
+      "title": "Gemini",
+      "section_desc": "系统内置默认模型"
+    }
+  },
+  "defaults": {
+    "title": "默认模型",
+    "description": "系统级模型默认配置",
+    "default_chat_model": "默认聊天模型",
+    "default_image_model": "默认图片模型",
+    "agent_default_brain_model": "Agent Brain 模型",
+    "follow_default_chat_model": "跟随默认聊天模型",
+    "use_system_default": "使用系统默认值 ({value})",
+    "click_to_edit": "点击编辑"
+  },
+  "form": {
+    "editing": "编辑中",
+    "new_config": "新配置",
+    "connection_info_title": "连接信息",
+    "connection_info_desc": "先验证 API Key、Endpoint 和模型名，再保存为平台共享配置。",
+    "usage_label": "用途",
+    "usage_image": "图像生成",
+    "usage_chat": "聊天 / Agent Brain",
+    "enabled_title": "启用此配置",
+    "enabled_desc": "关闭后会保留凭据，但不会参与模型选择。",
+    "api_key_label": "API Key",
+    "api_key_keep_existing": "留空保留原 Key",
+    "api_key_placeholder": "输入 API Key",
+    "api_url_label": "API URL / Endpoint",
+    "model_name_label": "模型名称",
+    "display_title": "显示设置",
+    "display_desc": "用于在模型选择器和设置面板里区分不同配置。",
+    "display_name_label": "显示名称",
+    "test_success": "连接测试通过",
+    "delete": "删除",
+    "cancel": "取消",
+    "test_connection": "测试连接",
+    "test_and_save": "测试并保存",
+    "saving": "保存中...",
+    "save": "保存",
+    "reset": "重置",
+    "delete_confirm_title": "确认删除",
+    "delete_confirm_desc": "删除后将移除此配置及其存储的凭据，此操作不可撤销。",
+    "confirm_delete": "确认删除"
+  },
+  "validation": {
+    "api_key_required": "API Key 不能为空",
+    "api_url_required": "API URL 不能为空",
+    "model_name_required": "模型名称不能为空",
+    "display_name_required": "显示名称不能为空"
+  },
+  "errors": {
+    "connection_test_failed": "连接测试失败",
+    "save_failed": "保存失败",
+    "test_failed": "测试失败",
+    "delete_failed": "删除失败"
+  },
+  "actions": {
+    "enable": "启用",
+    "disable": "禁用"
   }
 }

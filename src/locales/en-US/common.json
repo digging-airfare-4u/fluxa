@@ -30,16 +30,26 @@
     "loading": "Loading...",
     "next": "Next",
     "ok": "OK",
+    "logout": "Sign out",
     "retry": "Retry",
     "save": "Save",
     "saving": "Saving...",
+    "settings": "Settings",
     "submit": "Submit",
     "uploading": "Uploading..."
+  },
+  "navigation": {
+    "home": "Home",
+    "login_register": "Log in / Sign up",
+    "pricing": "Pricing"
   },
   "pagination": {
     "next": "Next",
     "page": "Page {current} of {total}",
     "previous": "Previous"
+  },
+  "social": {
+    "wechat_group": "Scan to join our WeChat group"
   },
   "status": {
     "empty": "No data",
@@ -56,10 +66,12 @@
   },
   "discover": {
     "title": "Discover",
+    "browse_subtitle": "Browse community work like an editorial feed, with content leading and tools staying secondary.",
     "search_placeholder": "Search works...",
     "all_categories": "All",
     "sort_latest": "Latest",
     "sort_popular": "Popular",
+    "load_more": "Load more",
     "no_more": "No more content",
     "no_results": "No works found",
     "no_results_hint": "Try different keywords",

@@ -10,8 +10,8 @@ describe('provider config panel contract', () => {
     );
 
     expect(source).toContain("const anthropicCompatibleConfigs = configs.filter((c) => c.provider === 'anthropic-compatible')");
-    expect(source).toContain('title="Anthropic-Compatible"');
-    expect(source).toContain('Agent Brain 专用');
+    expect(source).toContain("t('providers.anthropic_compatible.title')");
+    expect(source).toContain("t('providers.anthropic_compatible.section_manage_desc')");
     expect(source).toContain("provider: 'anthropic-compatible'");
   });
 
@@ -31,13 +31,13 @@ describe('provider config panel contract', () => {
       'utf8',
     );
 
+    expect(source).toContain("useTranslations('providerConfig')");
     expect(source).toContain('fetchModelDefaults');
     expect(source).toContain('updateModelDefaults');
-    expect(source).toContain('title="默认模型"');
+    expect(source).toContain("t('defaults.title')");
     expect(source).toContain('default_chat_model');
     expect(source).toContain('default_image_model');
     expect(source).toContain('agent_default_brain_model');
-    // No longer auto-updates brain on anthropic-compatible save
     expect(source).not.toContain('updateAgentDefaultBrain');
   });
 });

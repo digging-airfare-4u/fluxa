@@ -19,17 +19,16 @@ import { supabase } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/hooks';
 
-const NAV_ITEMS = [
-  { href: '/app', label: '首页' },
-  { href: '/pricing', label: '价格' },
-];
-
 export function SiteHeader() {
   const pathname = usePathname();
   const tCommon = useT('common');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const navItems = [
+    { href: '/app', label: tCommon('navigation.home') },
+    { href: '/pricing', label: tCommon('navigation.pricing') },
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -74,7 +73,7 @@ export function SiteHeader() {
 
           {/* Center: Nav */}
           <nav className="flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -103,7 +102,7 @@ export function SiteHeader() {
               </>
             ) : (
               <Button size="sm" onClick={() => setShowAuthDialog(true)}>
-                登录 / 注册
+                {tCommon('navigation.login_register')}
               </Button>
             )}
           </div>

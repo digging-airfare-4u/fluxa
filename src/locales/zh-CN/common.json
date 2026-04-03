@@ -30,16 +30,26 @@
     "loading": "加载中...",
     "next": "下一步",
     "ok": "确定",
+    "logout": "退出登录",
     "retry": "重试",
     "save": "保存",
     "saving": "保存中...",
+    "settings": "设置",
     "submit": "提交",
     "uploading": "上传中..."
+  },
+  "navigation": {
+    "home": "首页",
+    "login_register": "登录 / 注册",
+    "pricing": "价格"
   },
   "pagination": {
     "next": "下一页",
     "page": "第 {current} 页，共 {total} 页",
     "previous": "上一页"
+  },
+  "social": {
+    "wechat_group": "扫码加入微信群"
   },
   "status": {
     "empty": "暂无数据",
@@ -56,10 +66,12 @@
   },
   "discover": {
     "title": "灵感发现",
+    "browse_subtitle": "像翻设计杂志一样浏览社区作品，把筛选降到第二层，让内容先抓住你。",
     "search_placeholder": "搜索作品...",
     "all_categories": "全部",
     "sort_latest": "最新",
     "sort_popular": "最热",
+    "load_more": "加载更多",
     "no_more": "已经到底了",
     "no_results": "没有找到相关作品",
     "no_results_hint": "试试其他关键词",

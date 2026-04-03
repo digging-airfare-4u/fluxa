@@ -24,23 +24,8 @@ import {
 export type GenerationPhase = 'idle' | 'phase-a' | 'phase-b' | 'success' | 'failed' | 'stopped';
 export type ChatMode = 'classic' | 'agent';
 
-export const CHAT_MODE_STORAGE_KEY = 'fluxa-chat-mode';
-
 function getInitialChatMode(): ChatMode {
-  if (typeof window === 'undefined') {
-    return 'agent';
-  }
-
-  const persistedMode = window.localStorage.getItem(CHAT_MODE_STORAGE_KEY);
-  return persistedMode === 'classic' ? 'classic' : 'agent';
-}
-
-function persistChatMode(mode: ChatMode) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode);
+  return 'agent';
 }
 
 export interface ChatState {
@@ -135,10 +120,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   ...initialState,
 
   // Mode actions
-  setChatMode: (mode) => {
-    persistChatMode(mode);
-    set({ chatMode: mode });
-  },
+  setChatMode: (mode) => set({ chatMode: mode }),
 
   // Model actions
   setSelectedModel: (model) => set({ selectedModel: model }),

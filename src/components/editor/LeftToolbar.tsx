@@ -5,7 +5,7 @@
  * Requirements: 6.2, 7.6, 14.1 - Toolbar with icon buttons and i18n tooltips
  */
 
-import { useCallback } from 'react';
+import { Fragment, useCallback } from 'react';
 import {
   MousePointer2,
   BoxSelect,
@@ -15,9 +15,7 @@ import {
   Sparkles,
   Pencil,
 } from 'lucide-react';
-import { Toggle } from '@/components/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/hooks';
 
@@ -27,6 +25,7 @@ interface Tool {
   id: ToolType;
   icon: React.ReactNode;
   labelKey: string;
+  group: 'core' | 'actions';
   shortcut?: string;
 }
 
@@ -43,13 +42,24 @@ interface LeftToolbarProps {
 }
 
 const tools: Tool[] = [
-  { id: 'select', icon: <MousePointer2 className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.select', shortcut: 'V' },
-  { id: 'boxSelect', icon: <BoxSelect className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.box_select', shortcut: 'M' },
-  { id: 'rectangle', icon: <Square className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.rectangle', shortcut: 'R' },
-  { id: 'text', icon: <Type className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.text', shortcut: 'T' },
-  { id: 'pencil', icon: <Pencil className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.pencil', shortcut: 'P' },
-  { id: 'image', icon: <ImageIcon className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.image', shortcut: 'I' },
-  { id: 'ai', icon: <Sparkles className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.ai', shortcut: 'A' },
+  { id: 'select', icon: <MousePointer2 className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.select', group: 'core', shortcut: 'V' },
+  { id: 'boxSelect', icon: <BoxSelect className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.box_select', group: 'core', shortcut: 'M' },
+  { id: 'rectangle', icon: <Square className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.rectangle', group: 'core', shortcut: 'R' },
+  { id: 'text', icon: <Type className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.text', group: 'core', shortcut: 'T' },
+  { id: 'pencil', icon: <Pencil className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.pencil', group: 'core', shortcut: 'P' },
+  { id: 'image', icon: <ImageIcon className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.image', group: 'actions', shortcut: 'I' },
+  { id: 'ai', icon: <Sparkles className="size-5" strokeWidth={1.5} />, labelKey: 'toolbar.ai', group: 'actions', shortcut: 'A' },
+];
+
+const toolGroups = [
+  {
+    id: 'core',
+    tools: tools.filter((tool) => tool.group === 'core'),
+  },
+  {
+    id: 'actions',
+    tools: tools.filter((tool) => tool.group === 'actions'),
+  },
 ];
 
 export function LeftToolbar({
@@ -90,45 +100,41 @@ export function LeftToolbar({
       role="toolbar"
       aria-label={t('toolbar.aria_label')}
     >
-      {tools.map((tool) => {
-        const isActive = activeTool === tool.id && tool.id !== 'image' && tool.id !== 'ai';
-        const isActionButton = tool.id === 'image' || tool.id === 'ai';
-        const label = t(tool.labelKey);
-        
-        return (
-          <Tooltip key={tool.id}>
-            <TooltipTrigger asChild>
-              {isActionButton ? (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => handleToolClick(tool)}
-                  className={cn(
-                    "rounded-lg",
-                    tool.id === 'ai' && "text-primary hover:text-primary"
-                  )}
-                  aria-label={label}
-                >
-                  {tool.icon}
-                </Button>
-              ) : (
-                <Toggle
-                  pressed={isActive}
-                  onPressedChange={() => handleToolClick(tool)}
-                  size="sm"
-                  className="rounded-lg"
-                  aria-label={label}
-                >
-                  {tool.icon}
-                </Toggle>
-              )}
-            </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>
-              {label}{tool.shortcut && ` (${tool.shortcut})`}
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
+      {toolGroups.map((group, index) => (
+        <Fragment key={group.id}>
+          {index > 0 && <div className="editor-toolbar__divider" aria-hidden="true" />}
+          <div className="editor-toolbar__group">
+            {group.tools.map((tool) => {
+              const isActionButton = tool.group === 'actions';
+              const isActive = activeTool === tool.id && !isActionButton;
+              const label = t(tool.labelKey);
+
+              return (
+                <Tooltip key={tool.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => handleToolClick(tool)}
+                      className={cn(
+                        'editor-toolbar__button',
+                        isActive && 'editor-toolbar__button--active',
+                        isActionButton && 'editor-toolbar__button--action',
+                      )}
+                      aria-label={label}
+                      aria-pressed={isActionButton ? undefined : isActive}
+                    >
+                      {tool.icon}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side={tooltipSide}>
+                    {label}{tool.shortcut && ` (${tool.shortcut})`}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </Fragment>
+      ))}
     </div>
   );
 }

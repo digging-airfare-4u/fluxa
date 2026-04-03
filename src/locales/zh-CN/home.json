@@ -7,11 +7,13 @@
     "settings": "设置"
   },
   "dashboard": {
+    "all_projects": "所有项目",
     "empty_state": {
       "description": "创建你的第一个设计项目",
       "title": "还没有项目"
     },
     "new_project": "新建项目",
+    "project_count": "共 {count} 个项目",
     "recent_projects": "最近项目",
     "see_all": "查看全部",
     "title": "我的项目"
@@ -47,6 +49,9 @@
   "profile": {
     "title": "个人中心"
   },
+  "menu": {
+    "settings": "设置"
+  },
   "project_card": {
     "created_at": "创建于 {date}",
     "delete": "删除",
@@ -66,8 +71,7 @@
       "default": "设计一个作品",
       "design": "设计一张现代简约风格的海报",
       "ecommerce": "设计一张电商产品促销图",
-      "illustration": "创作一幅插画作品",
-      "video": "设计一个视频封面缩略图"
+      "illustration": "创作一幅插画作品"
     },
     "social": "社交媒体"
   }

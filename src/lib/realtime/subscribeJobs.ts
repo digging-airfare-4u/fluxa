@@ -105,9 +105,12 @@ export function subscribeToJobs(
     .subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
         console.log(`[Jobs] Subscribed to channel: ${channelName}`);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error(`[Jobs] Subscription error: ${status}`, err || '');
-        callbacks.onError?.(new Error(`Subscription failed: ${status}${err ? ` - ${err}` : ''}`));
+      } else if (status === 'TIMED_OUT') {
+        console.warn('[Jobs] Subscription timed out for channel:', channelName);
+        callbacks.onError?.(new Error('Subscription timed out'));
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('[Jobs] Subscription error:', err);
+        callbacks.onError?.(err ?? new Error(`Subscription failed: ${status}`));
       }
     });
 
@@ -184,9 +187,12 @@ export function subscribeToJob(
     .subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
         console.log(`[Jobs] Subscribed to job: ${jobId}`);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error(`[Jobs] Job subscription error: ${status}`, err || '');
-        callbacks.onError?.(new Error(`Job subscription failed: ${status}${err ? ` - ${err}` : ''}`));
+      } else if (status === 'TIMED_OUT') {
+        console.warn('[Jobs] Job subscription timed out:', jobId);
+        callbacks.onError?.(new Error('Job subscription timed out'));
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('[Jobs] Job subscription error:', err);
+        callbacks.onError?.(err ?? new Error(`Job subscription failed: ${status}`));
       }
     });
 

@@ -10,6 +10,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Zap, Crown, Users, TrendingDown, RefreshCw } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,7 +28,10 @@ interface UserProfilePointsProps {
 /**
  * Get membership level display info
  */
-function getMembershipInfo(level: MembershipLevel): {
+function getMembershipInfo(
+  level: MembershipLevel,
+  t: (key: string) => string,
+): {
   name: string;
   icon: React.ReactNode;
   color: string;
@@ -35,19 +39,19 @@ function getMembershipInfo(level: MembershipLevel): {
 } {
   const info: Record<MembershipLevel, { name: string; icon: React.ReactNode; color: string; bgColor: string }> = {
     free: {
-      name: '免费版',
+      name: t('profile.free'),
       icon: <Zap className="size-3.5" />,
       color: 'text-gray-600 dark:text-gray-400',
       bgColor: 'bg-gray-100 dark:bg-gray-800',
     },
     pro: {
-      name: '专业版',
+      name: t('profile.pro'),
       icon: <Crown className="size-3.5" />,
       color: 'text-violet-600 dark:text-violet-400',
       bgColor: 'bg-violet-100 dark:bg-violet-900/30',
     },
     team: {
-      name: '团队版',
+      name: t('profile.team'),
       icon: <Users className="size-3.5" />,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
@@ -61,6 +65,8 @@ function getMembershipInfo(level: MembershipLevel): {
  * Shows balance card and transaction history
  */
 export function UserProfilePoints({ userId, className }: UserProfilePointsProps) {
+  const t = useTranslations('points');
+  const locale = useLocale();
   const { points, membershipLevel, todaySpent, isLoading, fetchPoints, isInitialized } = usePointsStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -78,7 +84,7 @@ export function UserProfilePoints({ userId, className }: UserProfilePointsProps)
     setIsRefreshing(false);
   }, [fetchPoints]);
 
-  const membershipInfo = getMembershipInfo(membershipLevel);
+  const membershipInfo = getMembershipInfo(membershipLevel, (key) => t(key as never));
 
   if (isLoading && !isInitialized) {
     return (
@@ -105,7 +111,7 @@ export function UserProfilePoints({ userId, className }: UserProfilePointsProps)
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <Zap className="size-5 text-[#1A1A1A] dark:text-white" />
-                点数余额
+                {t('profile.balance_title')}
               </CardTitle>
               <Button
                 type="button"
@@ -123,9 +129,9 @@ export function UserProfilePoints({ userId, className }: UserProfilePointsProps)
             {/* Large balance display */}
             <div className="flex items-baseline gap-2 mb-4">
               <span className="text-4xl font-bold text-[#1A1A1A] dark:text-white">
-                {points.toLocaleString()}
+                {points.toLocaleString(locale)}
               </span>
-              <span className="text-lg text-muted-foreground">点</span>
+              <span className="text-lg text-muted-foreground">{t('profile.unit')}</span>
             </div>
 
             {/* Membership level */}
@@ -139,10 +145,10 @@ export function UserProfilePoints({ userId, className }: UserProfilePointsProps)
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <TrendingDown className="size-4 text-muted-foreground" />
-                  <span>今日消耗</span>
+                  <span>{t('profile.today_spent')}</span>
                 </div>
                 <span className="font-medium text-[#1A1A1A] dark:text-white">
-                  -{todaySpent.toLocaleString()} 点
+                  -{todaySpent.toLocaleString(locale)} {t('profile.unit')}
                 </span>
               </div>
             </div>
@@ -153,7 +159,7 @@ export function UserProfilePoints({ userId, className }: UserProfilePointsProps)
       {/* Transaction History */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-medium">交易记录</CardTitle>
+          <CardTitle className="text-base font-medium">{t('transaction.title')}</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <TransactionHistory userId={userId} />

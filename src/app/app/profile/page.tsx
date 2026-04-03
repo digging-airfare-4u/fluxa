@@ -3,14 +3,14 @@
 /**
  * User Profile Page
  * Requirements: 5.1 - Display user profile with points information
- * 
+ *
  * Shows user profile with points balance, membership level, and transaction history.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, User, Bookmark, FileText } from 'lucide-react';
+import { ArrowLeft, Bookmark, Check, Copy, FileText, Share2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { Input } from '@/components/ui/input';
@@ -20,13 +20,14 @@ import { PublicationDetailDialog } from '@/components/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { supabase } from '@/lib/supabase/client';
 import {
-  fetchOwnPublications,
   fetchMyBookmarkedPublications,
-  updatePublication,
+  fetchOwnPublications,
   toggleBookmark,
   type GalleryPublication,
+  updatePublication,
 } from '@/lib/supabase/queries/publications';
 import { fetchPublicProfile, updateProfile } from '@/lib/supabase/queries/profiles';
+import { getMyReferralCode } from '@/lib/supabase/queries/referral-codes';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -40,28 +41,34 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [inviteCode, setInviteCode] = useState('');
-  const [isRedeemingInvite, setIsRedeemingInvite] = useState(false);
-  const [inviteRedeemError, setInviteRedeemError] = useState<string | null>(null);
-  const [inviteRedeemSuccess, setInviteRedeemSuccess] = useState<string | null>(null);
+  const [myReferralCode, setMyReferralCode] = useState<string | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   useEffect(() => {
     async function getUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        const [ownPubs, ownBookmarks, profile] = await Promise.all([
+        const [ownPubs, ownBookmarks, profile, referralCode] = await Promise.all([
           fetchOwnPublications({ limit: 50 }),
           fetchMyBookmarkedPublications(50),
           fetchPublicProfile(user.id),
+          getMyReferralCode(),
         ]);
         setPublications(ownPubs);
         setBookmarks(ownBookmarks);
         setDisplayName(profile?.display_name || '');
         setBio(profile?.bio || '');
+        setMyReferralCode(referralCode);
       }
     }
-    getUser();
+
+    void getUser();
+  }, []);
+
+  const handleOpenPublication = useCallback((publicationId: string) => {
+    setActivePublicationId(publicationId);
+    setIsPublicationDialogOpen(true);
   }, []);
 
   const reloadPublicationLists = async () => {
@@ -96,69 +103,10 @@ export default function ProfilePage() {
     await reloadPublicationLists();
   };
 
-  const handleRedeemInviteCode = async () => {
-    setInviteRedeemError(null);
-    setInviteRedeemSuccess(null);
-
-    const normalizedCode = inviteCode.trim();
-    if (!normalizedCode) {
-      setInviteRedeemError('Please enter an invite code.');
-      return;
-    }
-
-    setIsRedeemingInvite(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setInviteRedeemError('Please sign in again and retry.');
-        return;
-      }
-
-      const response = await fetch('/api/invite/redeem', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ invite_code: normalizedCode }),
-      });
-
-      const payload = await response.json();
-      if (payload?.success === true) {
-        const membership_expires_at = payload?.membership_expires_at as string | null;
-        setInviteRedeemSuccess(
-          membership_expires_at
-            ? `Invite redeemed successfully. Pro valid until ${new Date(membership_expires_at).toLocaleString()}.`
-            : 'Invite redeemed successfully.'
-        );
-        setInviteCode('');
-        return;
-      }
-
-      const businessCode = payload?.error?.code as string | undefined;
-      if (businessCode === 'ALREADY_REDEEMED') {
-        setInviteRedeemError('ALREADY_REDEEMED: You already redeemed an invite reward.');
-      } else if (businessCode === 'CODE_USED') {
-        setInviteRedeemError('CODE_USED: This invite code has already been used.');
-      } else if (businessCode === 'CODE_EXPIRED') {
-        setInviteRedeemError('CODE_EXPIRED: This invite code has expired.');
-      } else if (businessCode === 'INVALID_CODE') {
-        setInviteRedeemError('INVALID_CODE: Invalid invite code.');
-      } else {
-        setInviteRedeemError('INTERNAL_ERROR: Failed to redeem invite code.');
-      }
-    } catch {
-      setInviteRedeemError('INTERNAL_ERROR: Failed to redeem invite code.');
-    } finally {
-      setIsRedeemingInvite(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0D0915]">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0D0915]/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-[#0D0915]/80">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -177,73 +125,74 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <div className="rounded-xl border bg-white dark:bg-[#1A1028] p-4 space-y-3">
+      <main className="mx-auto max-w-[1280px] px-4 py-6 space-y-6">
+        <div className="space-y-3 rounded-xl border bg-white p-4 dark:bg-[#1A1028]">
           <h2 className="text-sm font-semibold">Profile</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value.slice(0, 50))} placeholder="Display name" />
+            <Input value={displayName} onChange={(event) => setDisplayName(event.target.value.slice(0, 50))} placeholder="Display name" />
             <Button onClick={handleSaveProfile} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save profile'}</Button>
           </div>
-          <Textarea value={bio} onChange={(e) => setBio(e.target.value.slice(0, 200))} placeholder="Bio" rows={2} />
+          <Textarea value={bio} onChange={(event) => setBio(event.target.value.slice(0, 200))} placeholder="Bio" rows={2} />
         </div>
 
-        <div className="rounded-xl border bg-white dark:bg-[#1A1028] p-4 space-y-3">
-          <h2 className="text-sm font-semibold">Invite Code</h2>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <Input
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="Enter invite code"
-              disabled={isRedeemingInvite}
-            />
-            <Button onClick={handleRedeemInviteCode} disabled={isRedeemingInvite}>
-              {isRedeemingInvite ? 'Redeeming...' : 'Redeem'}
-            </Button>
-          </div>
-          {inviteRedeemError && (
-            <p className="text-sm text-destructive">{inviteRedeemError}</p>
-          )}
-          {inviteRedeemSuccess && (
-            <p className="text-sm text-green-600 dark:text-green-400">
-              {inviteRedeemSuccess} membership_expires_at updated.
+        {myReferralCode && (
+          <div className="space-y-3 rounded-xl border bg-white p-4 dark:bg-[#1A1028]">
+            <div className="flex items-center gap-2">
+              <Share2 className="size-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">My Referral Code</h2>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Share your code with friends. You get +50 points and they get +30 points when they sign up!
             </p>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-lg border bg-muted/50 px-3 py-2 text-sm font-mono tracking-wider">
+                {myReferralCode}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  const url = `${window.location.origin}/?ref=${myReferralCode}`;
+                  await navigator.clipboard.writeText(url);
+                  setReferralCopied(true);
+                  setTimeout(() => setReferralCopied(false), 2000);
+                }}
+              >
+                {referralCopied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
+                <span className="ml-1">{referralCopied ? 'Copied!' : 'Copy Link'}</span>
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Button variant={tab === 'points' ? 'default' : 'outline'} size="sm" onClick={() => setTab('points')}>
-            <User className="size-4 mr-1" /> Points
+            <User className="mr-1 size-4" /> Points
           </Button>
           <Button variant={tab === 'publications' ? 'default' : 'outline'} size="sm" onClick={() => setTab('publications')}>
-            <FileText className="size-4 mr-1" /> My Publications
+            <FileText className="mr-1 size-4" /> My Publications
           </Button>
           <Button variant={tab === 'bookmarks' ? 'default' : 'outline'} size="sm" onClick={() => setTab('bookmarks')}>
-            <Bookmark className="size-4 mr-1" /> My Bookmarks
+            <Bookmark className="mr-1 size-4" /> My Bookmarks
           </Button>
         </div>
 
-        {tab === 'points' && <UserProfilePoints userId={userId} />}
+        {tab === 'points' ? <UserProfilePoints userId={userId} /> : null}
 
-        {tab === 'publications' && (
+        {tab === 'publications' ? (
           publications.length === 0 ? (
             <p className="text-sm text-muted-foreground">No publications yet.</p>
           ) : (
-            <div className="columns-2 sm:columns-3 md:columns-4 gap-4">
+            <div className="mt-4 columns-1 md:columns-2 xl:columns-3 gap-6">
               {publications.map((pub) => (
                 <PublicationCard
                   key={pub.id}
                   publication={pub}
-                  onOpenDetail={(publicationId) => {
-                    setActivePublicationId(publicationId);
-                    setIsPublicationDialogOpen(true);
-                  }}
+                  onOpenDetail={handleOpenPublication}
+                  layout="discover"
                   footerActions={(
-                    <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-                      <Button size="sm" variant="outline" disabled>
-                        Detail in modal
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => handleHideToggle(pub)}>
+                    <div className="flex items-center gap-2" onClick={(event) => event.preventDefault()}>
+                      <Button size="sm" variant="secondary" className="rounded-full px-4" onClick={() => handleHideToggle(pub)}>
                         {pub.status === 'hidden' ? 'Unhide' : 'Hide'}
                       </Button>
                     </div>
@@ -252,24 +201,22 @@ export default function ProfilePage() {
               ))}
             </div>
           )
-        )}
+        ) : null}
 
-        {tab === 'bookmarks' && (
+        {tab === 'bookmarks' ? (
           bookmarks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No bookmarks yet.</p>
           ) : (
-            <div className="columns-2 sm:columns-3 md:columns-4 gap-4">
+            <div className="mt-4 columns-1 md:columns-2 xl:columns-3 gap-6">
               {bookmarks.map((pub) => (
                 <PublicationCard
                   key={pub.id}
                   publication={pub}
-                  onOpenDetail={(publicationId) => {
-                    setActivePublicationId(publicationId);
-                    setIsPublicationDialogOpen(true);
-                  }}
+                  onOpenDetail={handleOpenPublication}
+                  layout="discover"
                   footerActions={(
-                    <div onClick={(e) => e.preventDefault()}>
-                      <Button size="sm" variant="outline" onClick={() => handleRemoveBookmark(pub.id)}>
+                    <div onClick={(event) => event.preventDefault()}>
+                      <Button size="sm" variant="outline" className="rounded-full px-4" onClick={() => handleRemoveBookmark(pub.id)}>
                         Remove bookmark
                       </Button>
                     </div>
@@ -278,7 +225,7 @@ export default function ProfilePage() {
               ))}
             </div>
           )
-        )}
+        ) : null}
       </main>
 
       <PublicationDetailDialog

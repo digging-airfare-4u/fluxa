@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { User } from 'lucide-react';
 import {
   Dialog,
@@ -25,6 +26,7 @@ interface ProfileDialogProps {
 }
 
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
+  const t = useTranslations('home');
   const [userId, setUserId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
               <User className="size-5 text-muted-foreground" />
-              个人中心
+              {t('profile.title')}
             </DialogTitle>
           </div>
         </DialogHeader>

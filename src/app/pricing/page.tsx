@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useFormatter, useLocale, useTranslations } from 'next-intl';
 import { Pricing, PointsRules, type PricingPlan } from '@/components/pricing';
 import { SiteHeader } from '@/components/layout';
 import { getMembershipConfigs, transformToPricingPlans } from '@/lib/supabase/queries/membership';
@@ -25,6 +26,13 @@ async function fetchPaymentProducts(): Promise<PaymentProduct[]> {
 }
 
 export default function PricingPage() {
+  const t = useTranslations('points');
+  const translatePricing = t as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
+  const locale = useLocale();
+  const format = useFormatter();
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,18 +46,22 @@ export default function PricingPage() {
           isPaymentEnabled(),
           fetchPaymentProducts(),
         ]);
-        const pricingPlans = transformToPricingPlans(configs, products);
+        const pricingPlans = transformToPricingPlans(configs, products, {
+          locale,
+          t: translatePricing,
+          formatNumber: (value) => format.number(value),
+        });
         setPlans(pricingPlans);
         setPaymentEnabled(enabled);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load');
+        setError(err instanceof Error ? err.message : t('transaction.error'));
       } finally {
         setLoading(false);
       }
     }
 
     fetchData();
-  }, []);
+  }, [format, locale, t]);
 
   if (loading) {
     return (

@@ -2,7 +2,9 @@
 
 /**
  * Creator Profile Page
- * Displays user profile with avatar, stats, follow button, and published works grid.
+ * Requirements: 5.1 - Display creator profile and published works
+ *
+ * Shows the public creator profile with discover-style editorial hero and masonry feed.
  */
 
 import { use, useState, useEffect, useCallback, useRef } from 'react';
@@ -12,7 +14,11 @@ import Image from 'next/image';
 import { ArrowLeft, ImageOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
-import { fetchGalleryPublications, checkUserInteractions, type GalleryPublication } from '@/lib/supabase/queries/publications';
+import {
+  fetchGalleryPublications,
+  checkUserInteractions,
+  type GalleryPublication,
+} from '@/lib/supabase/queries/publications';
 import { FollowButton } from '@/components/social';
 import { PublicationDetailDialog } from '@/components/discover';
 import { PublicationCard } from '@/components/discover/PublicationCard';
@@ -45,41 +51,50 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       try {
         setIsLoading(true);
+
         const [prof, pubs] = await Promise.all([
           fetchPublicProfile(userId),
           fetchGalleryPublications({ sortBy: 'latest', limit: PAGE_SIZE }),
         ]);
+
         if (!mounted) return;
+
         if (!prof) {
           setNotFound(true);
           return;
         }
+
+        const userPubs = pubs.filter((publication) => publication.user_id === userId);
+
         setProfile(prof);
-        const userPubs = pubs.filter((p) => p.user_id === userId);
         setPublications(userPubs);
         setHasMore(pubs.length === PAGE_SIZE);
 
         if (userPubs.length > 0) {
-          const interactions = await checkUserInteractions(userPubs.map((p) => p.id));
-          if (mounted) {
-            setLikedIds(interactions.likedIds);
-            setBookmarkedIds(interactions.bookmarkedIds);
-          }
+          const interactions = await checkUserInteractions(userPubs.map((publication) => publication.id));
+
+          if (!mounted) return;
+
+          setLikedIds(interactions.likedIds);
+          setBookmarkedIds(interactions.bookmarkedIds);
         }
-      } catch (e) {
-        console.error('[UserProfile] Failed to load:', e);
+      } catch (error) {
+        console.error('[UserProfile] Failed to load:', error);
       } finally {
         if (mounted) setIsLoading(false);
       }
     }
-    load();
+
+    void load();
+
     return () => {
       mounted = false;
     };
-  }, [userId, router, setLikedIds, setBookmarkedIds]);
+  }, [setBookmarkedIds, setLikedIds, userId]);
 
   const handleOpenPublication = useCallback((publicationId: string) => {
     setActivePublicationId(publicationId);
@@ -88,45 +103,52 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
   const loadMore = useCallback(async () => {
     if (isFetchingMore || !hasMore || publications.length === 0) return;
+
     setIsFetchingMore(true);
+
     try {
-      const last = publications[publications.length - 1];
-      const data = await fetchGalleryPublications({
+      const lastPublication = publications[publications.length - 1];
+      const nextBatch = await fetchGalleryPublications({
         sortBy: 'latest',
-        cursorPublishedAt: last.published_at,
-        cursorId: last.id,
+        cursorPublishedAt: lastPublication.published_at,
+        cursorId: lastPublication.id,
         limit: PAGE_SIZE,
       });
-      const userPubs = data.filter((p) => p.user_id === userId);
-      setPublications((prev) => [...prev, ...userPubs]);
-      setHasMore(data.length === PAGE_SIZE);
-    } catch (e) {
-      console.error('[UserProfile] Failed to load more:', e);
+
+      const userPubs = nextBatch.filter((publication) => publication.user_id === userId);
+      setPublications((previous) => [...previous, ...userPubs]);
+      setHasMore(nextBatch.length === PAGE_SIZE);
+    } catch (error) {
+      console.error('[UserProfile] Failed to load more:', error);
     } finally {
       setIsFetchingMore(false);
     }
-  }, [isFetchingMore, hasMore, publications, userId]);
+  }, [hasMore, isFetchingMore, publications, userId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
+
     if (!sentinel) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) loadMore();
       },
-      { rootMargin: '200px' },
+      { rootMargin: '220px' },
     );
+
     observer.observe(sentinel);
+
     return () => observer.disconnect();
   }, [loadMore]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F] flex items-center justify-center">
-        <div className="space-y-4 w-full max-w-sm text-center">
-          <div className="size-20 rounded-full bg-muted animate-pulse mx-auto" />
-          <div className="h-5 w-40 bg-muted animate-pulse rounded mx-auto" />
-          <div className="h-4 w-60 bg-muted animate-pulse rounded mx-auto" />
+      <div className="flex min-h-screen items-center justify-center bg-[#F6F3EE] dark:bg-[#0F0A1F]">
+        <div className="w-full max-w-sm space-y-4 px-6 text-center">
+          <div className="mx-auto size-20 animate-pulse rounded-full bg-muted" />
+          <div className="mx-auto h-5 w-40 animate-pulse rounded bg-muted" />
+          <div className="mx-auto h-4 w-60 animate-pulse rounded bg-muted" />
         </div>
       </div>
     );
@@ -134,8 +156,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
   if (notFound) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F] flex items-center justify-center px-6">
-        <div className="text-center max-w-md">
+      <div className="flex min-h-screen items-center justify-center bg-[#F6F3EE] px-6 dark:bg-[#0F0A1F]">
+        <div className="max-w-md text-center">
           <h1 className="text-xl font-semibold text-foreground">{t('profile.user_not_found')}</h1>
           <Button className="mt-4" onClick={() => router.push('/app/discover')}>
             {t('discover.back_to_gallery')}
@@ -148,70 +170,113 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0F0A1F]">
-      {/* Top bar */}
-      <header className="fixed top-0 inset-x-0 z-50 h-14 flex items-center gap-3 px-4 bg-[#FAFAFA]/80 dark:bg-[#0F0A1F]/80 backdrop-blur-lg border-b border-black/5 dark:border-white/5">
-        <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <span className="text-sm font-medium text-foreground truncate">{profile.display_name || t('discover.anonymous')}</span>
+    <div className="min-h-screen bg-[#F6F3EE] dark:bg-[#0F0A1F]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-[22rem] bg-[radial-gradient(circle_at_top_left,_rgba(233,210,181,0.4),_transparent_44%),radial-gradient(circle_at_top_right,_rgba(186,214,255,0.22),_transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(134,85,220,0.2),_transparent_36%),radial-gradient(circle_at_top_right,_rgba(52,116,255,0.14),_transparent_28%)]" />
+
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-black/5 bg-[#F6F3EE]/78 backdrop-blur-xl dark:border-white/5 dark:bg-[#0F0A1F]/82">
+        <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <span className="truncate text-sm font-medium text-foreground">
+              {profile.display_name || t('discover.anonymous')}
+            </span>
+          </div>
+        </div>
       </header>
 
-      <main className="pt-14 pb-16 max-w-[1200px] mx-auto px-4 sm:px-6">
-        {/* Profile header */}
-        <div className="flex flex-col items-center text-center py-10 space-y-4">
-          {profile.avatar_url ? (
-            <Image src={profile.avatar_url} alt="" width={80} height={80} className="size-20 rounded-full object-cover" unoptimized />
-          ) : (
-            <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">
-              {(profile.display_name || 'U')[0]}
-            </div>
-          )}
+      <main className="relative px-4 pb-16 pt-24 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1280px] space-y-8">
+          <section className="rounded-[32px] border border-black/5 bg-white/82 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center lg:max-w-3xl">
+                {profile.avatar_url ? (
+                  <Image
+                    src={profile.avatar_url}
+                    alt=""
+                    width={92}
+                    height={92}
+                    className="size-[92px] rounded-full object-cover ring-4 ring-white/80 dark:ring-white/10"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="flex size-[92px] items-center justify-center rounded-full bg-[#1E1A16]/6 text-3xl font-semibold text-[#1E1A16] ring-4 ring-white/80 dark:bg-white/10 dark:text-white dark:ring-white/10">
+                    {(profile.display_name || 'U')[0]}
+                  </div>
+                )}
 
-          <h1 className="text-xl font-bold text-foreground">{profile.display_name || t('discover.anonymous')}</h1>
-          {profile.bio && <p className="text-sm text-muted-foreground max-w-md">{profile.bio}</p>}
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <h1 className="text-[2rem] font-semibold tracking-tight text-[#1E1A16] dark:text-white sm:text-[2.35rem]">
+                      {profile.display_name || t('discover.anonymous')}
+                    </h1>
+                    {profile.bio ? (
+                      <p className="max-w-2xl text-sm leading-6 text-[#746C62] dark:text-white/60">
+                        {profile.bio}
+                      </p>
+                    ) : null}
+                  </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-6 text-sm">
-            <div className="text-center">
-              <div className="font-semibold text-foreground">{profile.follower_count}</div>
-              <div className="text-xs text-muted-foreground">{t('profile.followers')}</div>
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-foreground">{profile.following_count}</div>
-              <div className="text-xs text-muted-foreground">{t('profile.following')}</div>
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-foreground">{profile.publication_count}</div>
-              <div className="text-xs text-muted-foreground">{t('profile.publications')}</div>
-            </div>
-          </div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <div className="rounded-full bg-[#F4EEE5] px-4 py-2 text-[#4D473F] dark:bg-white/8 dark:text-white/70">
+                      <span className="font-semibold text-[#1E1A16] dark:text-white">{profile.follower_count}</span>{' '}
+                      {t('profile.followers')}
+                    </div>
+                    <div className="rounded-full bg-[#F4EEE5] px-4 py-2 text-[#4D473F] dark:bg-white/8 dark:text-white/70">
+                      <span className="font-semibold text-[#1E1A16] dark:text-white">{profile.following_count}</span>{' '}
+                      {t('profile.following')}
+                    </div>
+                    <div className="rounded-full bg-[#F4EEE5] px-4 py-2 text-[#4D473F] dark:bg-white/8 dark:text-white/70">
+                      <span className="font-semibold text-[#1E1A16] dark:text-white">{profile.publication_count}</span>{' '}
+                      {t('profile.publications')}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-          {currentUserId && currentUserId !== userId && <FollowButton userId={userId} />}
-        </div>
-
-        {/* Published works masonry */}
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-4">{t('profile.publications')}</h2>
-
-          {publications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <ImageOff className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">{t('profile.no_publications')}</p>
+              {currentUserId && currentUserId !== userId ? (
+                <div className="self-start lg:self-end">
+                  <FollowButton userId={userId} />
+                </div>
+              ) : null}
             </div>
-          ) : (
-            <div className="columns-2 sm:columns-3 md:columns-4 gap-4">
-              {publications.map((pub) => (
-                <PublicationCard key={pub.id} publication={pub} onOpenDetail={handleOpenPublication} />
-              ))}
-            </div>
-          )}
+          </section>
 
-          {hasMore && publications.length > 0 && (
-            <div ref={sentinelRef} className="flex justify-center py-8">
-              {isFetchingMore && <Loader2 className="size-5 animate-spin text-muted-foreground" />}
+          <section className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight text-[#1E1A16] dark:text-white">
+                {t('profile.publications')}
+              </h2>
+              <p className="text-sm text-[#7B7469] dark:text-white/60">
+                {profile.display_name || t('discover.anonymous')} {t('discover.browse_subtitle')}
+              </p>
             </div>
-          )}
+
+            {publications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-black/10 bg-white/72 px-6 py-16 text-center dark:border-white/10 dark:bg-white/5">
+                <ImageOff className="mb-3 size-10 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">{t('profile.no_publications')}</p>
+              </div>
+            ) : (
+              <div className="mt-6 columns-1 md:columns-2 xl:columns-3 gap-6">
+                {publications.map((pub) => (
+                  <PublicationCard
+                    key={pub.id}
+                    publication={pub}
+                    onOpenDetail={handleOpenPublication}
+                    layout="discover"
+                  />
+                ))}
+              </div>
+            )}
+
+            {hasMore && publications.length > 0 ? (
+              <div ref={sentinelRef} className="flex justify-center py-8">
+                {isFetchingMore ? <Loader2 className="size-5 animate-spin text-muted-foreground" /> : null}
+              </div>
+            ) : null}
+          </section>
         </div>
       </main>
 

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
+import { useT } from '@/lib/i18n/hooks';
 
 /**
  * OAuth Callback Page
@@ -12,6 +13,7 @@ import { Loader2 } from 'lucide-react';
  */
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const t = useT('auth');
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -35,7 +37,7 @@ export default function AuthCallbackPage() {
       <div className="aurora-bg" />
       <div className="flex flex-col items-center gap-4 relative z-10">
         <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">正在登录...</p>
+        <p className="text-muted-foreground">{t('callback.logging_in')}</p>
       </div>
     </div>
   );

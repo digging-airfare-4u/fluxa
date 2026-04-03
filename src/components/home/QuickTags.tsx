@@ -21,7 +21,6 @@ const DEFAULT_TAGS: QuickTag[] = [
   { id: 'branding', label: '品牌', icon: '✨' },
   { id: 'illustration', label: '插画', icon: '🖼️' },
   { id: 'ecommerce', label: '电商', icon: '🛒' },
-  { id: 'video', label: '视频', icon: '🎬' },
   { id: 'poster', label: '海报', icon: '📄' },
   { id: 'social', label: '社媒', icon: '📱' },
 ];

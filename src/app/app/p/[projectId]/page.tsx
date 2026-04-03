@@ -8,6 +8,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { FullscreenLoading } from '@/components/ui/lottie-loading';
 import { EditorLayout, EditorLayoutRef } from '@/components/editor';
 import { 
@@ -31,6 +32,7 @@ export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('editor');
   const projectId = params.projectId as string;
   const initialPrompt = searchParams.get('prompt') || undefined;
 
@@ -52,7 +54,7 @@ export default function EditorPage() {
         const data = await fetchProjectWithDetails(projectId);
         
         if (!data) {
-          setError('项目不存在');
+          setError(t('project.not_found'));
           return;
         }
 
@@ -61,7 +63,7 @@ export default function EditorPage() {
         const conversation = data.conversations[0];
 
         if (!document || !conversation) {
-          setError('项目数据不完整');
+          setError(t('project.incomplete'));
           return;
         }
 
@@ -72,16 +74,16 @@ export default function EditorPage() {
         });
       } catch (err) {
         console.error('[Editor] Failed to load project:', err);
-        setError(err instanceof Error ? err.message : '加载项目失败');
+        setError(t('project.load_failed'));
       } finally {
         setIsLoading(false);
       }
     }
 
     if (projectId) {
-      loadProject();
+      void loadProject();
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   // Subscribe to realtime updates and load initial ops
   useEffect(() => {
@@ -201,16 +203,16 @@ export default function EditorPage() {
             <span className="text-3xl">😕</span>
           </div>
           <h2 className="font-heading font-semibold text-text-primary">
-            {error || '项目不存在'}
+            {error || t('project.not_found')}
           </h2>
           <p className="text-sm text-text-secondary max-w-[300px]">
-            无法加载该项目，请检查项目是否存在或您是否有访问权限。
+            {t('project.load_denied')}
           </p>
           <button
             onClick={() => router.push('/app')}
             className="btn-primary mt-4"
           >
-            返回首页
+            {t('project.back_home')}
           </button>
         </div>
       </div>

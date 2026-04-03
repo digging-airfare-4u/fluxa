@@ -5,6 +5,7 @@ export interface GalleryPublication {
   category_slug: string; category_name: string; tags: string[];
   view_count: number; like_count: number; comment_count: number; bookmark_count: number;
   published_at: string; user_id: string; display_name: string | null; avatar_url: string | null;
+  canvas_width?: number | null; canvas_height?: number | null;
   status?: 'published' | 'hidden' | 'removed' | string;
 }
 
@@ -54,6 +55,37 @@ export async function fetchPublicationSnapshot(publicationId: string): Promise<P
   const { data, error } = await supabase.from('publication_snapshots').select('messages_snapshot, ops_snapshot, canvas_state_snapshot, canvas_width, canvas_height').eq('publication_id', publicationId).single();
   if (error) { if (error.code === 'PGRST116') return null; throw error; }
   return data as unknown as PublicationSnapshot;
+}
+
+export async function attachPublicationCanvasDimensions(publications: GalleryPublication[]): Promise<GalleryPublication[]> {
+  if (publications.length === 0) return publications;
+
+  const publicationIds = [...new Set(publications.map((publication) => publication.id))];
+  const { data, error } = await supabase
+    .from('publication_snapshots')
+    .select('publication_id, canvas_width, canvas_height')
+    .in('publication_id', publicationIds);
+
+  if (error) {
+    console.error('[Publications] Failed to load canvas dimensions:', error);
+    return publications;
+  }
+
+  const dimensionMap = new Map(
+    (data || []).map((row) => [
+      row.publication_id,
+      {
+        canvas_width: row.canvas_width,
+        canvas_height: row.canvas_height,
+      },
+    ]),
+  );
+
+  return publications.map((publication) => ({
+    ...publication,
+    canvas_width: dimensionMap.get(publication.id)?.canvas_width ?? null,
+    canvas_height: dimensionMap.get(publication.id)?.canvas_height ?? null,
+  }));
 }
 
 export async function publishConversation(params: { conversationId: string; title: string; description?: string; coverImageUrl: string; categoryId: string; tags?: string[] }): Promise<string> {

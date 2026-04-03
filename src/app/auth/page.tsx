@@ -24,6 +24,7 @@ type AuthMode = 'login' | 'register' | 'forgot';
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useT('auth');
   const tCommon = useT('common');
   const refCode = searchParams.get('ref') ?? '';
   const [mode, setMode] = useState<AuthMode>('login');
@@ -48,7 +49,7 @@ export default function AuthPage() {
 
     if (mode === 'forgot') {
       if (!email) {
-        setError('请填写邮箱');
+        setError(t('errors.email_required'));
         return;
       }
 
@@ -59,13 +60,13 @@ export default function AuthPage() {
         });
 
         if (error) {
-          setError(error.message);
+          setError(t('errors.generic_error'));
           return;
         }
 
-        setSuccess('重置密码邮件已发送，请查收邮箱并点击链接重置密码。');
+        setSuccess(t('forgot.success'));
       } catch {
-        setError('操作失败，请重试');
+        setError(t('errors.generic_error'));
       } finally {
         setIsLoading(false);
       }
@@ -73,17 +74,17 @@ export default function AuthPage() {
     }
 
     if (!email || !password) {
-      setError('请填写邮箱和密码');
+      setError(t('errors.email_and_password_required'));
       return;
     }
 
     if (mode === 'register' && password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError(t('errors.password_mismatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('密码至少需要 6 个字符');
+      setError(t('errors.password_too_short'));
       return;
     }
 
@@ -98,11 +99,11 @@ export default function AuthPage() {
 
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            setError('邮箱或密码错误');
+            setError(t('errors.invalid_credentials'));
           } else if (error.message.includes('Email not confirmed')) {
-            setError('请先验证邮箱后再登录');
+            setError(t('errors.email_not_confirmed'));
           } else {
-            setError(error.message);
+            setError(t('errors.generic_error'));
           }
           return;
         }
@@ -117,7 +118,6 @@ export default function AuthPage() {
             emailRedirectTo: `${window.location.origin}/app`,
             data: normalizedInviteCode
               ? {
-                  pending_invite_code: normalizedInviteCode,
                   pending_referral_code: normalizedInviteCode,
                 }
               : undefined,
@@ -126,25 +126,25 @@ export default function AuthPage() {
 
         if (error) {
           if (error.message.includes('already registered')) {
-            setError('该邮箱已被注册');
+            setError(t('errors.email_already_registered'));
           } else {
-            setError(error.message);
+            setError(t('errors.generic_error'));
           }
           return;
         }
 
-        setSuccess('注册成功！请查收验证邮件，点击链接完成验证后即可登录。');
+        setSuccess(t('register.success'));
         setMode('login');
         setPassword('');
         setConfirmPassword('');
         setInviteCode('');
       }
     } catch {
-      setError('操作失败，请重试');
+      setError(t('errors.generic_error'));
     } finally {
       setIsLoading(false);
     }
-  }, [mode, email, password, confirmPassword, inviteCode, router]);
+  }, [mode, email, password, confirmPassword, inviteCode, router, t]);
 
   const switchMode = useCallback((newMode: AuthMode) => {
     setMode(newMode);
@@ -152,8 +152,8 @@ export default function AuthPage() {
     setSuccess(null);
     setPassword('');
     setConfirmPassword('');
-    setInviteCode('');
-  }, []);
+    setInviteCode(refCode);
+  }, [refCode]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative">
@@ -179,7 +179,7 @@ export default function AuthPage() {
             Fluxa
           </h1>
           <p className="mt-2 text-muted-foreground">
-            {mode === 'login' ? '登录你的账户' : mode === 'register' ? '创建新账户' : '找回你的密码'}
+            {mode === 'login' ? t('login.subtitle') : mode === 'register' ? t('register.subtitle') : t('forgot.subtitle')}
           </p>
         </div>
 
@@ -190,7 +190,7 @@ export default function AuthPage() {
               {/* Email Input */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium mb-2 text-muted-foreground">
-                  邮箱
+                  {t('login.email_label')}
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -210,7 +210,7 @@ export default function AuthPage() {
               {mode !== 'forgot' && (
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium mb-2 text-muted-foreground">
-                    密码
+                    {t('login.password_label')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -219,7 +219,7 @@ export default function AuthPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="至少 6 个字符"
+                      placeholder={t('login.password_placeholder')}
                       className="pl-12 pr-12 h-12"
                       disabled={isLoading}
                     />
@@ -245,7 +245,7 @@ export default function AuthPage() {
                     onClick={() => switchMode('forgot')}
                     className="p-0 h-auto text-xs text-muted-foreground hover:text-primary"
                   >
-                    忘记密码？
+                    {t('forgot.link')}
                   </Button>
                 </div>
               )}
@@ -254,7 +254,7 @@ export default function AuthPage() {
               {mode === 'register' && (
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2 text-muted-foreground">
-                    确认密码
+                    {t('register.confirm_password_label')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -263,7 +263,7 @@ export default function AuthPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="再次输入密码"
+                      placeholder={t('register.confirm_password_placeholder')}
                       className="pl-12 h-12"
                       disabled={isLoading}
                     />
@@ -274,14 +274,14 @@ export default function AuthPage() {
               {mode === 'register' && (
                 <div>
                   <label htmlFor="inviteCode" className="block text-sm font-medium mb-2 text-muted-foreground">
-                    邀请码（选填）
+                    {t('register.invite_code_label')}
                   </label>
                   <Input
                     id="inviteCode"
                     type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="输入邀请码"
+                    placeholder={t('register.invite_code_placeholder')}
                     className="h-12"
                     disabled={isLoading}
                   />
@@ -314,10 +314,10 @@ export default function AuthPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="size-5 animate-spin mr-2" />
-                    {mode === 'login' ? '登录中...' : mode === 'register' ? '注册中...' : '发送中...'}
+                    {mode === 'login' ? t('login.submitting') : mode === 'register' ? t('register.submitting') : t('forgot.submitting')}
                   </>
                 ) : (
-                  mode === 'login' ? '登录' : mode === 'register' ? '注册' : '发送重置邮件'
+                  mode === 'login' ? t('login.submit') : mode === 'register' ? t('register.submit') : t('forgot.submit')
                 )}
               </Button>
             </form>
@@ -329,7 +329,7 @@ export default function AuthPage() {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">或</span>
+                  <span className="bg-card px-2 text-muted-foreground">{t('login.or_divider')}</span>
                 </div>
               </div>
             )}
@@ -343,15 +343,15 @@ export default function AuthPage() {
                 className="w-full h-12 mt-4"
                 onClick={async () => {
                   setError(null);
-                  const { error } = await supabase.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: {
-                      redirectTo: `${window.location.origin}/auth/callback`,
-                    },
-                  });
-                  if (error) setError(error.message);
-                }}
-              >
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) setError(t('errors.generic_error'));
+      }}
+    >
                 <svg className="size-5 mr-2" viewBox="0 0 24 24">
                   <path
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -370,7 +370,7 @@ export default function AuthPage() {
                     fill="#EA4335"
                   />
                 </svg>
-                使用 Google 登录
+                {t('login.google_button')}
               </Button>
             )}
 
@@ -382,19 +382,19 @@ export default function AuthPage() {
                   onClick={() => switchMode('login')}
                   className="p-0 h-auto font-medium text-primary"
                 >
-                  返回登录
+                  {t('forgot.back_to_login')}
                 </Button>
               ) : (
                 <>
                   <span className="text-muted-foreground">
-                    {mode === 'login' ? '还没有账户？' : '已有账户？'}
+                    {mode === 'login' ? t('login.no_account') : t('register.has_account')}
                   </span>
                   <Button
                     variant="link"
                     onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
                     className="ml-1 p-0 h-auto font-medium text-primary"
                   >
-                    {mode === 'login' ? '立即注册' : '立即登录'}
+                    {mode === 'login' ? t('login.register_link') : t('register.login_link')}
                   </Button>
                 </>
               )}
@@ -404,7 +404,7 @@ export default function AuthPage() {
 
         {/* Footer */}
         <p className="text-center text-xs mt-6 text-muted-foreground">
-          继续即表示你同意我们的服务条款和隐私政策
+          {t('footer.agreement')}
         </p>
       </div>
     </div>

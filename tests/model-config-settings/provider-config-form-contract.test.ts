@@ -21,6 +21,6 @@ describe('provider config form contract', () => {
     );
 
     expect(source).toContain('const handleTestOnly = useCallback(async () => {');
-    expect(source).toContain('测试连接');
+    expect(source).toContain("t('form.test_connection')");
   });
 });

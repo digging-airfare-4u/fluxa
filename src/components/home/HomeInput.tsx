@@ -102,15 +102,14 @@ export function HomeInput({
   );
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-[52rem]">
       <div className={cn(
-        "relative rounded-2xl transition-all duration-200",
+        "relative rounded-[28px] transition-all duration-200",
         "bg-white dark:bg-[#1A1028]",
         "border border-black/10 dark:border-white/10",
-        "shadow-sm",
-        isFocused && "border-black/20 dark:border-white/20 shadow-md"
+        "shadow-md",
+        isFocused && "border-black/20 dark:border-white/20 shadow-lg"
       )}>
-        {/* Textarea */}
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -121,43 +120,40 @@ export function HomeInput({
           disabled={isLoading}
           rows={1}
           className={cn(
-            "w-full px-5 pt-4 pb-14 text-base bg-transparent resize-none",
+            "w-full resize-none bg-transparent px-6 pt-5 pb-[4rem] text-[17px]",
             "text-[#1A1A1A] dark:text-white placeholder:text-[#999] dark:placeholder:text-[#666]",
             "focus:outline-none",
-            "min-h-[80px]"
+            "min-h-[112px]"
           )}
         />
 
-        {/* Bottom toolbar */}
-        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-          {/* Left: attachment */}
+        <div className="absolute bottom-3.5 left-4 right-4 flex items-center justify-between">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8 rounded-lg text-[#888] hover:text-[#1A1A1A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+            className="size-10 rounded-xl text-[#888] hover:bg-black/5 hover:text-[#1A1A1A] dark:hover:bg-white/5 dark:hover:text-white"
             disabled={isLoading}
           >
-            <Paperclip className="size-4" />
+            <Paperclip className="size-[19px]" />
           </Button>
 
-          {/* Right: submit */}
           <Button
             type="button"
             size="icon"
             onClick={handleSubmit}
             disabled={!value.trim() || isLoading}
             className={cn(
-              "size-8 rounded-full transition-all",
+              "size-10 rounded-full transition-all",
               value.trim()
                 ? "bg-[#1A1A1A] dark:bg-white text-white dark:text-black hover:opacity-90"
                 : "bg-[#E5E5E5] dark:bg-[#333] text-[#999] dark:text-[#666] cursor-not-allowed"
             )}
           >
             {isLoading ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-[19px] animate-spin" />
             ) : (
-              <ArrowUp className="size-4" />
+              <ArrowUp className="size-[19px]" />
             )}
           </Button>
         </div>

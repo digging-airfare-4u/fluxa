@@ -351,11 +351,16 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
 
           {/* Related works */}
           {relatedWorks.length > 0 && (
-            <div>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">{t('discover.related_works')}</h2>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="pt-2">
+              <h2 className="mb-4 text-base font-semibold tracking-tight text-foreground">{t('discover.related_works')}</h2>
+              <div className="columns-1 md:columns-2 gap-5">
                 {relatedWorks.map((item) => (
-                  <PublicationCard key={item.id} publication={item} compact onOpenDetail={onOpenPublication} />
+                  <PublicationCard
+                    key={item.id}
+                    publication={item}
+                    onOpenDetail={onOpenPublication}
+                    layout="discover"
+                  />
                 ))}
               </div>
             </div>
