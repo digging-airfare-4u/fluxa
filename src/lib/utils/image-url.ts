@@ -8,7 +8,7 @@ const DISCOVER_COVER_TRANSFORMS = {
   default: 'imageMogr2/thumbnail/960x>/quality/78/format/webp/strip',
   compact: 'imageMogr2/thumbnail/800x>/quality/76/format/webp/strip',
   discover: 'imageMogr2/thumbnail/1280x>/quality/80/format/webp/strip',
-  home: 'imageMogr2/thumbnail/960x>/quality/78/format/webp/strip',
+  home: 'imageMogr2/thumbnail/800x>/quality/74/format/webp/strip',
 } as const;
 
 export type DiscoverCoverVariant = keyof typeof DISCOVER_COVER_TRANSFORMS;
