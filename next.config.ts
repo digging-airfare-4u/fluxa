@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from 'path';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/lib/i18n/request.ts');
@@ -39,6 +40,15 @@ const nextConfig: NextConfig = {
           ]
         : []),
     ],
+  },
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@/lib/inspiration/remix': path.resolve(__dirname, './src/lib/discover/remix.ts'),
+    };
+
+    return config;
   },
 };
 

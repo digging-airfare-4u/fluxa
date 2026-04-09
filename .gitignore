@@ -47,6 +47,7 @@ docs
 # Local git worktrees
 .worktrees
 /.claude/worktrees/
+/.claude/settings.local.json
 
 # Codex
 .codex-logs
@@ -57,3 +58,6 @@ docs
 
 # Supabase temp
 supabase/.temp
+
+# Local scratch output
+tmp

@@ -25,7 +25,7 @@ describe('app home inspiration section contract', () => {
   it('reuses discover publication card and discover navigation', () => {
     expect(content).toContain('<PublicationCard');
     expect(content).toContain('ResponsiveMasonry');
-    expect(content).toContain('layout="discover"');
+    expect(content).toContain('layout="home"');
     expect(content).toContain('onOpenDetail={handleOpenPublication}');
     expect(content).toContain("router.push('/app/discover')");
   });
@@ -38,10 +38,13 @@ describe('app home inspiration section contract', () => {
   });
 
   it('uses the discover-style editorial preview rhythm for the inspiration section', () => {
-    expect(content).toContain("const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-[24rem]', 'h-[16rem]', 'h-[22rem]', 'h-[28rem]'] as const;");
+    expect(content).toContain("const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-[20rem]', 'h-[14rem]', 'h-[18rem]', 'h-[22rem]'] as const;");
+    expect(content).toContain('const HOME_INSPIRATION_MASONRY_BREAKPOINTS = [');
+    expect(content).toContain('{ minWidth: 1536, columns: 5 }');
     expect(content).toContain('max-w-[1280px]');
     expect(content).toContain('overflow-x-auto pb-1');
-    expect(content).toContain('columns-2 lg:columns-3 xl:columns-4 gap-5');
+    expect(content).toContain('columns-2 md:columns-3 xl:columns-4 2xl:columns-5 gap-5');
+    expect(content).toContain('breakpoints={HOME_INSPIRATION_MASONRY_BREAKPOINTS}');
     expect(content).toContain('HOME_INSPIRATION_SKELETON_HEIGHTS[i % HOME_INSPIRATION_SKELETON_HEIGHTS.length]');
     expect(content).toContain('handleOpenDiscover');
     expect(content).toContain("tCommon('discover.all_categories')");

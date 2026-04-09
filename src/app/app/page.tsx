@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PublicationCard } from '@/components/discover/PublicationCard';
 import { PublicationDetailDialog } from '@/components/discover';
 import { ResponsiveMasonry } from '@/components/discover/ResponsiveMasonry';
+import { buildHomeMixedOrientationFeed } from '@/lib/home-inspiration-feed';
 import {
   fetchRecentProjectsFromOps,
   createProject,
@@ -49,7 +50,13 @@ const QUICK_TAGS = [
   { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag },
 ];
 
-const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-[24rem]', 'h-[16rem]', 'h-[22rem]', 'h-[28rem]'] as const;
+const HOME_INSPIRATION_SKELETON_HEIGHTS = ['h-[20rem]', 'h-[14rem]', 'h-[18rem]', 'h-[22rem]'] as const;
+const HOME_INSPIRATION_MASONRY_BREAKPOINTS = [
+  { minWidth: 1536, columns: 5 },
+  { minWidth: 1280, columns: 4 },
+  { minWidth: 768, columns: 3 },
+  { minWidth: 0, columns: 2 },
+];
 const HOME_INSPIRATION_PAGE_SIZE = 12;
 
 export default function HomePage() {
@@ -124,8 +131,9 @@ export default function HomePage() {
       ]);
 
       const publicationsWithDimensions = await attachPublicationCanvasDimensions(publications);
+      const mixedOrientationBatch = buildHomeMixedOrientationFeed(publicationsWithDimensions);
 
-      setInspirationItems((previous) => append ? [...previous, ...publicationsWithDimensions] : publicationsWithDimensions);
+      setInspirationItems((previous) => append ? [...previous, ...mixedOrientationBatch] : mixedOrientationBatch);
       setHasMoreInspiration(publications.length === HOME_INSPIRATION_PAGE_SIZE);
 
       if (categories) {
@@ -510,7 +518,7 @@ export default function HomePage() {
             </div>
 
             {isInspirationLoading ? (
-              <div className="columns-2 lg:columns-3 xl:columns-4 gap-5">
+              <div className="columns-2 md:columns-3 xl:columns-4 2xl:columns-5 gap-5">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="mb-5 break-inside-avoid">
                     <Skeleton
@@ -537,11 +545,12 @@ export default function HomePage() {
                 <ResponsiveMasonry
                   items={inspirationItems}
                   getItemKey={(publication) => publication.id}
+                  breakpoints={HOME_INSPIRATION_MASONRY_BREAKPOINTS}
                   renderItem={(publication) => (
                     <PublicationCard
                       publication={publication}
                       onOpenDetail={handleOpenPublication}
-                      layout="discover"
+                      layout="home"
                     />
                   )}
                 />

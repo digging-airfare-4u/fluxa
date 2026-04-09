@@ -23,6 +23,9 @@
       }
     ],
     "paths": {
+      "@/lib/inspiration/remix": [
+        "./src/lib/discover/remix.ts"
+      ],
       "@/*": [
         "./src/*"
       ]

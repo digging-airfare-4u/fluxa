@@ -96,6 +96,7 @@
     "remix_failed": "创建复刻项目失败，请重试",
     "anonymous": "匿名用户",
     "conversation_replay": "对话回放",
+    "prompt_label": "提示词",
     "load_error": "加载失败，请稍后重试",
     "load_error_title": "加载出错"
   },

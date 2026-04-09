@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+node_modules.broken
+.pnpm-store
+
+# Next.js build output
+.next
+out
+build
+dist
+coverage
+*.tsbuildinfo
+
+# Git / Vercel metadata
+.git
+.vercel
+
+# Local tooling and agent state
+.claude
+.codex
+.codex-logs
+.cursor
+.idea
+.vscode
+.kiro
+.shared
+.worktrees
+.mcp.json
+
+# Project-local non-deploy assets
+docs
+tests
+openspec
+BUG.md
+README.md
+
+# Environment files
+.env
+.env.*

@@ -9,10 +9,11 @@ import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Eye, Heart, Loader2, Sparkles } from 'lucide-react';
+import { getDiscoverCoverImageUrl } from '@/lib/utils/image-url';
 import { cn } from '@/lib/utils';
 import type { GalleryPublication } from '@/lib/supabase/queries/publications';
 
-type PublicationCardLayout = 'default' | 'compact' | 'discover';
+type PublicationCardLayout = 'default' | 'compact' | 'discover' | 'home';
 
 interface PublicationCardProps {
   publication: GalleryPublication;
@@ -22,7 +23,7 @@ interface PublicationCardProps {
   isRemixing?: boolean;
   isRemixActive?: boolean;
   compact?: boolean;
-  layout?: 'default' | 'compact' | 'discover';
+  layout?: 'default' | 'compact' | 'discover' | 'home';
 }
 
 function formatCompactStat(value: number): string {
@@ -47,23 +48,29 @@ export function PublicationCard({
 
   const resolvedLayout: PublicationCardLayout = layout ?? (compact ? 'compact' : 'default');
   const isCompact = resolvedLayout === 'compact';
-  const isDiscover = layout === 'discover';
+  const isDiscover = resolvedLayout === 'discover';
+  const isHome = resolvedLayout === 'home';
+  const isEditorial = isDiscover || isHome;
   const displayName = publication.display_name || t('discover.anonymous');
+  const coverImageSrc = getDiscoverCoverImageUrl(publication.cover_image_url, resolvedLayout);
   const coverAspectRatio =
     publication.canvas_width && publication.canvas_height
       ? `${publication.canvas_width} / ${publication.canvas_height}`
       : '4 / 3';
+  const editorialImageSizes = isHome
+    ? '(max-width: 767px) 50vw, (max-width: 1023px) 33vw, (max-width: 1535px) 25vw, 20vw'
+    : '(max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw';
 
   return (
     <article className={cn('group', isCompact ? '' : 'mb-6 break-inside-avoid')}>
       <div className={cn(
         'relative',
-        isDiscover
+        isEditorial
           ? ''
           : 'overflow-hidden bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:bg-[#1A1028]',
         isCompact
           ? 'rounded-2xl border-10 border-white dark:border-white/10'
-          : !isDiscover && 'rounded-xl border border-black/5 dark:border-white/5',
+          : !isEditorial && 'rounded-xl border border-black/5 dark:border-white/5',
       )}>
         <button
           type="button"
@@ -75,7 +82,7 @@ export function PublicationCard({
             <>
               <div className="relative aspect-[4/3] overflow-hidden bg-[#F0F0F0] dark:bg-[#0F0A1F]">
                 <Image
-                  src={publication.cover_image_url}
+                  src={coverImageSrc}
                   alt={publication.title}
                   fill
                   unoptimized
@@ -118,61 +125,93 @@ export function PublicationCard({
                 </div>
               </div>
             </>
-          ) : isDiscover ? (
+          ) : isEditorial ? (
             <>
               <span className="sr-only">{publication.title}</span>
 
-              <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_28px_60px_-36px_rgba(17,24,39,0.38)] dark:bg-[#1A1028]">
+              <div
+                className={cn(
+                  'overflow-hidden bg-white dark:bg-[#1A1028]',
+                  isHome
+                    ? 'rounded-[20px] border border-black/5 shadow-[0_18px_40px_-30px_rgba(17,24,39,0.28)] dark:border-white/10 dark:bg-[#181124]'
+                    : 'rounded-[22px] shadow-[0_28px_60px_-36px_rgba(17,24,39,0.38)]',
+                )}
+              >
                 <div
-                  className="relative w-full overflow-hidden bg-[#EDE7DD] dark:bg-[#171023]"
+                  className={cn(
+                    'relative w-full overflow-hidden bg-[#EDE7DD] dark:bg-[#171023]',
+                    isHome && 'min-h-[12rem] max-h-[22rem]',
+                  )}
                   style={{ aspectRatio: coverAspectRatio }}
                 >
                   <Image
-                    src={publication.cover_image_url}
+                    src={coverImageSrc}
                     alt={publication.title}
                     fill
                     unoptimized
-                    sizes="(max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw"
+                    sizes={editorialImageSizes}
                     className={cn(
-                      'object-cover transition-transform duration-500 group-hover:scale-[1.02]',
+                      'object-cover transition-transform',
+                      isHome
+                        ? 'duration-300 group-hover:scale-[1.015]'
+                        : 'duration-500 group-hover:scale-[1.02]',
                       !imageLoaded && 'opacity-0',
                     )}
                     onLoad={() => setImageLoaded(true)}
                   />
                   {!imageLoaded && <div className="absolute inset-0 bg-muted animate-pulse" />}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                  <div
+                    className={cn(
+                      'absolute inset-0 bg-gradient-to-t via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100',
+                      isHome ? 'from-black/10' : 'from-black/15',
+                    )}
+                  />
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3 px-1">
-                <div className="flex min-w-0 items-center gap-2.5">
+              <div className={cn('mt-3 flex items-center justify-between gap-3', isHome ? 'px-0.5' : 'px-1')}>
+                <div className={cn('flex min-w-0 items-center', isHome ? 'gap-2' : 'gap-2.5')}>
                   {publication.avatar_url ? (
                     <Image
                       src={publication.avatar_url}
                       alt=""
-                      width={28}
-                      height={28}
-                      className="size-7 rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10"
+                      width={isHome ? 24 : 28}
+                      height={isHome ? 24 : 28}
+                      className={cn(
+                        'rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10',
+                        isHome ? 'size-6' : 'size-7',
+                      )}
                       unoptimized
                     />
                   ) : (
-                    <div className="flex size-7 items-center justify-center rounded-full bg-[#7AA95C] text-xs font-semibold text-white">
+                    <div
+                      className={cn(
+                        'flex items-center justify-center rounded-full bg-[#7AA95C] font-semibold text-white',
+                        isHome ? 'size-6 text-[10px]' : 'size-7 text-xs',
+                      )}
+                    >
                       {displayName[0]}
                     </div>
                   )}
 
-                  <span className="truncate text-[1.0625rem] font-medium text-[#2E2A26] dark:text-white">
+                  <span className={cn(
+                    'truncate font-medium text-[#2E2A26] dark:text-white',
+                    isHome ? 'text-sm' : 'text-[1.0625rem]',
+                  )}>
                     {displayName}
                   </span>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-3 text-xs text-[#9A9388] dark:text-white/55">
+                <div className={cn(
+                  'flex shrink-0 items-center text-[#9A9388] dark:text-white/55',
+                  isHome ? 'gap-2 text-[11px]' : 'gap-3 text-xs',
+                )}>
                   <span className="inline-flex items-center gap-1" aria-label={`${publication.view_count} ${t('discover.views')}`}>
-                    <Eye className="size-3.5" />
+                    <Eye className={cn(isHome ? 'size-3' : 'size-3.5')} />
                     {formatCompactStat(publication.view_count)}
                   </span>
                   <span className="inline-flex items-center gap-1" aria-label={`${publication.like_count} ${t('discover.likes')}`}>
-                    <Heart className="size-3.5" />
+                    <Heart className={cn(isHome ? 'size-3' : 'size-3.5')} />
                     {formatCompactStat(publication.like_count)}
                   </span>
                 </div>
@@ -182,7 +221,7 @@ export function PublicationCard({
             <>
               <div className="relative overflow-hidden">
                 <Image
-                  src={publication.cover_image_url}
+                  src={coverImageSrc}
                   alt={publication.title}
                   width={400}
                   height={300}
@@ -238,7 +277,7 @@ export function PublicationCard({
           <div
             className={cn(
               'pointer-events-none absolute opacity-0 transition-opacity duration-200 group-hover:opacity-100',
-              isDiscover
+              isEditorial
                 ? 'right-4 top-4'
                 : 'inset-x-0 bottom-0 flex items-end justify-end p-2.5',
             )}
@@ -263,14 +302,14 @@ export function PublicationCard({
           </div>
         ) : null}
 
-        {footerActions && !isCompact && !isDiscover ? (
+        {footerActions && !isCompact && !isEditorial ? (
           <div className="px-3 pb-3">
             {footerActions}
           </div>
         ) : null}
       </div>
 
-      {footerActions && !isCompact && isDiscover ? (
+      {footerActions && !isCompact && isEditorial ? (
         <div className="mt-3 px-1">
           {footerActions}
         </div>

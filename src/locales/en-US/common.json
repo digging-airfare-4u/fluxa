@@ -96,6 +96,7 @@
     "remix_failed": "Failed to create remix project. Please try again",
     "anonymous": "Anonymous",
     "conversation_replay": "Conversation Replay",
+    "prompt_label": "Prompt",
     "load_error": "Failed to load. Please try again later",
     "load_error_title": "Loading Error"
   },

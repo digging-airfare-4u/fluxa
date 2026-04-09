@@ -1,4 +1,5 @@
 import { supabase } from '../client';
+import { cachePublicationSnapshotMessages } from '@/lib/discover/publication-snapshot-cache';
 
 export interface GalleryPublication {
   id: string; title: string; description: string | null; cover_image_url: string;
@@ -53,8 +54,18 @@ export async function fetchPublicationDetail(id: string): Promise<PublicationDet
 
 export async function fetchPublicationSnapshot(publicationId: string): Promise<PublicationSnapshot | null> {
   const { data, error } = await supabase.from('publication_snapshots').select('messages_snapshot, ops_snapshot, canvas_state_snapshot, canvas_width, canvas_height').eq('publication_id', publicationId).single();
-  if (error) { if (error.code === 'PGRST116') return null; throw error; }
-  return data as unknown as PublicationSnapshot;
+  if (error) {
+    if (error.code === 'PGRST116') {
+      cachePublicationSnapshotMessages(publicationId, null);
+      return null;
+    }
+
+    throw error;
+  }
+
+  const snapshot = data as unknown as PublicationSnapshot;
+  cachePublicationSnapshotMessages(publicationId, snapshot.messages_snapshot);
+  return snapshot;
 }
 
 export async function attachPublicationCanvasDimensions(publications: GalleryPublication[]): Promise<GalleryPublication[]> {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Open Agent SDK"
+  short_description: "Build coding agents with Open Agent SDK"
+  default_prompt: "Use $open-agent-sdk to set up or improve a runnable @shipany/open-agent-sdk agent workflow."

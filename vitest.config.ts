@@ -13,6 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@/lib/inspiration/remix': path.resolve(__dirname, './src/lib/discover/remix.ts'),
       '@': path.resolve(__dirname, './src'),
     },
   },

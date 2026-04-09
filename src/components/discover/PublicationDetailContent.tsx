@@ -18,6 +18,7 @@ import {
   type GalleryPublication,
 } from '@/lib/supabase/queries/publications';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
+import { findLatestRemixSourceMessage } from '@/lib/inspiration/remix';
 import { LikeButton, BookmarkButton, CommentSection, FollowButton } from '@/components/social';
 import { PublicationCard } from './PublicationCard';
 import { useInteractionStore } from '@/lib/store/useInteractionStore';
@@ -223,6 +224,11 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
     return [...new Set(imgs)];
   }, [publication, snapshot]);
 
+  const promptMessage = useMemo(
+    () => findLatestRemixSourceMessage(snapshot?.messages_snapshot ?? []),
+    [snapshot],
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-[85vh]">
@@ -286,6 +292,17 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
 
           {publication.description && (
             <p className="text-sm text-muted-foreground">{publication.description}</p>
+          )}
+
+          {promptMessage?.content && (
+            <div className="rounded-xl border border-black/5 bg-white p-4 dark:border-white/5 dark:bg-[#1A1028]">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                {t('discover.prompt_label')}
+              </h2>
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
+                {promptMessage.content}
+              </p>
+            </div>
           )}
 
           {/* Stats + actions */}

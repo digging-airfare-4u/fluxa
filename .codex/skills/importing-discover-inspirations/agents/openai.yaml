@@ -1,0 +1,4 @@
+interface:
+  display_name: "Import Discover Inspirations"
+  short_description: "抓取外部灵感网站并规范化后写入 Fluxa 灵感发现流"
+  default_prompt: "Use $importing-discover-inspirations to scrape this inspiration site, normalize the entries, and import them into Fluxa discover."

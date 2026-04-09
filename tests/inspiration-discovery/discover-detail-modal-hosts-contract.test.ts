@@ -28,7 +28,7 @@ describe('discover detail modal host contract', () => {
     expect(homeSource).toContain('setActivePublicationId(publicationId);');
     expect(homeSource).toContain('setIsPublicationDialogOpen(true);');
     expect(homeSource).toContain('onOpenDetail={handleOpenPublication}');
-    expect(homeSource).toContain('layout="discover"');
+    expect(homeSource).toContain('layout="home"');
     expect(homeSource).toContain('<PublicationDetailDialog');
     expect(homeSource).toContain('open={isPublicationDialogOpen}');
     expect(homeSource).toContain('onOpenChange={setIsPublicationDialogOpen}');

@@ -62,4 +62,10 @@ describe('publication detail dialog contract', () => {
     expect(contentSource).toContain('{loadError}');
     expect(contentSource).not.toContain('setNotFound(true);\n        setLoadError');
   });
+
+  it('surfaces the source prompt in the dialog content so users can recreate the work', () => {
+    expect(contentSource).toContain('const promptMessage = useMemo(');
+    expect(contentSource).toContain("t('discover.prompt_label')");
+    expect(contentSource).toContain('promptMessage?.content');
+  });
 });

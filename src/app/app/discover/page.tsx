@@ -15,6 +15,7 @@ import {
   attachPublicationCanvasDimensions,
   fetchGalleryPublications,
   fetchCategories,
+  fetchPublicationSnapshot,
   type GalleryPublication,
   type Category,
 } from '@/lib/supabase/queries/publications';
@@ -185,11 +186,13 @@ export default function DiscoverPage() {
         publicationId: publication.id,
       });
 
+      const snapshot = await fetchPublicationSnapshot(publication.id);
       const prompt = buildRemixPrompt({
         title: publication.title,
         categoryName: publication.category_name,
         tags: publication.tags,
         description: publication.description,
+        messages: snapshot?.messages_snapshot,
       });
 
       const { project } = await createProject();

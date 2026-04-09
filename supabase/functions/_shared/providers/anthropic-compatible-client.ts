@@ -20,6 +20,21 @@ export interface AnthropicCompatibleClientConfig {
 const ANTHROPIC_VERSION = '2023-06-01';
 const DEFAULT_MAX_TOKENS = 4096;
 
+interface AnthropicTextContentBlock {
+  type: 'text';
+  text: string;
+}
+
+interface AnthropicImageContentBlock {
+  type: 'image';
+  source: {
+    type: 'url';
+    url: string;
+  };
+}
+
+type AnthropicContentBlock = AnthropicTextContentBlock | AnthropicImageContentBlock;
+
 function stringifyContentPart(part: ChatMessageContentPart): string {
   if (part.type === 'text') {
     return part.text;
@@ -32,6 +47,41 @@ function messageContentToText(content: ChatMessage['content']): string {
   return typeof content === 'string'
     ? content
     : content.map(stringifyContentPart).join('\n');
+}
+
+function hasImageContentPart(parts: ChatMessageContentPart[]): boolean {
+  return parts.some((part) => part.type === 'image_url');
+}
+
+function toAnthropicContentBlock(part: ChatMessageContentPart): AnthropicContentBlock {
+  if (part.type === 'text') {
+    return {
+      type: 'text',
+      text: part.text,
+    };
+  }
+
+  return {
+    type: 'image',
+    source: {
+      type: 'url',
+      url: part.image_url.url,
+    },
+  };
+}
+
+function messageContentToAnthropic(
+  content: ChatMessage['content'],
+): string | AnthropicContentBlock[] {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (!hasImageContentPart(content)) {
+    return messageContentToText(content);
+  }
+
+  return content.map(toAnthropicContentBlock);
 }
 
 export class AnthropicCompatibleClient {
@@ -56,7 +106,7 @@ export class AnthropicCompatibleClient {
     const system = systemMessages.map((message) => messageContentToText(message.content)).join('\n');
     const anthropicMessages = nonSystemMessages.map((message) => ({
       role: message.role as 'user' | 'assistant',
-      content: messageContentToText(message.content),
+      content: messageContentToAnthropic(message.content),
     }));
 
     const body: Record<string, unknown> = {

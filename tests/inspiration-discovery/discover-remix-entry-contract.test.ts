@@ -23,9 +23,18 @@ describe('inspiration-discovery remix entry contract', () => {
     expect(card).toContain("t('discover.remix_cta')");
   });
 
+  it('loads snapshot context before remixing from discover cards', () => {
+    expect(discoverPage).toContain('fetchPublicationSnapshot');
+    expect(discoverPage).toContain('const snapshot = await fetchPublicationSnapshot(publication.id);');
+    expect(discoverPage).toContain('messages: snapshot?.messages_snapshot');
+  });
+
   it('wires remix action on publication detail', () => {
     expect(detailPage).toContain('entry: "detail"');
     expect(detailPage).toContain("t('discover.remix_cta')");
+    expect(detailPage).toContain('const [snapshot, setSnapshot] = useState<PublicationSnapshot | null>(null);');
+    expect(detailPage).toContain('fetchPublicationSnapshot(id)');
+    expect(detailPage).toContain('setSnapshot(snap);');
   });
 
   it('builds card remix URL metadata with source/entry/ref/prompt', () => {
