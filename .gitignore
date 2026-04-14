@@ -54,3 +54,7 @@ coverage
 
 # Supabase temp
 supabase/.temp
+
+# Claude Code local commands/skills
+.claude/commands/fluxa/
+.claude/skills/fluxa-ops/
