@@ -10,7 +10,7 @@ describe('image url helpers', () => {
     const parsed = new URL(result);
 
     expect(parsed.origin + parsed.pathname).toBe('https://fluxa-1390058464.cos.ap-tokyo.myqcloud.com/foo/bar/image.jpg');
-    expect(decodeURIComponent(parsed.search.slice(1))).toContain('imageMogr2/thumbnail/800x>/quality/74/format/webp/strip');
+    expect(decodeURIComponent(parsed.search.slice(1))).toContain('imageMogr2/thumbnail/880x>/quality/76/format/webp/strip');
   });
 
   it('preserves existing query strings when appending COS transforms', () => {
@@ -30,7 +30,7 @@ describe('image url helpers', () => {
   });
 
   it('does not double-append image transforms to already optimized COS urls', () => {
-    const url = 'https://fluxa-1390058464.cos.ap-tokyo.myqcloud.com/foo/bar/image.jpg?imageMogr2/thumbnail/800x>/quality/74/format/webp/strip';
+    const url = 'https://fluxa-1390058464.cos.ap-tokyo.myqcloud.com/foo/bar/image.jpg?imageMogr2/thumbnail/880x>/quality/76/format/webp/strip';
     expect(getDiscoverCoverImageUrl(url, 'home')).toBe(url);
   });
 });

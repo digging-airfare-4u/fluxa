@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { callChatProviderJson, retryWithExponentialBackoff } from '../../supabase/functions/_shared/utils/chat-provider-json.ts';
+import {
+  callChatProviderJson,
+  isStructuredOutputFallbackEligible,
+  retryWithExponentialBackoff,
+} from '../../supabase/functions/_shared/utils/chat-provider-json.ts';
 import { ProviderError } from '../../supabase/functions/_shared/errors/index.ts';
 
 afterEach(() => {
@@ -102,5 +106,77 @@ I should only return that JSON object and nothing else.
     });
 
     expect(result).toEqual({ ok: true });
+  });
+
+  it('retries overloaded 529 provider failures and rewrites the final error into a busy message', async () => {
+    let attempts = 0;
+
+    await expect(retryWithExponentialBackoff(
+      async () => {
+        attempts += 1;
+        throw new ProviderError(
+          'Anthropic-compatible API error: 529 - {"type":"error","error":{"type":"overloaded_error","message":"overloaded_error (529)"},"request_id":"req_529"}',
+          'API_ERROR',
+          {
+            status: 529,
+            body: JSON.stringify({
+              type: 'error',
+              error: {
+                type: 'overloaded_error',
+                message: 'overloaded_error (529)',
+              },
+              request_id: 'req_529',
+            }),
+          },
+          'user-configured:anthropic-compatible',
+          'MiniMax Brain',
+          529,
+        );
+      },
+      {
+        maxAttempts: 3,
+        initialDelayMs: 0,
+        provider: 'user-configured:anthropic-compatible',
+        model: 'MiniMax Brain',
+        diagnosticContext: {
+          stage: 'planner',
+          conversationId: 'conv-overload',
+          historyLength: 2,
+        },
+      },
+    )).rejects.toMatchObject({
+      message: 'Model service is temporarily busy. Please try again in a moment.',
+      providerCode: 'MODEL_BUSY',
+      providerName: 'user-configured:anthropic-compatible',
+      modelName: 'MiniMax Brain',
+      httpStatus: 503,
+    });
+
+    expect(attempts).toBe(3);
+  });
+
+  it('only marks parse-style structured output failures as fallback eligible', () => {
+    const parseError = new ProviderError(
+      'Failed to parse chat provider JSON response: Unexpected token',
+      'PARSE_ERROR',
+      { content: 'hello there' },
+      'user-configured:anthropic-compatible',
+      'MiniMax Brain',
+      502,
+    );
+    const overloadedError = new ProviderError(
+      'Anthropic-compatible API error: 529 - overloaded_error (529)',
+      'API_ERROR',
+      {
+        status: 529,
+        body: '{"type":"error","error":{"type":"overloaded_error","message":"overloaded_error (529)"},"request_id":"req_529"}',
+      },
+      'user-configured:anthropic-compatible',
+      'MiniMax Brain',
+      529,
+    );
+
+    expect(isStructuredOutputFallbackEligible(parseError)).toBe(true);
+    expect(isStructuredOutputFallbackEligible(overloadedError)).toBe(false);
   });
 });

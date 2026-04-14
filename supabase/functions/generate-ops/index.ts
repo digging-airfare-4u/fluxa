@@ -11,7 +11,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { createRegistry } from '../_shared/providers/registry-setup.ts';
 import type { ChatMessage, ChatCompletionOptions } from '../_shared/providers/chat-types.ts';
 import { errorToResponse, ProviderError, UserProviderConfigInvalidError } from '../_shared/errors/index.ts';
-import { callChatProviderJson } from '../_shared/utils/chat-provider-json.ts';
+import {
+  callChatProviderJson,
+  isStructuredOutputFallbackEligible,
+  retryWithExponentialBackoff,
+} from '../_shared/utils/chat-provider-json.ts';
 import { resolveChatProvider, type ResolvedChatProvider } from '../_shared/utils/resolve-chat-provider.ts';
 import { resolveDefaultModel } from '../_shared/utils/resolve-default-model.ts';
 import { DEFAULT_CHAT_MODEL } from '../_shared/defaults.ts';
@@ -372,6 +376,7 @@ async function getCurrentPointsBalance(
 async function callAIProvider(
   prompt: string,
   runtime: ResolvedChatProvider,
+  conversationId?: string,
   assetsContext?: RequestBody['assetsContext']
 ): Promise<GenerateOpsResponse> {
   // Build user message with assets context if provided
@@ -399,17 +404,22 @@ async function callAIProvider(
   // Call the unified chat provider interface
   let parsed: unknown;
   try {
-    parsed = await callChatProviderJson({
+    parsed = await retryWithExponentialBackoff(() => callChatProviderJson({
       provider: runtime.provider,
       messages,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+    }), {
+      provider: runtime.provider.name,
+      model: runtime.displayName,
+      diagnosticContext: {
+        stage: 'generate-ops',
+        conversationId,
+        historyLength: messages.length,
+      },
     });
   } catch (error) {
-    if (
-      error instanceof ProviderError
-      && (error.providerCode === 'PARSE_ERROR' || error.providerCode === 'EMPTY_RESPONSE')
-    ) {
+    if (isStructuredOutputFallbackEligible(error)) {
       return {
         plan: 'unable to comply: AI returned invalid JSON response',
         ops: [],
@@ -646,9 +656,9 @@ Deno.serve(async (req: Request) => {
     // Call AI provider
     let result: GenerateOpsResponse;
     try {
-      result = await callAIProvider(prompt, runtime, assetsContext);
+      result = await callAIProvider(prompt, runtime, conversationId, assetsContext);
     } catch (error) {
-      if (error instanceof UserProviderConfigInvalidError) {
+      if (error instanceof UserProviderConfigInvalidError || error instanceof ProviderError) {
         return errorToResponse(error, corsHeaders);
       }
       console.error('AI provider error:', error);

@@ -139,6 +139,29 @@ export class ProviderError extends AppError {
   }
 }
 
+function getProviderErrorStatus(error: ProviderError): number {
+  const status = error.httpStatus;
+  if (status === 429 || status === 503 || status === 529) {
+    return 503;
+  }
+
+  return 502;
+}
+
+function getProviderErrorPublicMessage(error: ProviderError): string {
+  const details = error.details;
+  const body = details && typeof details === 'object'
+    ? (details as Record<string, unknown>).body
+    : undefined;
+  const haystack = `${error.message}\n${typeof body === 'string' ? body : ''}`.toLowerCase();
+
+  if (error.httpStatus === 429 || error.httpStatus === 503 || error.httpStatus === 529 || haystack.includes('overloaded_error')) {
+    return 'Model service is temporarily busy. Please try again in a moment.';
+  }
+
+  return error.message;
+}
+
 /**
  * Invalid user provider config (missing/disabled/deleted).
  * Returns stable error contract for `user:{configId}` invalid routes.
@@ -253,6 +276,21 @@ export function errorToResponse(
     ...corsHeaders,
     'Content-Type': 'application/json',
   };
+
+  if (error instanceof ProviderError) {
+    return new Response(
+      JSON.stringify({
+        error: {
+          ...error.toJSON(),
+          message: getProviderErrorPublicMessage(error),
+        },
+      }),
+      {
+        status: getProviderErrorStatus(error),
+        headers,
+      },
+    );
+  }
 
   // Handle AppError instances
   if (error instanceof AppError) {

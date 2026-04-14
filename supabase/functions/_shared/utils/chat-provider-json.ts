@@ -21,6 +21,9 @@ interface RetryWithExponentialBackoffOptions {
   diagnosticContext?: Record<string, unknown>;
 }
 
+const RETRYABLE_PROVIDER_STATUSES = [408, 429, 500, 502, 503, 504, 529];
+const BUSY_PROVIDER_STATUSES = [429, 503, 529];
+
 function readDiagnosticString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
@@ -97,6 +100,55 @@ function extractProviderRequestId(error: unknown): string | undefined {
   }
 
   return extractRequestIdFromText(error.message);
+}
+
+function extractProviderBody(error: ProviderError): string | undefined {
+  const details = error.details;
+  if (!details || typeof details !== 'object') {
+    return undefined;
+  }
+
+  return readDiagnosticString((details as Record<string, unknown>).body);
+}
+
+function isBusyProviderError(error: unknown): error is ProviderError {
+  if (!(error instanceof ProviderError)) {
+    return false;
+  }
+
+  if (error.httpStatus !== undefined && BUSY_PROVIDER_STATUSES.includes(error.httpStatus)) {
+    return true;
+  }
+
+  const body = extractProviderBody(error);
+  const haystack = `${error.message}\n${body ?? ''}`.toLowerCase();
+  return haystack.includes('overloaded_error');
+}
+
+function rewriteBusyProviderError(error: ProviderError, maxAttempts: number): ProviderError {
+  const details = error.details && typeof error.details === 'object'
+    ? { ...(error.details as Record<string, unknown>) }
+    : {};
+
+  details.retry_attempts = maxAttempts;
+
+  const requestId = extractProviderRequestId(error);
+  if (requestId && !details.request_id) {
+    details.request_id = requestId;
+  }
+
+  if (!details.original_provider_code && error.providerCode) {
+    details.original_provider_code = error.providerCode;
+  }
+
+  return new ProviderError(
+    'Model service is temporarily busy. Please try again in a moment.',
+    'MODEL_BUSY',
+    details,
+    error.providerName,
+    error.modelName,
+    503,
+  );
 }
 
 function stripThinkBlocks(content: string): string {
@@ -179,13 +231,17 @@ function parseJsonPayload<T>(content: string): T {
   throw lastError instanceof Error ? lastError : new Error('Failed to parse JSON payload');
 }
 
+export function isStructuredOutputFallbackEligible(error: unknown): boolean {
+  return error instanceof ProviderError
+    && (error.providerCode === 'PARSE_ERROR' || error.providerCode === 'EMPTY_RESPONSE');
+}
+
 function isRetryableError(error: unknown): boolean {
   if (!(error instanceof ProviderError)) {
     return true;
   }
 
-  const retryableStatuses = [408, 429, 500, 502, 503, 504];
-  return error.httpStatus !== undefined && retryableStatuses.includes(error.httpStatus);
+  return error.httpStatus !== undefined && RETRYABLE_PROVIDER_STATUSES.includes(error.httpStatus);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -228,6 +284,10 @@ export async function retryWithExponentialBackoff<T>(
       await sleep(delayMs);
       delayMs *= 2;
     }
+  }
+
+  if (lastError instanceof ProviderError && isBusyProviderError(lastError)) {
+    throw rewriteBusyProviderError(lastError, maxAttempts);
   }
 
   throw lastError;

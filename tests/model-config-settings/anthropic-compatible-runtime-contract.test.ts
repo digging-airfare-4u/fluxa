@@ -28,4 +28,15 @@ describe('anthropic-compatible runtime contract', () => {
     expect(source).toContain('interface UserConfiguredChatClient');
     expect(source).toContain('chatCompletion(model: string, messages: ChatMessage[], options?: ChatCompletionOptions)');
   });
+
+  it('routes classic generate-ops calls through the shared retry wrapper for transient provider failures', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'supabase/functions/generate-ops/index.ts'),
+      'utf8',
+    );
+
+    expect(source).toContain('retryWithExponentialBackoff(() => callChatProviderJson');
+    expect(source).toContain("stage: 'generate-ops'");
+    expect(source).toContain('return errorToResponse(error, corsHeaders);');
+  });
 });

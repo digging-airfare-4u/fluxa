@@ -23,7 +23,11 @@ import { UserProviderService } from '../_shared/services/user-provider.ts';
 import { isModelConfigEnabled } from '../_shared/observability/feature-flags.ts';
 import { validateProviderHostAsync } from '../_shared/security/provider-host-allowlist.ts';
 import { executeSharedImageGeneration, resolveSystemImageGenerationProvider } from '../_shared/utils/image-generation-core.ts';
-import { callChatProviderJson, retryWithExponentialBackoff } from '../_shared/utils/chat-provider-json.ts';
+import {
+  callChatProviderJson,
+  isStructuredOutputFallbackEligible,
+  retryWithExponentialBackoff,
+} from '../_shared/utils/chat-provider-json.ts';
 import { resolveChatProvider, type ResolvedChatProvider } from '../_shared/utils/resolve-chat-provider.ts';
 import { validateTrustedProjectReferenceImageUrl as validateTrustedReferenceImageUrl } from '../_shared/utils/trusted-reference-image.ts';
 import {
@@ -342,6 +346,10 @@ function createPlanner(
         },
       });
     } catch (error) {
+      if (!isStructuredOutputFallbackEligible(error)) {
+        throw error;
+      }
+
       // Fallback: if the model returns non-JSON (e.g. plain text greeting),
       // return a safe default plan so the executor can still produce a response.
       console.error('[agent] planner JSON fallback triggered', {
