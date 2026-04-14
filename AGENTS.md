@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This guide is for agentic coding assistants working on the Fluxa codebase.
+This guide is for agentic coding assistants working in the Fluxa repository.
 
 ## Project Snapshot (Quick)
 
@@ -18,10 +18,108 @@ This guide is for agentic coding assistants working on the Fluxa codebase.
 
 ### Current Repository Notes (as checked on 2026-02-13)
 
-- `README.md` merge conflict markers were cleaned; re-check after major merges.
 - Baseline Vitest tests now exist under `tests/` and should be expanded for core flows.
-- Existing local environment with Node.js 14 cannot run current pnpm scripts (`pnpm lint` / `pnpm test`) until Node is upgraded.
 - Model Config Settings feature (BYOK) is fully implemented with encryption, allowlist validation, and multi-config support (2026-02-28).
+
+## Commands
+
+```bash
+# Development
+pnpm dev          # Start development server
+pnpm build        # Production build
+pnpm start        # Start production server
+pnpm lint         # Run ESLint
+
+# Testing
+pnpm test           # Run all tests once
+pnpm test:watch     # Run tests in watch mode
+pnpm test:coverage  # Run tests with coverage report
+
+# Run a single test file
+pnpm test path/to/test.test.ts
+
+# Run tests matching a pattern
+pnpm test -- pattern
+```
+
+## High-Level Architecture
+
+### Tech Stack
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui, Fabric.js 7
+- **Backend**: Supabase (Postgres, Auth, Realtime, Storage, Edge Functions/Deno)
+- **State**: Zustand for client state; Supabase Realtime for live sync
+- **Main editor route**: `src/app/app/p/[projectId]/page.tsx`
+
+### Canvas System: Ops-Driven Architecture
+
+All canvas changes are represented as **discrete, replayable ops**. The canvas has three coordinated layers:
+
+1. **`src/lib/canvas/ops.types.ts`** — Op schema (`addImage`, `addText`, `addRect`, `updateLayer`, `removeLayer`, `setBackground`, `setLayerVisibility`, `setLayerLock`, `renameLayer`).
+2. **`src/lib/canvas/opsExecutor.ts`** — `OpsExecutor` class that takes an array of ops and mutates the Fabric.js canvas. Handles animation (`fadeIn`, landing scale effects) and idempotency via `seq` keys.
+3. **`src/lib/canvas/canvasSynchronizer.ts`** — Bidirectional sync between Fabric.js canvas events and the Zustand Layer Store. Suppresses circular updates via `isUpdating` flag.
+4. **`src/lib/store/useLayerStore.ts`** — Source of truth for layer visibility, lock, selection, and naming. Persists structural ops to the database.
+
+**Execution flow**: AI returns ops → `useOpsExecution.ts` calls `OpsExecutor.execute()` → canvas updates. During initial document load, ops are replayed from the database and synchronizer updates are suppressed to avoid duplicate layer creation.
+
+### AI Generation Flow
+
+Three Edge Functions handle generation:
+
+- **`supabase/functions/generate-ops/index.ts`** — Chat/ops generation. Deducts points, calls LLM via `callChatProviderJson()`, validates JSON ops schema, writes ops to DB, returns `{ plan, ops }`.
+- **`supabase/functions/generate-image/index.ts`** — Async image generation. Creates a job record, calls image provider, uploads asset, returns `{ jobId }`. Client subscribes to job status via Realtime.
+- **`supabase/functions/agent/index.ts`** — SSE-streaming Agent. Uses a planner/executor loop with tool calling (`web_search`, `fetch_url`, `image_search`, `generate_image`). Streams events to the client; persists final message and agent history.
+
+**Client-side generation lifecycle** is managed by `src/hooks/chat/useGeneration.ts`:
+- `startImageGeneration()` — Adds placeholder on canvas, calls `generate-image`, subscribes to job, replaces placeholder with actual image op on completion.
+- `startOpsGeneration()` — Direct synchronous call to `generate-ops`.
+- `startAgentGeneration()` — SSE stream via `generateAgentStream()`, handles `tool_start`/`tool_result` events for inline image placeholders.
+
+**Points behavior**: System models deduct points before generation. If generation fails (provider error, AI error, or Agent crash), points are refunded via `PointsService.refundPoints()` which updates `user_profiles` and records an `adjust` transaction. BYOK models skip points entirely.
+
+### Model Selection System
+
+- **`src/lib/models/resolve-selectable-models.ts`** — Merges system `ai_models` table rows with user-configured provider configs into a unified `SelectableModel[]`.
+- System models use `model.name` as value; BYOK models use `user:{configId}`.
+- **`src/lib/store/useChatStore.ts`** — Tracks three independent selections: `selectedModel` (classic chat/image), `selectedAgentModel` (ops), `selectedAgentImageModel` (image). Defaults are resolved from the unified selectable list.
+
+### Agent Architecture
+
+The Agent Edge Function implements a **planner-executor loop** (`supabase/functions/_shared/utils/agent-orchestrator.ts`):
+
+1. **Planner** — Receives truncated history, returns `AgentPlannerResult` with `steps`, `needsSearch`, `needsImageSearch`, `executionMode`.
+2. **Executor** — Receives history + plan + tool results, returns either a `final` JSON answer or a `tool_call`.
+3. **`runAgentLoop()`** — Orchestrates up to `MAX_ITERATIONS`. Emits structured SSE events (`phase`, `plan`, `step_start`, `step_done`, `tool_start`, `tool_result`, `text`, `citation`, `done`).
+4. **Tool runner** — `web_search` and `image_search` use external search APIs; `generate_image` reuses `executeSharedImageGeneration()` from the shared image generation core.
+
+### Realtime Sync
+
+- **Ops** (`src/lib/realtime/subscribeOps.ts`) — Subscribes to `ops` table inserts per document. Deduplicates via `seq`. Skips self-echoed ops (`localOpTracker`) and skips `addImage` ops that collide with active pending generations (`pendingGenerationTracker`).
+- **Jobs** (`src/lib/realtime/subscribeJobs.ts`) — Subscribes to job status updates for image generation progress.
+- **Points** (`src/lib/realtime/subscribePoints.ts`) — Subscribes to `user_profiles` updates; `user_profiles.points` is the source of truth for realtime balance.
+
+### Provider Registry & BYOK
+
+- **`supabase/functions/_shared/providers/registry-setup.ts`** — Creates a `ProviderRegistry` mapping model names to provider implementations (Volcengine, Gemini, OpenAI-compatible, etc.).
+- **`supabase/functions/_shared/utils/resolve-chat-provider.ts`** — Resolves the chat provider for a selected model, including BYOK path.
+- **`supabase/functions/_shared/utils/image-generation-core.ts`** — Shared image generation execution used by both `generate-image` and Agent tool calls.
+- BYOK configs are encrypted with AES-256-GCM. Host allowlist validation runs before any external request.
+
+### Persistence Patterns
+
+- Canvas structural changes (add/remove/update) are saved as ops to the `ops` table.
+- Layer metadata changes (visibility, lock, rename) are also persisted as ops.
+- `localOpTracker` marks locally-saved ops so Realtime self-echo can be skipped.
+- Image generation results are saved as `addImage` ops by the client in `useGeneration.ts` after placeholder replacement.
+
+### Important Files
+
+- `src/hooks/chat/useGeneration.ts` — Generation lifecycle and placeholder UX
+- `src/lib/canvas/opsExecutor.ts` — Op execution engine
+- `src/lib/canvas/canvasSynchronizer.ts` — Canvas ↔ Layer Store sync
+- `src/lib/realtime/subscribeOps.ts` — Realtime ops with deduplication
+- `supabase/functions/_shared/services/points.ts` — Points deduction and refund logic
+- `supabase/functions/_shared/utils/agent-orchestrator.ts` — Agent loop primitives
+- `supabase/functions/_shared/utils/chat-provider-json.ts` — Unified LLM JSON caller with retry
 
 ## Current Functionality (as checked on 2026-03-01)
 
@@ -64,29 +162,6 @@ This guide is for agentic coding assistants working on the Fluxa codebase.
 - Test connection before saving
 - No points deducted for user-configured models (BYOK = free)
 - UI: ProviderConfigPanel and ProviderConfigForm components
-
-## Commands
-
-### Development
-```bash
-pnpm dev          # Start development server
-pnpm build        # Production build
-pnpm start        # Start production server
-pnpm lint         # Run ESLint
-```
-
-### Testing
-```bash
-pnpm test           # Run all tests once
-pnpm test:watch     # Run tests in watch mode
-pnpm test:coverage  # Run tests with coverage report
-
-# Run a single test file
-pnpm test path/to/test.test.ts
-
-# Run tests matching a pattern
-pnpm test -- pattern
-```
 
 ## Project Structure
 
