@@ -142,9 +142,71 @@ export class PointsService {
   }
 
   /**
+   * Refund points to user balance when generation fails
+   * Updates user_profiles (source of truth for realtime) and records an adjust transaction
+   *
+   * @param userId - User ID to refund points to
+   * @param amount - Amount of points to refund
+   * @param source - Source of the original deduction (e.g., 'generate_image')
+   * @param modelName - Model name for tracking
+   * @param reason - Optional reason for the refund
+   */
+  async refundPoints(
+    userId: string,
+    amount: number,
+    source: string,
+    modelName: string,
+    reason?: string
+  ): Promise<void> {
+    if (amount <= 0) return;
+
+    // Get current authoritative balance
+    const { data: summary, error: summaryError } = await this.supabase.rpc(
+      'get_user_points_summary',
+      { p_user_id: userId }
+    );
+
+    if (summaryError) {
+      console.error('[PointsService] Failed to get summary for refund:', summaryError);
+      return;
+    }
+
+    const currentBalance = (summary as { points: number } | null)?.points ?? 0;
+    const newBalance = currentBalance + amount;
+
+    // Update user_profiles so realtime subscriptions pick up the change
+    const { error: updateError } = await this.supabase
+      .from('user_profiles')
+      .update({ points: newBalance })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('[PointsService] Failed to update user_profiles for refund:', updateError);
+      return;
+    }
+
+    // Record adjustment transaction for audit
+    const { error: txError } = await this.supabase
+      .from('point_transactions')
+      .insert({
+        user_id: userId,
+        type: 'adjust',
+        amount,
+        source,
+        model_name: modelName,
+        balance_after: newBalance,
+        metadata: { reason: reason || 'Refund for failed generation' },
+      });
+
+    if (txError) {
+      console.error('[PointsService] Failed to record refund transaction:', txError);
+    }
+  }
+
+  /**
    * Get model display name for error messages
    * Requirements: 4.3
-   * 
+   *
    * @param modelName - Internal model name
    * @returns Human-readable display name
    */

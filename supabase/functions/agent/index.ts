@@ -594,148 +594,162 @@ Deno.serve(async (req: Request) => {
     await pointsService.deductPoints(user.id, agentCost, 'generate_ops', AGENT_MODEL_NAME);
 
     return createSseResponse(async (sendEvent) => {
-      const baseHistory = await loadAgentHistory(serviceClient, body.conversationId);
-      const userTurnHistory = truncateAgentHistory(
-        appendCurrentUserTurn(baseHistory, body.prompt),
-        HISTORY_RETENTION,
-      );
+      try {
+        const baseHistory = await loadAgentHistory(serviceClient, body.conversationId);
+        const userTurnHistory = truncateAgentHistory(
+          appendCurrentUserTurn(baseHistory, body.prompt),
+          HISTORY_RETENTION,
+        );
 
-      const loopResult = await runAgentLoop({
-        history: userTurnHistory,
-        maxIterations: MAX_ITERATIONS,
-        emitEvent: (event) => sendEvent(event),
-        planner: createPlanner(runtime, body.referenceImageUrl, body.conversationId),
-        executor: createExecutor(runtime, body.referenceImageUrl, body.conversationId),
-        runTool: async (call) => {
-          return retryWithExponentialBackoff(async () => {
-            if (call.tool === 'web_search') {
-              const results = await searchWeb(call.query);
-              return {
-                tool: 'web_search',
-                summary: results.length > 0
-                  ? `Found ${results.length} unverified web results`
-                  : 'No web search results found',
-                searchResults: results,
-              };
-            }
-
-            if (call.tool === 'fetch_url') {
-              const verifiedPage = await fetchVerifiedPageContent(call.url);
-              return {
-                tool: 'fetch_url',
-                summary: `Verified source: ${verifiedPage.title}`,
-                verifiedCitation: {
-                  title: verifiedPage.title,
-                  url: verifiedPage.url,
-                  domain: verifiedPage.domain,
-                },
-              };
-            }
-
-            if (call.tool === 'image_search') {
-              const imageCandidates = await searchImages(call.query, { maxPages: 3, maxResults: 4 });
-              if (imageCandidates.length === 0) {
+        const loopResult = await runAgentLoop({
+          history: userTurnHistory,
+          maxIterations: MAX_ITERATIONS,
+          emitEvent: (event) => sendEvent(event),
+          planner: createPlanner(runtime, body.referenceImageUrl, body.conversationId),
+          executor: createExecutor(runtime, body.referenceImageUrl, body.conversationId),
+          runTool: async (call) => {
+            return retryWithExponentialBackoff(async () => {
+              if (call.tool === 'web_search') {
+                const results = await searchWeb(call.query);
                 return {
-                  tool: 'image_search',
-                  summary: 'No image search results found',
-                  imageCandidates: [],
+                  tool: 'web_search',
+                  summary: results.length > 0
+                    ? `Found ${results.length} unverified web results`
+                    : 'No web search results found',
+                  searchResults: results,
                 };
               }
 
-              const firstCandidate = imageCandidates[0];
-              const assetService = new AssetService(serviceClient, supabaseUrl);
-              const downloaded = await downloadExternalImage(firstCandidate.imageUrl);
-              const ingestedAsset = await assetService.uploadImage(
-                user.id,
-                body.projectId,
-                downloaded.imageData,
-                downloaded.contentType,
-                {
-                  source: {
-                    type: 'search',
-                    origin: firstCandidate.sourcePageUrl,
+              if (call.tool === 'fetch_url') {
+                const verifiedPage = await fetchVerifiedPageContent(call.url);
+                return {
+                  tool: 'fetch_url',
+                  summary: `Verified source: ${verifiedPage.title}`,
+                  verifiedCitation: {
+                    title: verifiedPage.title,
+                    url: verifiedPage.url,
+                    domain: verifiedPage.domain,
                   },
-                  documentId: body.documentId,
-                } as never,
-              );
+                };
+              }
 
-              return {
-                tool: 'image_search',
-                summary: `Found ${imageCandidates.length} image candidates and ingested 1 trusted asset`,
-                imageCandidates,
-                ingestedImages: [
+              if (call.tool === 'image_search') {
+                const imageCandidates = await searchImages(call.query, { maxPages: 3, maxResults: 4 });
+                if (imageCandidates.length === 0) {
+                  return {
+                    tool: 'image_search',
+                    summary: 'No image search results found',
+                    imageCandidates: [],
+                  };
+                }
+
+                const firstCandidate = imageCandidates[0];
+                const assetService = new AssetService(serviceClient, supabaseUrl);
+                const downloaded = await downloadExternalImage(firstCandidate.imageUrl);
+                const ingestedAsset = await assetService.uploadImage(
+                  user.id,
+                  body.projectId,
+                  downloaded.imageData,
+                  downloaded.contentType,
                   {
-                    imageUrl: ingestedAsset.publicUrl,
-                    assetId: ingestedAsset.id,
-                    prompt: call.query,
-                  },
-                ],
-              };
-            }
+                    source: {
+                      type: 'search',
+                      origin: firstCandidate.sourcePageUrl,
+                    },
+                    documentId: body.documentId,
+                  } as never,
+                );
 
-            const defaultImageModel = await resolveDefaultModel(serviceClient, 'default_image_model', DEFAULT_AGENT_IMAGE_MODEL);
-            const resolvedImage = await resolveAgentImageProvider({
-              serviceClient,
-              registry,
-              userId: user.id,
-              selectedModel: body.imageModel || defaultImageModel!,
-              defaultModel: DEFAULT_AGENT_IMAGE_MODEL,
-            });
-            const assetService = new AssetService(serviceClient, supabaseUrl);
-            const imageResult = await executeSharedImageGeneration({
-              provider: resolvedImage.provider,
-              prompt: call.prompt,
-              selectedModel: resolvedImage.modelName,
-              resolution: body.resolution || DEFAULT_RESOLUTION,
-              aspectRatio: body.aspectRatio || DEFAULT_ASPECT_RATIO,
-              userId: user.id,
-              projectId: body.projectId,
-              assetService,
-              imageUrl: call.referenceImageUrl || body.referenceImageUrl,
-            });
+                return {
+                  tool: 'image_search',
+                  summary: `Found ${imageCandidates.length} image candidates and ingested 1 trusted asset`,
+                  imageCandidates,
+                  ingestedImages: [
+                    {
+                      imageUrl: ingestedAsset.publicUrl,
+                      assetId: ingestedAsset.id,
+                      prompt: call.query,
+                    },
+                  ],
+                };
+              }
 
-            if (imageResult.kind === 'text-only') {
+              const defaultImageModel = await resolveDefaultModel(serviceClient, 'default_image_model', DEFAULT_AGENT_IMAGE_MODEL);
+              const resolvedImage = await resolveAgentImageProvider({
+                serviceClient,
+                registry,
+                userId: user.id,
+                selectedModel: body.imageModel || defaultImageModel!,
+                defaultModel: DEFAULT_AGENT_IMAGE_MODEL,
+              });
+              const assetService = new AssetService(serviceClient, supabaseUrl);
+              const imageResult = await executeSharedImageGeneration({
+                provider: resolvedImage.provider,
+                prompt: call.prompt,
+                selectedModel: resolvedImage.modelName,
+                resolution: body.resolution || DEFAULT_RESOLUTION,
+                aspectRatio: body.aspectRatio || DEFAULT_ASPECT_RATIO,
+                userId: user.id,
+                projectId: body.projectId,
+                assetService,
+                imageUrl: call.referenceImageUrl || body.referenceImageUrl,
+              });
+
+              if (imageResult.kind === 'text-only') {
+                return {
+                  tool: 'generate_image',
+                  summary: imageResult.output.textResponse,
+                };
+              }
+
               return {
                 tool: 'generate_image',
-                summary: imageResult.output.textResponse,
+                summary: 'Generated image asset',
+                imageUrl: imageResult.jobOutput.publicUrl,
+                assetId: imageResult.jobOutput.assetId,
               };
-            }
+            });
+          },
+        });
 
-            return {
-              tool: 'generate_image',
-              summary: 'Generated image asset',
-              imageUrl: imageResult.jobOutput.publicUrl,
-              assetId: imageResult.jobOutput.assetId,
-            };
-          });
-        },
-      });
+        const truncatedHistory = truncateAgentHistory(loopResult.history, HISTORY_RETENTION);
+        await saveAgentHistory(serviceClient, body.conversationId, truncatedHistory);
 
-      const truncatedHistory = truncateAgentHistory(loopResult.history, HISTORY_RETENTION);
-      await saveAgentHistory(serviceClient, body.conversationId, truncatedHistory);
+        const citations = loopResult.citations as AgentCitation[];
+        const generatedImages = loopResult.generatedImages as AgentGeneratedImage[];
+        const metadata = createAgentAssistantMetadata({
+          modelName: runtime.displayName,
+          processSummary: loopResult.processSummary,
+          generatedImages,
+          citations,
+          searchSummary: loopResult.plan.needsSearch || loopResult.plan.needsImageSearch
+            ? 'Search requested by planner but not yet executed in this phase.'
+            : 'No external search used.',
+        });
+        const message = await persistAssistantMessage(
+          serviceClient,
+          body.conversationId,
+          loopResult.finalText,
+          metadata,
+        );
 
-      const citations = loopResult.citations as AgentCitation[];
-      const generatedImages = loopResult.generatedImages as AgentGeneratedImage[];
-      const metadata = createAgentAssistantMetadata({
-        modelName: runtime.displayName,
-        processSummary: loopResult.processSummary,
-        generatedImages,
-        citations,
-        searchSummary: loopResult.plan.needsSearch || loopResult.plan.needsImageSearch
-          ? 'Search requested by planner but not yet executed in this phase.'
-          : 'No external search used.',
-      });
-      const message = await persistAssistantMessage(
-        serviceClient,
-        body.conversationId,
-        loopResult.finalText,
-        metadata,
-      );
-
-      sendEvent({
-        type: 'done',
-        message,
-      });
+        sendEvent({
+          type: 'done',
+          message,
+        });
+      } catch (error) {
+        // Refund points on agent execution failure
+        if (agentCost > 0) {
+          await pointsService.refundPoints(
+            user.id,
+            agentCost,
+            'generate_ops',
+            AGENT_MODEL_NAME,
+            'Refund for failed agent execution'
+          );
+        }
+        throw error;
+      }
     });
   } catch (error) {
     return errorToResponse(error, corsHeaders);

@@ -481,7 +481,19 @@ Deno.serve(async (req: Request) => {
       const rawMessage = providerError instanceof Error ? providerError.message : 'Image generation failed';
       const errorMessage = isUserModel ? sanitizeErrorMessage(rawMessage) : rawMessage;
       await jobService.updateStatus(job.id, 'failed', undefined, errorMessage);
-      
+
+      // Refund points for system models on generation failure
+      if (!isUserModel && pointsDeducted > 0) {
+        await pointsService.refundPoints(
+          user.id,
+          pointsDeducted,
+          'generate_image',
+          selectedModel,
+          'Refund for failed image generation'
+        );
+        log.info('Refunded points after generation failure', { user_id: user.id, points_refunded: pointsDeducted, request_id: requestId });
+      }
+
       throw providerError;
     }
 

@@ -10,7 +10,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { createRegistry } from '../_shared/providers/registry-setup.ts';
 import type { ChatMessage, ChatCompletionOptions } from '../_shared/providers/chat-types.ts';
-import { errorToResponse, ProviderError, UserProviderConfigInvalidError } from '../_shared/errors/index.ts';
+import { errorToResponse, ProviderError, UserProviderConfigInvalidError, InsufficientPointsError } from '../_shared/errors/index.ts';
+import { PointsService } from '../_shared/services/points.ts';
 import {
   callChatProviderJson,
   isStructuredOutputFallbackEligible,
@@ -78,17 +79,6 @@ interface DeductPointsResult {
   points_deducted: number;
   balance_after: number;
   transaction_id: string;
-}
-
-/**
- * Insufficient points error details
- * Requirements: 2.6, 4.1
- */
-interface InsufficientPointsError {
-  code: 'INSUFFICIENT_POINTS';
-  current_balance: number;
-  required_points: number;
-  model_name: string;
 }
 
 interface CurrentBalanceRow {
@@ -260,113 +250,6 @@ function validateLLMResponse(response: unknown): response is GenerateOpsResponse
   }
   
   return true;
-}
-
-/**
- * Get points cost for a model from database
- * Requirements: 2.1, 2.3
- */
-async function getModelPointsCost(
-  supabase: ReturnType<typeof createClient>,
-  modelName: string
-): Promise<number> {
-  const { data, error } = await supabase.rpc('get_model_points_cost', {
-    p_model_name: modelName,
-  });
-
-  if (error) {
-    console.error('Error getting model points cost:', error);
-    // Return default value if RPC fails
-    return 10; // Default for text generation models
-  }
-
-  return data ?? 10;
-}
-
-/**
- * Get model display name from database
- */
-async function getModelDisplayName(
-  supabase: ReturnType<typeof createClient>,
-  modelName: string
-): Promise<string> {
-  const { data, error } = await supabase
-    .from('ai_models')
-    .select('display_name')
-    .eq('name', modelName)
-    .single();
-
-  if (error || !data) {
-    return modelName;
-  }
-
-  return data.display_name || modelName;
-}
-
-/**
- * Deduct points from user balance
- * Requirements: 2.1, 2.5, 2.6
- */
-async function deductPoints(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-  amount: number,
-  source: string,
-  referenceId: string | null,
-  modelName: string
-): Promise<{ success: true; result: DeductPointsResult } | { success: false; error: InsufficientPointsError }> {
-  const { data, error } = await supabase.rpc('deduct_points', {
-    p_user_id: userId,
-    p_amount: amount,
-    p_source: source,
-    p_reference_id: referenceId,
-    p_model_name: modelName,
-  });
-
-  if (error) {
-    // Check if it's an insufficient points error
-    if (error.message?.includes('Insufficient points')) {
-      // Parse the error message to extract balance info
-      const match = error.message.match(/current_balance=(\d+), required=(\d+)/);
-      const currentBalance = match ? parseInt(match[1], 10) : 0;
-      const requiredPoints = match ? parseInt(match[2], 10) : amount;
-
-      return {
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_POINTS',
-          current_balance: currentBalance,
-          required_points: requiredPoints,
-          model_name: modelName,
-        },
-      };
-    }
-    // Re-throw other errors
-    throw new Error(`Points deduction failed: ${error.message}`);
-  }
-
-  return {
-    success: true,
-    result: data as DeductPointsResult,
-  };
-}
-
-async function getCurrentPointsBalance(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-): Promise<number> {
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('points')
-    .eq('id', userId)
-    .single();
-
-  if (error) {
-    console.error('Failed to fetch current points balance:', error);
-    return 0;
-  }
-
-  return (data as CurrentBalanceRow | null)?.points ?? 0;
 }
 
 /**
@@ -604,7 +487,7 @@ Deno.serve(async (req: Request) => {
     // Points Deduction Logic
     // Requirements: 2.1, 2.5, 2.6
     // =========================================================================
-    
+
     // Determine the model name for points calculation
     const resolvedDefault = await resolveDefaultModel(supabaseService, 'default_chat_model', DEFAULT_CHAT_MODEL);
     const selectedModel = model || resolvedDefault!;
@@ -616,48 +499,60 @@ Deno.serve(async (req: Request) => {
       selectedModel,
       fallbackModel: DEFAULT_CHAT_MODEL,
     });
-    
+
+    const pointsService = new PointsService(supabaseService);
     let pointsDeducted = 0;
     let remainingPoints = 0;
 
     if (runtime.isByok) {
-      remainingPoints = await getCurrentPointsBalance(supabaseService, user.id);
+      remainingPoints = await pointsService.getCurrentBalance(user.id);
     } else {
-      const pointsCost = await getModelPointsCost(supabaseService, selectedModel);
-      const deductionResult = await deductPoints(
-        supabaseService,
-        user.id,
-        pointsCost,
-        'generate_ops',
-        null,
-        selectedModel
-      );
-
-      if (!deductionResult.success) {
-        const displayName = await getModelDisplayName(supabaseService, selectedModel);
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: ERROR_CODES.INSUFFICIENT_POINTS,
-              message: `点数不足，当前余额 ${deductionResult.error.current_balance}，需要 ${deductionResult.error.required_points} 点`,
-              current_balance: deductionResult.error.current_balance,
-              required_points: deductionResult.error.required_points,
-              model_name: displayName,
-            },
-          }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      const pointsCost = await pointsService.calculateCost(selectedModel);
+      try {
+        const deductionResult = await pointsService.deductPoints(
+          user.id,
+          pointsCost,
+          'generate_ops',
+          selectedModel
         );
+        pointsDeducted = deductionResult.pointsDeducted;
+        remainingPoints = deductionResult.balanceAfter;
+      } catch (err) {
+        if (err instanceof InsufficientPointsError) {
+          const displayName = await pointsService.getModelDisplayName(selectedModel);
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: ERROR_CODES.INSUFFICIENT_POINTS,
+                message: `点数不足，当前余额 ${err.currentBalance}，需要 ${err.requiredPoints} 点`,
+                current_balance: err.currentBalance,
+                required_points: err.requiredPoints,
+                model_name: displayName,
+              },
+            }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        throw err;
       }
-
-      pointsDeducted = deductionResult.result.points_deducted;
-      remainingPoints = deductionResult.result.balance_after;
     }
-    
+
     // Call AI provider
     let result: GenerateOpsResponse;
     try {
       result = await callAIProvider(prompt, runtime, conversationId, assetsContext);
     } catch (error) {
+      // Refund points on AI provider failure
+      if (pointsDeducted > 0) {
+        await pointsService.refundPoints(
+          user.id,
+          pointsDeducted,
+          'generate_ops',
+          selectedModel,
+          'Refund for failed ops generation'
+        );
+      }
+
       if (error instanceof UserProviderConfigInvalidError || error instanceof ProviderError) {
         return errorToResponse(error, corsHeaders);
       }
