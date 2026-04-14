@@ -92,6 +92,8 @@ export interface MessageMetadata {
     url: string;
     filename: string;
   };
+  /** Indicates this assistant message is a friendly error fallback instead of a successful response */
+  isError?: boolean;
 }
 
 /**

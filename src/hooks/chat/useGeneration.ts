@@ -35,6 +35,41 @@ const RESOLUTION_PIXELS: Record<string, number> = {
   '4K': 4096,
 };
 
+/**
+ * Resolve a user-friendly error message for generation failures.
+ * Keeps technical details out of the chat and surfaces them as an AI-style reply.
+ */
+function resolveFriendlyErrorMessage(err: unknown): string {
+  if (err instanceof GenerationApiError) {
+    if (err.code === 'INSUFFICIENT_POINTS') {
+      return '积分不足，无法完成生成。请到设置中查看会员与充值选项。';
+    }
+    if (err.code === 'USER_PROVIDER_CONFIG_INVALID') {
+      return '自定义模型配置有误，请到设置中检查 API 配置。';
+    }
+    if (err.code === 'AUTH_REQUIRED') {
+      return '登录状态已过期，请重新登录后重试。';
+    }
+    if (
+      err.code === 'PROVIDER_OVERLOADED' ||
+      err.message.toLowerCase().includes('overloaded')
+    ) {
+      return '当前模型负载较高，请稍后再试。';
+    }
+    if (
+      err.code === 'TIMEOUT' ||
+      err.message.toLowerCase().includes('timeout')
+    ) {
+      return '请求超时，请稍后再试。';
+    }
+    return '当前服务过于繁忙，请稍后再试。';
+  }
+  if (err instanceof TypeError && err.message.includes('fetch')) {
+    return '网络连接异常，请检查网络后重试。';
+  }
+  return '当前服务过于繁忙，请稍后再试。';
+}
+
 function calculateDimensions(aspectRatio: string, baseSize: number) {
   const [w, h] = aspectRatio.split(':').map(Number);
   if (!w || !h) {
@@ -105,7 +140,6 @@ export function useGeneration({
     generationPhase,
     setGenerationPhase,
     completeGeneration,
-    failGeneration,
     stopGeneration,
     setInsufficientPointsError,
     setUserProviderConfigError,
@@ -395,14 +429,25 @@ export function useGeneration({
 
           // Clean up pending generation tracking
           pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
-          
+
           onRemovePlaceholder?.(placeholderId);
 
           const failedOutput = job.output as {
             textResponse?: string;
             thoughtSummary?: string;
           } | undefined;
-          const fallbackContent = failedOutput?.textResponse || job.error || 'Image generation failed';
+
+          console.error('[useGeneration] Job failed:', { jobId: job.id, error: job.error, output: failedOutput });
+
+          // Prefer backend-provided explanation; otherwise surface a friendly message.
+          let fallbackContent: string;
+          if (failedOutput?.textResponse) {
+            fallbackContent = failedOutput.textResponse;
+          } else if (job.error && job.error.length < 50) {
+            fallbackContent = job.error;
+          } else {
+            fallbackContent = '图片生成失败，请稍后再试。';
+          }
 
           try {
             const assistantMessage = await createMessage({
@@ -413,6 +458,7 @@ export function useGeneration({
                 jobId: result.jobId,
                 modelName: currentModelName,
                 thinking: failedOutput?.thoughtSummary,
+                isError: !failedOutput?.textResponse,
               },
             });
             onPendingReplaced(pendingMessageId, assistantMessage);
@@ -420,11 +466,7 @@ export function useGeneration({
             console.error('[useGeneration] Failed to create assistant message for failed job:', error);
           }
 
-          if (failedOutput?.textResponse) {
-            completeGeneration();
-          } else {
-            failGeneration(job.error || 'Image generation failed');
-          }
+          completeGeneration();
           onGeneratingChange?.(false);
           await unsubscribe();
         };
@@ -448,21 +490,45 @@ export function useGeneration({
     } catch (err) {
       clearPhaseATimeout();
       onRemovePlaceholder?.(placeholderId);
+      pendingGenerationTracker.unregisterGeneration(placeholderX, placeholderY);
 
       if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
 
-      if (!handleApiError(err, currentModelName, onCleanup)) {
-        throw err;
+      console.error('[useGeneration] Image generation failed:', err);
+
+      if (handleApiError(err, currentModelName, onCleanup)) {
+        completeGeneration();
+        onGeneratingChange?.(false);
+        return;
       }
+
+      const friendlyMessage = resolveFriendlyErrorMessage(err);
+      try {
+        const assistantMessage = await createMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: friendlyMessage,
+          metadata: {
+            modelName: currentModelName,
+            isError: true,
+          },
+        });
+        onPendingReplaced(pendingMessageId, assistantMessage);
+      } catch (e) {
+        console.error('[useGeneration] Failed to create error message for image generation:', e);
+      }
+
+      completeGeneration();
+      onGeneratingChange?.(false);
     }
   }, [
     projectId, documentId, conversationId, models, selectableModels,
     selectedResolution, selectedAspectRatio,
     onAddPlaceholder, onRemovePlaceholder, onGetPlaceholderPosition, onGetFreePosition,
     onOpsGenerated, onGeneratingChange,
-    setGenerationPhase, completeGeneration, failGeneration,
+    setGenerationPhase, completeGeneration,
     clearPhaseATimeout, handleApiError,
   ]);
 
@@ -522,9 +588,32 @@ export function useGeneration({
         return;
       }
 
-      if (!handleApiError(err, currentModelName, onCleanup)) {
-        throw err;
+      console.error('[useGeneration] Ops generation failed:', err);
+
+      if (handleApiError(err, currentModelName, onCleanup)) {
+        completeGeneration();
+        onGeneratingChange?.(false);
+        return;
       }
+
+      const friendlyMessage = resolveFriendlyErrorMessage(err);
+      try {
+        const assistantMessage = await createMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: friendlyMessage,
+          metadata: {
+            modelName: currentModelName,
+            isError: true,
+          },
+        });
+        onPendingReplaced(pendingMessageId, assistantMessage);
+      } catch (e) {
+        console.error('[useGeneration] Failed to create error message for ops generation:', e);
+      }
+
+      completeGeneration();
+      onGeneratingChange?.(false);
     }
   }, [
     projectId, documentId, conversationId, models, selectableModels,
@@ -690,9 +779,32 @@ export function useGeneration({
         return;
       }
 
-      if (!handleApiError(err, currentModelName, onCleanup)) {
-        throw err;
+      console.error('[useGeneration] Agent generation failed:', err);
+
+      if (handleApiError(err, currentModelName, onCleanup)) {
+        completeGeneration();
+        onGeneratingChange?.(false);
+        return;
       }
+
+      const friendlyMessage = resolveFriendlyErrorMessage(err);
+      try {
+        const assistantMessage = await createMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: friendlyMessage,
+          metadata: {
+            modelName: currentModelName,
+            isError: true,
+          },
+        });
+        onPendingReplaced(pendingMessageId, assistantMessage);
+      } catch (e) {
+        console.error('[useGeneration] Failed to create error message for agent generation:', e);
+      }
+
+      completeGeneration();
+      onGeneratingChange?.(false);
     }
   }, [
     projectId,

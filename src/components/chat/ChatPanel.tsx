@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GeneratingPlaceholder } from '@/components/ui/GeneratingPlaceholder';
-import { InlineError } from '@/components/ui/InlineError';
 import { useChat } from '@/hooks/chat';
 import { useGeneration } from '@/hooks/chat';
 import {
@@ -112,7 +111,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   const {
     messages,
     isLoading,
-    error: chatError,
     addMessage,
     updateMessage,
     removeMessage,
@@ -133,7 +131,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     models,
     selectableModels,
     generationPhase,
-    error: generationError,
     insufficientPointsError,
     setSelectedModel,
     setSelectedResolution,
@@ -145,7 +142,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     userProviderConfigError,
     clearUserProviderConfigError,
     startGeneration,
-    failGeneration,
+    completeGeneration,
     setChatMode,
     setSelectedAgentModel,
     setSelectedAgentImageModel,
@@ -279,10 +276,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     clearPendingMessages();
   }, [stopGeneration, clearPendingMessages]);
 
-  const handleRetry = useCallback(() => {
-    clearError();
-  }, [clearError]);
-
   const handleResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
 
@@ -395,14 +388,15 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         return;
       }
 
-      failGeneration(err instanceof Error ? err.message : 'Failed to send message');
+      console.error('[ChatPanel] Unexpected error in handleSendMessage:', err);
+      completeGeneration();
       onGeneratingChange?.(false);
       clearPendingMessages();
     }
   }, [
     conversationId, selectedModel, selectedAgentModel, selectedAgentImageModel, models, selectableModels, t, chatMode,
     createUserMessage, addMessage, updateMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
-    startGeneration, startAgentGeneration, startImageGeneration, startOpsGeneration, clearError, failGeneration, onGeneratingChange,
+    startGeneration, startAgentGeneration, startImageGeneration, startOpsGeneration, clearError, completeGeneration, onGeneratingChange,
   ]);
 
   // Auto-send initial prompt if provided (must be after handleSendMessage definition)
@@ -444,8 +438,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     }
   }, [onOpsGenerated]);
 
-  // Combine errors
-  const error = chatError || generationError;
   const showGeneratingIndicatorNearInput = shouldShowGeneratingIndicatorNearInput(
     messages,
     generationPhase,
@@ -637,20 +629,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
             </>
           )}
         </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="px-4 py-2">
-            <InlineError
-              message={error}
-              onRetry={handleRetry}
-              onDismiss={() => {
-                clearError();
-              }}
-              autoDismiss={false}
-            />
-          </div>
-        )}
 
         {showGeneratingIndicatorNearInput && (
           <div className="px-4 pt-2 pb-0">
