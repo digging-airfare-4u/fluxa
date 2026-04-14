@@ -61,3 +61,7 @@ supabase/.temp
 
 # Local scratch output
 tmp
+
+# Claude Code local commands/skills
+.claude/commands/fluxa/
+.claude/skills/fluxa-ops/
