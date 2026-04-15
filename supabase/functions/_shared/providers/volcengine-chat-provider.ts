@@ -46,15 +46,24 @@ export class VolcengineChatProvider implements ChatProvider {
     messages: ChatMessage[],
     options?: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
+    return this.client.chatCompletion(this.model, this.formatMessages(messages), options);
+  }
+
+  async *chatCompletionStream(
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions,
+  ): AsyncGenerator<string, void, unknown> {
+    yield* this.client.chatCompletionStream(this.model, this.formatMessages(messages), options);
+  }
+
+  private formatMessages(messages: ChatMessage[]): ChatMessage[] {
     // Volcengine vision models require content as array format
-    const formatted = messages.map((msg) => ({
+    return messages.map((msg) => ({
       ...msg,
       content:
         typeof msg.content === 'string'
           ? [{ type: 'text' as const, text: msg.content }]
           : msg.content,
     }));
-
-    return this.client.chatCompletion(this.model, formatted, options);
   }
 }

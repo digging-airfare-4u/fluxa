@@ -43,4 +43,11 @@ export class OpenAIChatProvider implements ChatProvider {
   ): Promise<ChatCompletionResult> {
     return this.client.chatCompletion(this.model, messages, options);
   }
+
+  async *chatCompletionStream(
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions,
+  ): AsyncGenerator<string, void, unknown> {
+    yield* this.client.chatCompletionStream(this.model, messages, options);
+  }
 }

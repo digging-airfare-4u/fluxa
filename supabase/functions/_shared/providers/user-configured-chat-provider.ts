@@ -13,23 +13,54 @@ import type { UserProviderRecord } from '../services/user-provider.ts';
 
 export interface UserConfiguredChatClient {
   chatCompletion(model: string, messages: ChatMessage[], options?: ChatCompletionOptions): Promise<ChatCompletionResult>;
+  chatCompletionStream?(model: string, messages: ChatMessage[], options?: ChatCompletionOptions): AsyncGenerator<string, void, unknown>;
 }
 
 export class UserConfiguredChatProvider implements ChatProvider {
   readonly name: string;
+  // Only mounted when the underlying client supports streaming. The agent
+  // executor uses `'chatCompletionStream' in provider` to decide between the
+  // streaming path and the single-chunk fallback, so we must not expose this
+  // method at all for non-streaming clients (e.g. anthropic-compatible BYOK).
+  readonly chatCompletionStream?: (
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions,
+  ) => AsyncGenerator<string, void, unknown>;
 
   constructor(
     private readonly client: UserConfiguredChatClient,
     private readonly config: UserProviderRecord,
   ) {
     this.name = `user-configured:${config.provider}`;
+    if (typeof client.chatCompletionStream === 'function') {
+      const stream = client.chatCompletionStream.bind(client);
+      this.chatCompletionStream = async function* (
+        this: UserConfiguredChatProvider,
+        messages: ChatMessage[],
+        options?: ChatCompletionOptions,
+      ) {
+        yield* stream(
+          this.config.model_name,
+          this.normalize(messages),
+          options,
+        );
+      };
+    }
   }
 
   async chatCompletion(
     messages: ChatMessage[],
     options?: ChatCompletionOptions,
   ): Promise<ChatCompletionResult> {
-    const normalizedMessages = this.config.provider === 'volcengine'
+    return this.client.chatCompletion(
+      this.config.model_name,
+      this.normalize(messages),
+      options,
+    );
+  }
+
+  private normalize(messages: ChatMessage[]): ChatMessage[] {
+    return this.config.provider === 'volcengine'
       ? messages.map((message) => ({
         ...message,
         content: typeof message.content === 'string'
@@ -37,11 +68,5 @@ export class UserConfiguredChatProvider implements ChatProvider {
           : message.content,
       }))
       : messages;
-
-    return this.client.chatCompletion(
-      this.config.model_name,
-      normalizedMessages,
-      options,
-    );
   }
 }

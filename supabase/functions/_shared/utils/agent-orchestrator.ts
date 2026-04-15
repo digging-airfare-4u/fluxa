@@ -104,16 +104,23 @@ export type AgentEvent =
   | { type: 'citation'; citations: AgentCitation[] }
   | { type: 'text'; content: string };
 
+export interface StreamingExecutorInput {
+  history: AgentHistoryEntry[];
+  plan: AgentPlannerResult;
+  iteration: number;
+  toolResults: AgentToolExecutionResult[];
+  emitTextDelta: (delta: string) => void;
+}
+
+export type StreamingExecutor = (
+  input: StreamingExecutorInput,
+) => Promise<AgentExecutorResult>;
+
 export interface RunAgentLoopArgs {
   history: AgentHistoryEntry[];
   emitEvent: (event: AgentEvent) => void;
   planner: (history: AgentHistoryEntry[]) => Promise<AgentPlannerResult>;
-  executor: (input: {
-    history: AgentHistoryEntry[];
-    plan: AgentPlannerResult;
-    iteration: number;
-    toolResults: AgentToolExecutionResult[];
-  }) => Promise<AgentExecutorResult>;
+  executor: StreamingExecutor;
   runTool: (call: AgentExecutorToolCallResult) => Promise<AgentToolExecutionResult>;
   maxIterations: number;
 }
@@ -226,6 +233,36 @@ async function emitProgressiveText(
   }
 }
 
+/**
+ * Stream plain (non-LLM) text to the client character-by-character using the
+ * same `{type:'text', content: cumulative}` contract the LLM streamer uses.
+ * Used for paths where text is generated locally (e.g. image-generation summary).
+ */
+async function emitStreamedPlainText(
+  emitEvent: RunAgentLoopArgs['emitEvent'],
+  text: string,
+): Promise<void> {
+  const normalized = text.trim();
+  if (!normalized) return;
+  const segmenter = typeof (Intl as unknown as { Segmenter?: unknown }).Segmenter === 'function'
+    // deno-lint-ignore no-explicit-any
+    ? new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+  const graphemes: string[] = segmenter
+    ? Array.from(segmenter.segment(normalized), (s: { segment: string }) => s.segment)
+    : Array.from(normalized);
+
+  let cumulative = '';
+  for (let i = 0; i < graphemes.length; i += 1) {
+    cumulative += graphemes[i];
+    emitEvent({ type: 'text', content: cumulative });
+    if (i < graphemes.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, STREAM_FRAME_DELAY_MS));
+    }
+  }
+}
+
 export function appendCurrentUserTurn(
   history: AgentHistoryEntry[],
   prompt: string,
@@ -278,11 +315,17 @@ export async function runAgentLoop(
   const generatedImages: AgentGeneratedImage[] = [];
 
   for (let iteration = 0; iteration < args.maxIterations; iteration += 1) {
+    let streamedText = '';
     const executionResult = await args.executor({
       history: workingHistory,
       plan,
       iteration,
       toolResults,
+      emitTextDelta: (delta) => {
+        if (!delta) return;
+        streamedText += delta;
+        args.emitEvent({ type: 'text', content: streamedText });
+      },
     });
     const step = getStep(plan, executionResult, iteration);
 
@@ -293,7 +336,10 @@ export async function runAgentLoop(
       if (executionResult.citations && executionResult.citations.length > 0) {
         args.emitEvent({ type: 'citation', citations: executionResult.citations });
       }
-      await emitProgressiveText(args.emitEvent, executionResult.text);
+      // Ensure frontend sees the final, complete text (in case streaming dropped anything).
+      if (streamedText !== executionResult.text) {
+        args.emitEvent({ type: 'text', content: executionResult.text });
+      }
       args.emitEvent({ type: 'step_done', stepId: step.id, summary: executionResult.summary });
 
       return {
@@ -352,7 +398,7 @@ export async function runAgentLoop(
     // the executor from generating additional unwanted images.
     if (executionResult.tool === 'generate_image') {
       const summary = plan.summary || toolResult.summary;
-      await emitProgressiveText(args.emitEvent, summary);
+      await emitStreamedPlainText(args.emitEvent, summary);
 
       return {
         history: workingHistory,

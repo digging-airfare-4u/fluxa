@@ -119,6 +119,112 @@ export class OpenAICompatibleClient {
   }
 
   /**
+   * Stream a chat completion response as an async iterable of text deltas.
+   */
+  async *chatCompletionStream(
+    model: string,
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions,
+  ): AsyncGenerator<string, void, unknown> {
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      stream: true,
+    };
+
+    if (options?.temperature !== undefined) {
+      body.temperature = options.temperature;
+    }
+    if (options?.maxTokens !== undefined) {
+      body.max_tokens = options.maxTokens;
+    }
+
+    const url = `${this.config.apiUrl}/chat/completions`;
+    const response = await this.sendRequest(url, body);
+
+    if (!response.body) {
+      throw new ProviderError(
+        'Streaming response missing body',
+        'EMPTY_RESPONSE',
+        undefined,
+        this.config.providerName,
+        model,
+        502,
+      );
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sawAnyDelta = false;
+
+    const processLine = function* (line: string): Generator<string, void, unknown> {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) return;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === '[DONE]') return;
+      try {
+        const event = JSON.parse(payload);
+        const delta = event?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string' && delta.length > 0) {
+          yield delta;
+        }
+      } catch {
+        // Ignore malformed SSE chunks.
+      }
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          buffer += decoder.decode();
+          // Flush any remaining buffered payload — some endpoints close without
+          // a trailing newline on the final `data:` event.
+          for (const line of buffer.split('\n')) {
+            for (const delta of processLine(line)) {
+              sawAnyDelta = true;
+              yield delta;
+            }
+          }
+          buffer = '';
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+
+        let lineEnd = buffer.indexOf('\n');
+        while (lineEnd !== -1) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          lineEnd = buffer.indexOf('\n');
+
+          for (const delta of processLine(line)) {
+            sawAnyDelta = true;
+            yield delta;
+          }
+        }
+      }
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!sawAnyDelta) {
+      throw new ProviderError(
+        'Chat provider streaming returned no content',
+        'EMPTY_RESPONSE',
+        undefined,
+        this.config.providerName,
+        model,
+        502,
+      );
+    }
+  }
+
+  /**
    * Send an image generation request in OpenAI format.
    * Requirements: 2.2
    */

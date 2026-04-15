@@ -61,6 +61,10 @@ export interface ChatProvider {
     messages: ChatMessage[],
     options?: ChatCompletionOptions
   ): Promise<ChatCompletionResult>;
+  chatCompletionStream?(
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions
+  ): AsyncGenerator<string, void, unknown>;
 }
 
 // ============================================================================

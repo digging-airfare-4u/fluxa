@@ -367,6 +367,75 @@ function createPlanner(
   };
 }
 
+const EXECUTOR_SYSTEM_PROMPT = [
+  'You are the execution stage for Fluxa Agent.',
+  'You have two response modes: TOOL CALL or FINAL ANSWER.',
+  'TOOL CALL mode: if you need to call a tool, respond with ONLY a single XML block, nothing else (no prose, no markdown, no prefix):',
+  '<tool>{"tool":"generate_image","prompt":"string","referenceImageUrl":"optional trusted asset url","stepId":"step-id"}</tool>',
+  'Other tool schemas (still wrapped in <tool>...</tool>):',
+  '{"tool":"web_search","query":"string","stepId":"step-id"}',
+  '{"tool":"fetch_url","url":"https://...","stepId":"step-id"}',
+  '{"tool":"image_search","query":"string","stepId":"step-id"}',
+  'FINAL ANSWER mode: if no tool is needed, reply with a plain-text answer directly. Do NOT wrap it in <tool>, JSON, or markdown fences. Just the answer prose.',
+  'Decide mode at the very first token and commit to it for the whole response.',
+  'Rules:',
+  '- Use fetch_url before citing a web result.',
+  '- Use image_search only for user-requested visual references; only use trusted image URLs from tool results.',
+  '- If a reference image is attached, analyze it and incorporate observations.',
+  '- When the user asks to modify/iterate on a previous image, find the imageUrl from the earlier generate_image tool result and pass it as referenceImageUrl.',
+  '- Call generate_image at most ONCE per turn.',
+  '- Do not fabricate citations or facts.',
+  '- Do not include raw image URLs in the final text; the UI shows images separately.',
+].join('\n');
+
+interface ParsedToolCall {
+  tool: string;
+  prompt?: string;
+  query?: string;
+  url?: string;
+  referenceImageUrl?: string;
+  stepId?: string;
+}
+
+function toToolCallResult(parsed: ParsedToolCall): AgentExecutorResult {
+  if (parsed.tool === 'generate_image' && typeof parsed.prompt === 'string') {
+    return {
+      kind: 'tool_call' as const,
+      tool: 'generate_image',
+      prompt: parsed.prompt,
+      referenceImageUrl: parsed.referenceImageUrl,
+      stepId: parsed.stepId,
+    };
+  }
+  if ((parsed.tool === 'web_search' || parsed.tool === 'image_search') && typeof parsed.query === 'string') {
+    return {
+      kind: 'tool_call' as const,
+      tool: parsed.tool,
+      query: parsed.query,
+      stepId: parsed.stepId,
+    };
+  }
+  if (parsed.tool === 'fetch_url' && typeof parsed.url === 'string') {
+    return {
+      kind: 'tool_call' as const,
+      tool: 'fetch_url',
+      url: parsed.url,
+      stepId: parsed.stepId,
+    };
+  }
+  throw new ProviderError(
+    `Executor returned an unrecognized tool call: ${JSON.stringify(parsed)}`,
+    'PARSE_ERROR',
+    { parsed },
+    'agent-executor',
+    undefined,
+    502,
+  );
+}
+
+const TOOL_OPEN = '<tool>';
+const TOOL_CLOSE = '</tool>';
+
 function createExecutor(
   runtime: ResolvedChatProvider,
   referenceImageUrl?: string,
@@ -376,78 +445,179 @@ function createExecutor(
   plan: AgentPlannerResult;
   toolResults: AgentToolExecutionResult[];
   iteration: number;
+  emitTextDelta: (delta: string) => void;
 }) => Promise<AgentExecutorResult> {
   return async (input) => {
-    try {
-      return await retryWithExponentialBackoff(() => callChatProviderJson<AgentExecutorResult>({
-        provider: runtime.provider,
-        messages: [
-          {
-            role: 'system',
-            content: [
-              'You are the execution stage for Fluxa Agent.',
-              'You MUST return valid JSON only. No greetings, no explanation, no markdown fences.',
-              'Schema for final answer: {"kind":"final","text":"string","summary":"string","citations":[]}.',
-              'Schema for generate_image: {"kind":"tool_call","tool":"generate_image","prompt":"string","referenceImageUrl":"optional trusted asset url","stepId":"step-id"}.',
-              'Schema for web_search: {"kind":"tool_call","tool":"web_search","query":"string","stepId":"step-id"}.',
-              'Schema for fetch_url: {"kind":"tool_call","tool":"fetch_url","url":"https://...","stepId":"step-id"}.',
-              'Schema for image_search: {"kind":"tool_call","tool":"image_search","query":"string","stepId":"step-id"}.',
-              'Use fetch_url before citing a web result.',
-              'Use image_search when the user needs visual references, and only use trusted image URLs from tool results.',
-              'If a reference image is attached, analyze it and incorporate your observations.',
-              'When the user asks to modify, iterate on, or reference a previously generated image, find the imageUrl from the earlier generate_image tool result in the conversation history and pass it as referenceImageUrl in your generate_image tool call.',
-              'Call generate_image at most ONCE per turn. After generating an image, return a final answer summarizing the result.',
-              'Do not fabricate citations or verified facts.',
-              'Do not include raw image URLs in the final text. Images are displayed separately by the UI.',
-              'IMPORTANT: respond with the JSON object ONLY. Any non-JSON output is a fatal error.',
-            ].join(' '),
-          },
-          {
-            role: 'user',
-            content: referenceImageUrl
-              ? [
-                  { type: 'text' as const, text: JSON.stringify(input) },
-                  { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
-                ]
-              : JSON.stringify(input),
-          },
-        ],
-      }), {
-        provider: runtime.provider.name,
-        model: runtime.displayName,
-        diagnosticContext: {
-          stage: 'executor',
-          conversationId,
-          historyLength: input.history.length,
-          iteration: input.iteration,
-          hasReferenceImage: Boolean(referenceImageUrl),
-        },
-      });
-    } catch (error) {
-      // Fallback: if the model returned plain text instead of JSON,
-      // extract it and wrap as a final result so the user still gets a response.
-      const rawContent = (
-        error instanceof ProviderError &&
-        error.details &&
-        typeof error.details === 'object' &&
-        'content' in error.details
-      ) ? String((error.details as Record<string, unknown>).content).trim() : undefined;
+    const messages = [
+      { role: 'system' as const, content: EXECUTOR_SYSTEM_PROMPT },
+      {
+        role: 'user' as const,
+        content: referenceImageUrl
+          ? [
+              { type: 'text' as const, text: JSON.stringify(input) },
+              { type: 'image_url' as const, image_url: { url: referenceImageUrl } },
+            ]
+          : JSON.stringify({
+              history: input.history,
+              plan: input.plan,
+              iteration: input.iteration,
+              toolResults: input.toolResults,
+            }),
+      },
+    ];
+    const completionOptions = { temperature: 0.4, maxTokens: 4000 };
 
-      if (rawContent) {
-        console.error('[agent] executor JSON fallback triggered', {
-          conversationId,
-          iteration: input.iteration,
-          contentLength: rawContent.length,
-        });
-        return {
-          kind: 'final' as const,
-          text: rawContent,
-          summary: 'Response generated with text fallback',
-        };
+    // Fallback path: providers that don't implement chatCompletionStream get
+    // a synthesized single-chunk generator from the non-streaming call. Tokens
+    // arrive as one delta (no streaming UX) but the rest of the pipeline works.
+    const openStream = async (): Promise<AsyncIterable<string>> => {
+      if (runtime.provider.chatCompletionStream) {
+        return runtime.provider.chatCompletionStream(messages, completionOptions);
+      }
+      const result = await runtime.provider.chatCompletion(messages, completionOptions);
+      const text = result.content ?? '';
+      async function* single() {
+        if (text.length > 0) yield text;
+      }
+      return single();
+    };
+
+    // Track whether we have emitted any delta across attempts. If we have, we
+    // must NOT retry (P2): retrying would re-stream a second response on top
+    // of the prefix the client already received.
+    let hasEmittedDelta = false;
+
+    const executeStream = async (): Promise<AgentExecutorResult> => {
+      const stream = await openStream();
+
+      // Mode decision state:
+      //  - undecided: accumulate prefix until we can tell tool vs text
+      //  - 'tool': accumulate until </tool> closes
+      //  - 'text': pass tokens straight to emitTextDelta
+      let mode: 'undecided' | 'tool' | 'text' = 'undecided';
+      let buffer = '';
+      let accumulatedText = '';
+
+      const flushAsText = (delta: string) => {
+        if (!delta) return;
+        accumulatedText += delta;
+        hasEmittedDelta = true;
+        input.emitTextDelta(delta);
+      };
+
+      for await (const delta of stream) {
+        if (mode === 'text') {
+          flushAsText(delta);
+          continue;
+        }
+
+        buffer += delta;
+
+        if (mode === 'undecided') {
+          const leading = buffer.replace(/^\s+/, '');
+          // Need enough chars to compare to TOOL_OPEN
+          if (leading.length === 0) continue;
+
+          if (leading.startsWith(TOOL_OPEN)) {
+            mode = 'tool';
+            // Drop any leading whitespace + the opening tag portion is kept in buffer for terminator detection below
+          } else if (TOOL_OPEN.startsWith(leading)) {
+            // Still could become a tool call; keep buffering.
+            continue;
+          } else {
+            // It's plain text — flush buffered tokens through as text delta.
+            mode = 'text';
+            flushAsText(buffer);
+            buffer = '';
+            continue;
+          }
+        }
+
+        // mode === 'tool': look for closing tag
+        const closeIdx = buffer.indexOf(TOOL_CLOSE);
+        if (closeIdx !== -1) {
+          const openIdx = buffer.indexOf(TOOL_OPEN);
+          const jsonStart = openIdx === -1 ? 0 : openIdx + TOOL_OPEN.length;
+          const jsonText = buffer.slice(jsonStart, closeIdx).trim();
+          let parsed: ParsedToolCall;
+          try {
+            parsed = JSON.parse(jsonText) as ParsedToolCall;
+          } catch (err) {
+            throw new ProviderError(
+              `Executor tool-call JSON was invalid: ${err instanceof Error ? err.message : String(err)}`,
+              'PARSE_ERROR',
+              { jsonText },
+              'agent-executor',
+              undefined,
+              502,
+            );
+          }
+          return toToolCallResult(parsed);
+        }
       }
 
-      throw error;
+      // Stream ended
+      if (mode === 'tool') {
+        throw new ProviderError(
+          'Executor stream ended without closing </tool> tag',
+          'PARSE_ERROR',
+          { buffer },
+          'agent-executor',
+          undefined,
+          502,
+        );
+      }
+      if (mode === 'undecided') {
+        // Model produced only short content that looked like it could be a tool prefix; treat as text.
+        if (buffer.trim()) {
+          flushAsText(buffer);
+          buffer = '';
+        }
+      }
+
+      const finalText = accumulatedText.trim();
+      if (!finalText) {
+        throw new ProviderError(
+          'Executor stream produced empty final answer',
+          'EMPTY_RESPONSE',
+          undefined,
+          'agent-executor',
+          undefined,
+          502,
+        );
+      }
+      return {
+        kind: 'final' as const,
+        text: finalText,
+        summary: input.plan.summary,
+      };
+    };
+
+    // Manual retry: only retry when NO delta has been emitted yet. Once the
+    // client has seen a partial prefix, a second attempt would stream a fresh
+    // completion on top of the old one. We therefore abort retry immediately
+    // if `hasEmittedDelta` is true.
+    const MAX_ATTEMPTS = 2;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        return await executeStream();
+      } catch (error) {
+        lastError = error;
+        const canRetry = !hasEmittedDelta && attempt < MAX_ATTEMPTS;
+        console.error('[agent] executor streaming attempt failed', {
+          conversationId,
+          iteration: input.iteration,
+          attempt,
+          hasEmittedDelta,
+          willRetry: canRetry,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!canRetry) break;
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      }
     }
+    throw lastError;
   };
 }
 
