@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
+import { getProxyImageUrl } from '@/lib/utils/image-url';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 import {
@@ -127,6 +128,7 @@ export function ChatMessage({
   const imageUrl = metadata?.imageUrl || (metadata?.op as { payload?: { src?: string } })?.payload?.src;
   const layerId = (metadata?.op as { payload?: { id?: string } })?.payload?.id;
   const primaryImageUrl = imageUrl || generatedImages[0]?.imageUrl;
+  const primaryDisplayImageUrl = primaryImageUrl ? getProxyImageUrl(primaryImageUrl) : undefined;
   
   // Get referenced image from user message
   const referencedImage = metadata?.referencedImage as { id: string; url: string; filename: string } | undefined;
@@ -559,11 +561,12 @@ export function ChatMessage({
       {/* Generated image - no rounded corners, left aligned with max width */}
       {primaryImageUrl && (
         <div className="mt-3 max-w-[85%]" onClick={handleImageClick}>
-          <ImageCard
-            src={primaryImageUrl}
-            alt="Generated design"
-            prompt={metadata?.plan}
-            onDownload={handleDownload}
+              <ImageCard
+                src={primaryImageUrl}
+                displaySrc={primaryDisplayImageUrl}
+                alt="Generated design"
+                prompt={metadata?.plan}
+                onDownload={handleDownload}
             onAddToCanvas={onAddToCanvas ? handleAddToCanvas : undefined}
           />
         </div>
@@ -583,6 +586,7 @@ export function ChatMessage({
               >
                 <ImageCard
                   src={generatedImage.imageUrl}
+                  displaySrc={getProxyImageUrl(generatedImage.imageUrl)}
                   alt="Generated design"
                   prompt={generatedImage.prompt}
                   onDownload={() => {
@@ -633,7 +637,7 @@ export function ChatMessage({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               ref={previewImgRef}
-              src={primaryImageUrl}
+              src={primaryDisplayImageUrl}
               alt="Preview"
               className="block max-w-[92vw] max-h-[88vh] object-contain"
               onLoad={(e) => {

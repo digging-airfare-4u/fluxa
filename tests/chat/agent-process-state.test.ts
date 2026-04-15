@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addGeneratedImageToPendingState,
   buildAgentPendingMetadata,
   createInitialAgentPendingState,
   mergeAgentFinalMessage,
@@ -111,6 +112,29 @@ describe('agent process state', () => {
       processSummary: 'Persisted summary',
       citations: [{ title: 'Source B', url: 'https://example.com/b', domain: 'example.com' }],
     });
+  });
+
+  it('adds generated images to pending state without duplicating the same asset', () => {
+    const initialState = createInitialAgentPendingState();
+
+    const withImage = addGeneratedImageToPendingState(initialState, {
+      imageUrl: 'https://example.com/generated.png',
+      assetId: 'asset-1',
+      prompt: 'Generated concept image',
+    });
+    const deduped = addGeneratedImageToPendingState(withImage, {
+      imageUrl: 'https://example.com/generated.png',
+      assetId: 'asset-1',
+      prompt: 'Generated concept image',
+    });
+
+    expect(deduped.generatedImages).toEqual([
+      {
+        imageUrl: 'https://example.com/generated.png',
+        assetId: 'asset-1',
+        prompt: 'Generated concept image',
+      },
+    ]);
   });
 
   it('preserves a stable client key across pending and final agent messages', () => {

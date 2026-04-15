@@ -121,6 +121,16 @@ function appendGeneratedImage(
   return [...generatedImages, image];
 }
 
+export function addGeneratedImageToPendingState(
+  state: AgentPendingState,
+  image: MessageGeneratedImage,
+): AgentPendingState {
+  return {
+    ...state,
+    generatedImages: appendGeneratedImage(state.generatedImages, image),
+  };
+}
+
 function deriveSearchSummary(decisions: AgentProcessDecision[]): string | undefined {
   if (decisions.length === 0) {
     return undefined;

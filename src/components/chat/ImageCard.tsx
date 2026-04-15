@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/hooks';
 
 interface ImageCardProps {
   src: string;
+  displaySrc?: string;
   alt?: string;
   prompt?: string;
   onDownload?: () => void;
@@ -24,6 +25,7 @@ interface ImageCardProps {
 
 export function ImageCard({
   src,
+  displaySrc,
   alt,
   prompt,
   onDownload,
@@ -115,7 +117,7 @@ export function ImageCard({
       {/* Image */}
       <div className="relative w-full aspect-[4/3]">
         <Image
-          src={src}
+          src={displaySrc || src}
           alt={alt || t('assets.generated_image')}
           fill
           unoptimized

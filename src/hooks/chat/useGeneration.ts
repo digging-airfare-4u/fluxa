@@ -23,6 +23,7 @@ import type { Op, AddImageOp } from '@/lib/canvas/ops.types';
 import type { AIModel } from '@/lib/supabase/queries/models';
 import type { SelectableModel } from '@/lib/models/resolve-selectable-models';
 import {
+  addGeneratedImageToPendingState,
   buildAgentPendingMetadata,
   createInitialAgentPendingState,
   mergeAgentFinalMessage,
@@ -645,6 +646,7 @@ export function useGeneration({
     const targetResolution = RESOLUTION_PIXELS[selectedResolution] ?? 1024;
     const placeholderDimensions = calculateDimensions(selectedAspectRatio, targetResolution);
     const activePlaceholders: Array<{ id: string; x: number; y: number }> = [];
+    const activeImageInsertions: Promise<void>[] = [];
 
     const syncPendingMessage = () => {
       const updates: Partial<Message> = {
@@ -669,11 +671,16 @@ export function useGeneration({
         activePlaceholders.push({ id: placeholderId, x: phX, y: phY });
       }
 
-      if (event.type === 'tool_result' && event.tool === 'generate_image' && event.imageUrl) {
+      const shouldDeferGeneratedImageReveal =
+        event.type === 'tool_result' &&
+        event.tool === 'generate_image' &&
+        Boolean(event.imageUrl);
+
+      if (shouldDeferGeneratedImageReveal) {
         const placeholder = activePlaceholders.shift();
         if (placeholder) {
           const imageUrl = event.imageUrl;
-          void (async () => {
+          const insertionTask = (async () => {
             const finalPosition = onGetPlaceholderPosition?.(placeholder.id);
             const layerId = `agent-img-${Date.now()}`;
             pendingGenerationTracker.registerLayerId(layerId);
@@ -707,6 +714,13 @@ export function useGeneration({
                 } as Op,
               });
 
+              pendingState = addGeneratedImageToPendingState(pendingState, {
+                imageUrl,
+                assetId: event.assetId,
+                prompt: event.resultSummary || event.tool,
+              });
+              syncPendingMessage();
+
               setTimeout(() => onRemovePlaceholder?.(placeholder.id), 400);
             } catch (error) {
               console.error('[useGeneration] Failed to execute agent addImage flow:', error);
@@ -715,10 +729,26 @@ export function useGeneration({
               onRemovePlaceholder?.(placeholder.id);
             }
           })();
+          activeImageInsertions.push(insertionTask);
+        } else {
+          pendingState = addGeneratedImageToPendingState(pendingState, {
+            imageUrl: event.imageUrl,
+            assetId: event.assetId,
+            prompt: event.resultSummary || event.tool,
+          });
         }
       }
 
-      pendingState = reduceAgentPendingState(pendingState, event);
+      pendingState = reduceAgentPendingState(
+        pendingState,
+        shouldDeferGeneratedImageReveal
+          ? {
+              ...event,
+              imageUrl: undefined,
+              assetId: undefined,
+            }
+          : event,
+      );
 
       if (event.type !== 'done') {
         syncPendingMessage();
@@ -751,6 +781,8 @@ export function useGeneration({
       );
 
       clearPhaseATimeout();
+
+      await Promise.allSettled(activeImageInsertions);
 
       for (const ph of activePlaceholders) {
         pendingGenerationTracker.unregisterGeneration(ph.x, ph.y);

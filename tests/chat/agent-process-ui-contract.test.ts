@@ -22,6 +22,8 @@ describe('agent process ui contract', () => {
     expect(source).toContain("t('message.citations')");
     expect(source).toContain('metadata?.generatedImages');
     expect(source).toContain('metadata?.citations');
+    expect(source).toContain('getProxyImageUrl');
+    expect(source).toContain('displaySrc={primaryDisplayImageUrl}');
     expect(source).not.toContain("t('message.process_decisions')");
   });
 
@@ -32,8 +34,10 @@ describe('agent process ui contract', () => {
     );
 
     expect(source).toContain('reduceAgentPendingState');
+    expect(source).toContain('addGeneratedImageToPendingState');
     expect(source).toContain('buildAgentPendingMetadata');
     expect(source).toContain('syncPendingMessage();');
+    expect(source).toContain('Promise.allSettled(activeImageInsertions)');
     expect(source).toContain('mergeAgentFinalMessage(doneEvent.message, pendingState, currentModelName, pendingMessageId)');
   });
 });
