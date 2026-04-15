@@ -59,3 +59,18 @@ export function splitStableMarkdown(content: string): StableMarkdownParts {
     tail: content.slice(stableEnd),
   };
 }
+
+export function getStreamingMarkdownRenderParts(
+  content: string,
+  committedStable: string,
+): StableMarkdownParts {
+  const { stable: detectedStable } = splitStableMarkdown(content);
+  const stable = detectedStable.startsWith(committedStable)
+    ? committedStable
+    : detectedStable;
+
+  return {
+    stable,
+    tail: content.slice(stable.length),
+  };
+}

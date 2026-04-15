@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { splitStableMarkdown } from '../../src/components/chat/streaming-markdown';
+import {
+  getStreamingMarkdownRenderParts,
+  splitStableMarkdown,
+} from '../../src/components/chat/streaming-markdown';
 
 describe('streaming markdown split', () => {
   it('keeps completed markdown blocks stable and leaves the active tail raw', () => {
@@ -26,6 +29,24 @@ describe('streaming markdown split', () => {
     expect(splitStableMarkdown(content)).toEqual({
       stable: '```ts\nconst value = 1;\n```\n',
       tail: '接着输出',
+    });
+  });
+
+  it('keeps newly stable content in the raw tail until the debounce commits it', () => {
+    const content = '# 标题\n\n第一段已经完成。\n\n第二段还在';
+
+    expect(getStreamingMarkdownRenderParts(content, '# 标题\n\n')).toEqual({
+      stable: '# 标题\n\n',
+      tail: '第一段已经完成。\n\n第二段还在',
+    });
+  });
+
+  it('falls back to the detected stable prefix when the committed prefix no longer matches', () => {
+    const content = '新的内容\n\n尾巴';
+
+    expect(getStreamingMarkdownRenderParts(content, '旧的稳定前缀')).toEqual({
+      stable: '新的内容\n\n',
+      tail: '尾巴',
     });
   });
 });

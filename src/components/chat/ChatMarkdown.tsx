@@ -1,9 +1,15 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import { cn } from '@/lib/utils';
-import { splitStableMarkdown } from '@/components/chat/streaming-markdown';
+import {
+  getStreamingMarkdownRenderParts,
+  splitStableMarkdown,
+} from '@/components/chat/streaming-markdown';
+
+const MARKDOWN_STABLE_DEBOUNCE_MS = 64;
 
 const components: Components = {
   // Headers: same font-size as body, just bolder — no visual disruption in chat
@@ -86,8 +92,35 @@ function MarkdownContent({ content }: { content: string }) {
 }
 
 export function ChatMarkdown({ content, streaming = false }: ChatMarkdownProps) {
+  const [committedStable, setCommittedStable] = useState(() => (streaming ? '' : content));
+  const { stable: detectedStable } = splitStableMarkdown(content);
+
+  useEffect(() => {
+    if (!streaming) {
+      setCommittedStable(content);
+      return;
+    }
+
+    if (detectedStable === committedStable) {
+      return;
+    }
+
+    if (!detectedStable.startsWith(committedStable)) {
+      setCommittedStable(detectedStable);
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setCommittedStable(detectedStable);
+    }, MARKDOWN_STABLE_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [committedStable, content, detectedStable, streaming]);
+
   const { stable, tail } = streaming
-    ? splitStableMarkdown(content)
+    ? getStreamingMarkdownRenderParts(content, committedStable)
     : { stable: content, tail: '' };
 
   return (
