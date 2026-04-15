@@ -679,7 +679,7 @@ export function useGeneration({
       if (shouldDeferGeneratedImageReveal) {
         const placeholder = activePlaceholders.shift();
         if (placeholder) {
-          const imageUrl = event.imageUrl;
+          const imageUrl = event.imageUrl!;
           const insertionTask = (async () => {
             const finalPosition = onGetPlaceholderPosition?.(placeholder.id);
             const layerId = `agent-img-${Date.now()}`;
@@ -732,7 +732,7 @@ export function useGeneration({
           activeImageInsertions.push(insertionTask);
         } else {
           pendingState = addGeneratedImageToPendingState(pendingState, {
-            imageUrl: event.imageUrl,
+            imageUrl: event.imageUrl!,
             assetId: event.assetId,
             prompt: event.resultSummary || event.tool,
           });
