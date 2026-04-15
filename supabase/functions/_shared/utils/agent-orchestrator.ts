@@ -139,6 +139,31 @@ const STREAM_FRAME_FALLBACK_CHARS = 48;
 const STREAM_FRAME_LOOKAHEAD_CHARS = 18;
 const STREAM_FRAME_DELAY_MS = 28;
 
+export function splitIntoGraphemes(text: string): string[] {
+  const segmenter = typeof (Intl as unknown as { Segmenter?: unknown }).Segmenter === 'function'
+    // deno-lint-ignore no-explicit-any
+    ? new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+  return segmenter
+    ? Array.from(segmenter.segment(text), (segment: { segment: string }) => segment.segment)
+    : Array.from(text);
+}
+
+export async function emitGraphemeDeltas(
+  text: string,
+  emitDelta: (delta: string) => void | Promise<void>,
+  delayMs = STREAM_FRAME_DELAY_MS,
+): Promise<void> {
+  const graphemes = splitIntoGraphemes(text);
+  for (let index = 0; index < graphemes.length; index += 1) {
+    await emitDelta(graphemes[index]);
+    if (delayMs > 0 && index < graphemes.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export function bootstrapAgentHistoryFromMessages(
   messages: Array<{ role: string; content: string | null | undefined }>,
 ): AgentHistoryEntry[] {
@@ -244,23 +269,11 @@ async function emitStreamedPlainText(
 ): Promise<void> {
   const normalized = text.trim();
   if (!normalized) return;
-  const segmenter = typeof (Intl as unknown as { Segmenter?: unknown }).Segmenter === 'function'
-    // deno-lint-ignore no-explicit-any
-    ? new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' })
-    : null;
-
-  const graphemes: string[] = segmenter
-    ? Array.from(segmenter.segment(normalized), (s: { segment: string }) => s.segment)
-    : Array.from(normalized);
-
   let cumulative = '';
-  for (let i = 0; i < graphemes.length; i += 1) {
-    cumulative += graphemes[i];
+  await emitGraphemeDeltas(normalized, (delta) => {
+    cumulative += delta;
     emitEvent({ type: 'text', content: cumulative });
-    if (i < graphemes.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, STREAM_FRAME_DELAY_MS));
-    }
-  }
+  });
 }
 
 export function appendCurrentUserTurn(

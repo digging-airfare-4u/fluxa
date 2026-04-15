@@ -40,6 +40,7 @@ import {
   appendCurrentUserTurn,
   bootstrapAgentHistoryFromMessages,
   createAgentAssistantMetadata,
+  emitGraphemeDeltas,
   runAgentLoop,
   truncateAgentHistory,
   type AgentCitation,
@@ -435,6 +436,7 @@ function toToolCallResult(parsed: ParsedToolCall): AgentExecutorResult {
 
 const TOOL_OPEN = '<tool>';
 const TOOL_CLOSE = '</tool>';
+const EXECUTOR_GRAPHEME_DELAY_MS = 12;
 
 function createExecutor(
   runtime: ResolvedChatProvider,
@@ -498,16 +500,18 @@ function createExecutor(
       let buffer = '';
       let accumulatedText = '';
 
-      const flushAsText = (delta: string) => {
+      const flushAsText = async (delta: string) => {
         if (!delta) return;
-        accumulatedText += delta;
-        hasEmittedDelta = true;
-        input.emitTextDelta(delta);
+        await emitGraphemeDeltas(delta, (grapheme) => {
+          accumulatedText += grapheme;
+          hasEmittedDelta = true;
+          input.emitTextDelta(grapheme);
+        }, EXECUTOR_GRAPHEME_DELAY_MS);
       };
 
       for await (const delta of stream) {
         if (mode === 'text') {
-          flushAsText(delta);
+          await flushAsText(delta);
           continue;
         }
 
@@ -527,7 +531,7 @@ function createExecutor(
           } else {
             // It's plain text — flush buffered tokens through as text delta.
             mode = 'text';
-            flushAsText(buffer);
+            await flushAsText(buffer);
             buffer = '';
             continue;
           }
@@ -570,7 +574,7 @@ function createExecutor(
       if (mode === 'undecided') {
         // Model produced only short content that looked like it could be a tool prefix; treat as text.
         if (buffer.trim()) {
-          flushAsText(buffer);
+          await flushAsText(buffer);
           buffer = '';
         }
       }

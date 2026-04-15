@@ -19,9 +19,9 @@ export interface UserConfiguredChatClient {
 export class UserConfiguredChatProvider implements ChatProvider {
   readonly name: string;
   // Only mounted when the underlying client supports streaming. The agent
-  // executor uses `'chatCompletionStream' in provider` to decide between the
-  // streaming path and the single-chunk fallback, so we must not expose this
-  // method at all for non-streaming clients (e.g. anthropic-compatible BYOK).
+  // executor uses `chatCompletionStream` presence to decide between the
+  // streaming path and the single-chunk fallback, so non-streaming clients
+  // must not expose this method at all.
   readonly chatCompletionStream?: (
     messages: ChatMessage[],
     options?: ChatCompletionOptions,

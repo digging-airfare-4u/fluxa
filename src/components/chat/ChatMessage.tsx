@@ -507,7 +507,10 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className="chat-message-ai">
-        <ChatMarkdown content={isAgentMessage ? cleanAgentContent(message.content) : message.content} />
+        <ChatMarkdown
+          content={isAgentMessage ? cleanAgentContent(message.content) : message.content}
+          streaming={isPending}
+        />
       </div>
 
       {/* Optional reasoning/thinking summary (classic mode only) */}

@@ -2,6 +2,8 @@
 
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
+import { cn } from '@/lib/utils';
+import { splitStableMarkdown } from '@/components/chat/streaming-markdown';
 
 const components: Components = {
   // Headers: same font-size as body, just bolder — no visual disruption in chat
@@ -72,14 +74,35 @@ const components: Components = {
 
 interface ChatMarkdownProps {
   content: string;
+  streaming?: boolean;
 }
 
-export function ChatMarkdown({ content }: ChatMarkdownProps) {
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown components={components}>
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+export function ChatMarkdown({ content, streaming = false }: ChatMarkdownProps) {
+  const { stable, tail } = streaming
+    ? splitStableMarkdown(content)
+    : { stable: content, tail: '' };
+
   return (
     <div className="chat-markdown">
-      <ReactMarkdown components={components}>
-        {content}
-      </ReactMarkdown>
+      {stable ? <MarkdownContent content={stable} /> : null}
+      {tail ? (
+        <div
+          className={cn(
+            'whitespace-pre-wrap break-words text-sm leading-relaxed text-inherit',
+            stable ? 'mt-1.5' : '',
+          )}
+        >
+          {tail}
+        </div>
+      ) : null}
     </div>
   );
 }
