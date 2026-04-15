@@ -68,4 +68,17 @@ describe('publication detail dialog contract', () => {
     expect(contentSource).toContain("t('discover.prompt_label')");
     expect(contentSource).toContain('promptMessage?.content');
   });
+
+  it('provides a remix action in the dialog to recreate the work in a new project', () => {
+    expect(contentSource).toContain('createProject');
+    expect(contentSource).toContain('buildRemixPrompt');
+    expect(contentSource).toContain('buildRemixEditorUrl');
+    expect(contentSource).toContain('trackDiscoverRemixEvent');
+    expect(contentSource).toContain("t('discover.remix_cta')");
+    expect(contentSource).toContain('handleRemix');
+    expect(contentSource).toContain('window.open(');
+    expect(contentSource).toContain('isRemixing');
+    expect(contentSource).toContain('<Sparkles');
+    expect(contentSource).toContain('<Loader2');
+  });
 });

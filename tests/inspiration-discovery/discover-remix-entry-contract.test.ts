@@ -12,6 +12,10 @@ describe('inspiration-discovery remix entry contract', () => {
     resolve(process.cwd(), 'src/app/app/discover/[id]/page.tsx'),
     'utf8'
   );
+  const dialogContent = readFileSync(
+    resolve(process.cwd(), 'src/components/discover/PublicationDetailContent.tsx'),
+    'utf8'
+  );
   const card = readFileSync(
     resolve(process.cwd(), 'src/components/discover/PublicationCard.tsx'),
     'utf8'
@@ -84,5 +88,22 @@ describe('inspiration-discovery remix entry contract', () => {
     expect(discoverPage).toContain('discover_remix_project_created');
     expect(detailPage).toContain('discover_remix_click');
     expect(detailPage).toContain('discover_remix_project_created');
+  });
+
+  it('wires remix action on the publication detail dialog', () => {
+    expect(dialogContent).toContain('handleRemix');
+    expect(dialogContent).toContain('createProject');
+    expect(dialogContent).toContain('buildRemixPrompt');
+    expect(dialogContent).toContain('buildRemixEditorUrl');
+    expect(dialogContent).toContain('trackDiscoverRemixEvent');
+    expect(dialogContent).toContain('discover_remix_click');
+    expect(dialogContent).toContain('discover_remix_project_created');
+    expect(dialogContent).toContain("t('discover.remix_cta')");
+    expect(dialogContent).toContain('window.open(');
+  });
+
+  it('opens dialog remix in a new tab like the home quick tags', () => {
+    expect(dialogContent).toContain("window.open('about:blank', '_blank')");
+    expect(dialogContent).toContain('newTab.location.href = remixUrl');
   });
 });

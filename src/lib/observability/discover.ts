@@ -1,6 +1,6 @@
 import { trackMetric, type MetricEvent } from './metrics';
 
-export type DiscoverRemixEntry = 'card' | 'detail';
+export type DiscoverRemixEntry = 'card' | 'detail' | 'dialog';
 
 export type DiscoverRemixEvent = Extract<
   MetricEvent,

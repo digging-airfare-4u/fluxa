@@ -9,7 +9,7 @@ import {
   type PublicationSnapshotMessage,
 } from '@/lib/discover/publication-snapshot-cache';
 
-export type RemixEntry = 'card' | 'detail';
+export type RemixEntry = 'card' | 'detail' | 'dialog';
 export type RemixSourceMessage = PublicationSnapshotMessage;
 
 interface BuildRemixPromptInput {
