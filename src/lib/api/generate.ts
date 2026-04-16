@@ -377,6 +377,19 @@ export async function readAgentEventStream(
     if (done) {
       buffer += decoder.decode();
       flushBuffer();
+      // Fallback: process any trailing data that didn't end with \n\n
+      if (buffer.trim()) {
+        const event = parseAgentEvent(buffer);
+        if (event) {
+          options.onEvent?.(event);
+          if (event.type === 'error') {
+            streamErrorMessage = event.message;
+          }
+          if (event.type === 'done') {
+            doneEvent = event;
+          }
+        }
+      }
       break;
     }
 
