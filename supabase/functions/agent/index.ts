@@ -40,7 +40,6 @@ import {
   appendCurrentUserTurn,
   bootstrapAgentHistoryFromMessages,
   createAgentAssistantMetadata,
-  emitGraphemeDeltas,
   runAgentLoop,
   truncateAgentHistory,
   type AgentCitation,
@@ -436,7 +435,6 @@ function toToolCallResult(parsed: ParsedToolCall): AgentExecutorResult {
 
 const TOOL_OPEN = '<tool>';
 const TOOL_CLOSE = '</tool>';
-const EXECUTOR_GRAPHEME_DELAY_MS = 12;
 
 function createExecutor(
   runtime: ResolvedChatProvider,
@@ -502,11 +500,9 @@ function createExecutor(
 
       const flushAsText = async (delta: string) => {
         if (!delta) return;
-        await emitGraphemeDeltas(delta, (grapheme) => {
-          accumulatedText += grapheme;
-          hasEmittedDelta = true;
-          input.emitTextDelta(grapheme);
-        }, EXECUTOR_GRAPHEME_DELAY_MS);
+        accumulatedText += delta;
+        hasEmittedDelta = true;
+        input.emitTextDelta(delta);
       };
 
       for await (const delta of stream) {
