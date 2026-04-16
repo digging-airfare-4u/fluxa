@@ -406,20 +406,25 @@ export function ChatMessage({
 
       {/* Agent thinking steps */}
       {isAgentMessage && processPanelVisible && (
-        <Reasoning className="mb-3 mt-2" isStreaming={isPending} defaultOpen={isPending} durationMs={isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs}>
+        <Reasoning
+          className="mb-3 mt-2"
+          isStreaming={isPending}
+          defaultOpen={isPending}
+          durationMs={isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs}
+        >
           <ReasoningTrigger aria-label={t('message.agent_process')}>
-            <BrainIcon className="size-4 shrink-0" />
+            <BrainIcon className="size-4 shrink-0 text-slate-500 dark:text-white/60" />
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-sm text-slate-600 dark:text-white/68">
+              <span className="text-sm text-slate-600 dark:text-white/70">
                 {isPending ? getAgentStatusText() : formatThoughtSummary(agentProcess?.thinkingDurationMs)}
               </span>
               {durationText && (
-                <span className="text-[11px] tabular-nums text-slate-400 dark:text-white/40">
+                <span className="text-[11px] tabular-nums text-slate-400 dark:text-white/45">
                   {durationText}
                 </span>
               )}
               {(statusMetrics.stepCount > 0 || statusMetrics.toolCount > 0 || statusMetrics.citationCount > 0) && (
-                <span className="text-[11px] text-slate-400 dark:text-white/40">
+                <span className="text-[11px] text-slate-400 dark:text-white/45">
                   {[
                     statusMetrics.stepCount > 0 ? t('message.metrics_steps', { count: statusMetrics.stepCount }) : null,
                     statusMetrics.toolCount > 0 ? t('message.metrics_tools', { count: statusMetrics.toolCount }) : null,
@@ -432,49 +437,57 @@ export function ChatMessage({
           <ReasoningContent>
             <div className="space-y-4">
               {visibleAgentSteps.length > 0 && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_steps')}</p>
-                  {visibleAgentSteps.map((step) => {
-                    const isDone = !isPending || step.status === 'completed';
+                  <div className="relative space-y-2 pl-1">
+                    <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-white/10" />
+                    {visibleAgentSteps.map((step) => {
+                      const isDone = !isPending || step.status === 'completed';
 
-                    return (
-                      <div key={step.id} className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
-                        {isDone ? (
-                          <CheckCircle2 className="size-3.5 text-slate-400 dark:text-white/40" />
-                        ) : (
-                          <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-slate-400 dark:text-white/40" />
-                        )}
-                        <span className={cn(!isDone && "animate-[pulse_1.5s_ease-in-out_infinite]")}>
-                          {step.displayTitle}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={step.id} className="relative flex items-center gap-3">
+                          <div className="relative z-10 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-[#1A1028] dark:ring-white/10">
+                            {isDone ? (
+                              <span className="size-1 rounded-full bg-slate-400 dark:bg-white/45" />
+                            ) : (
+                              <span className="size-1 rounded-full bg-slate-500 animate-pulse dark:bg-white/60" />
+                            )}
+                          </div>
+                          <span className={cn("text-xs text-slate-500 dark:text-white/55", !isDone && "text-slate-600 dark:text-white/70")}>
+                            {step.displayTitle}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
               {agentToolUiParts.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_tools')}</p>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {agentToolUiParts.map((part) => (
-                      <div key={part.id} className="flex items-start gap-2.5 text-xs">
-                        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/[0.04] dark:text-white/55">
+                      <div
+                        key={part.id}
+                        className="flex items-start gap-2.5 text-xs"
+                      >
+                        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
                           {getToolIcon(part.tool)}
                         </div>
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="font-medium text-slate-700 dark:text-white/78">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-600 dark:text-white/65">
                               {getToolTitle(part.tool)}
                             </span>
-                            <span className="text-[11px] text-slate-400 dark:text-white/40">
+                            <span className="text-[10px] text-slate-400 dark:text-white/40">
                               {part.state === 'input-available'
                                 ? t('message.tool_status_running')
                                 : t('message.tool_status_completed')}
                             </span>
                           </div>
                           {(part.outputText || part.imageUrl) && (
-                            <p className="leading-5 text-slate-400 dark:text-white/42">
+                            <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
                               {part.outputText || t('message.tool_generated_asset')}
                             </p>
                           )}
