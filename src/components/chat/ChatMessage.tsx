@@ -380,11 +380,10 @@ export function ChatMessage({
         <p
           className={cn(
             "inline-block max-w-[88%] whitespace-pre-wrap break-words",
-            "rounded-xl border px-4 py-3",
+            "rounded-xl px-4 py-3",
             "text-sm leading-relaxed",
-            "text-[#1f1f23] bg-[#f0f0f2] border-black/[0.06]",
-            "shadow-[0_1px_0_rgba(15,23,42,0.06)]",
-            "dark:text-white/95 dark:bg-white/10 dark:border-white/15 dark:shadow-[0_1px_0_rgba(0,0,0,0.28)]"
+            "text-[#1f1f23] bg-[#f0f0f2]",
+            "dark:text-white/95 dark:bg-white/10"
           )}
         >
           {message.content}
@@ -466,7 +465,12 @@ export function ChatMessage({
                             <span className="size-1 rounded-full bg-slate-500 animate-pulse dark:bg-white/60" />
                           )}
                         </div>
-                        <span className={cn("text-xs text-slate-500 dark:text-white/55", !isDone && "text-slate-600 dark:text-white/70")}>
+                        <span
+                          className={cn(
+                            "text-xs text-slate-500 dark:text-white/55",
+                            !isDone && "text-slate-600 dark:text-white/70 text-sweep-shimmer",
+                          )}
+                        >
                           {step.displayTitle}
                         </span>
                       </div>
@@ -475,33 +479,36 @@ export function ChatMessage({
                 </div>
               )}
 
-              {agentToolUiParts.map((part) => (
-                <div
-                  key={part.id}
-                  className="flex items-start gap-2.5 text-xs animate-in fade-in slide-in-from-top-1 duration-200"
-                >
-                  <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
-                    {getToolIcon(part.tool)}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-600 dark:text-white/65">
-                        {getToolTitle(part.tool)}
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-white/40">
-                        {part.state === 'input-available'
-                          ? t('message.tool_status_running')
-                          : t('message.tool_status_completed')}
-                      </span>
+              {agentToolUiParts.map((part) => {
+                const isRunning = part.state === 'input-available';
+                return (
+                  <div
+                    key={part.id}
+                    className="flex items-start gap-2.5 text-xs animate-in fade-in slide-in-from-top-1 duration-200"
+                  >
+                    <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
+                      {getToolIcon(part.tool)}
                     </div>
-                    {(part.outputText || part.imageUrl) && (
-                      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
-                        {part.outputText || t('message.tool_generated_asset')}
-                      </p>
-                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-slate-600 dark:text-white/65", isRunning && "text-sweep-shimmer")}>
+                          {getToolTitle(part.tool)}
+                        </span>
+                        <span className={cn("text-[10px] text-slate-400 dark:text-white/40", isRunning && "text-sweep-shimmer")}>
+                          {isRunning
+                            ? t('message.tool_status_running')
+                            : t('message.tool_status_completed')}
+                        </span>
+                      </div>
+                      {(part.outputText || part.imageUrl) && (
+                        <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
+                          {part.outputText || t('message.tool_generated_asset')}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {citations.slice(0, 3).map((citation) => (
                 <p

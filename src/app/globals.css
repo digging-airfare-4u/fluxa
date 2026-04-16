@@ -533,6 +533,45 @@ h1, h2, h3, h4, h5, h6 {
   animation: shimmer 1.5s infinite;
 }
 
+/* Text sweep shimmer — used on in-progress agent step/tool rows.
+   A light highlight sweeps left→right across the text and loops
+   while the row is still running. */
+@keyframes text-sweep-shimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
+.text-sweep-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(71, 85, 105, 0.55) 0%,
+    rgba(71, 85, 105, 0.55) 40%,
+    rgb(15, 23, 42) 50%,
+    rgba(71, 85, 105, 0.55) 60%,
+    rgba(71, 85, 105, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-sweep-shimmer 1.8s linear infinite;
+}
+
+.dark .text-sweep-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.45) 40%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0.45) 60%,
+    rgba(255, 255, 255, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* Wave shimmer animation classes */
 .animate-wave-shimmer {
   animation: waveShimmer 2s ease-in-out infinite;
