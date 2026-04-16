@@ -65,7 +65,7 @@
     "tool_status_running": "进行中",
     "tool_fetch_url": "来源验证",
     "tool_generate_image": "图片生成",
-    "tool_generated_asset": "已生成图像资源",
+    "tool_generated_asset": "已生成图片",
     "tool_image_search": "图片搜索",
     "tool_input": "请求摘要",
     "tool_output": "结果摘要",

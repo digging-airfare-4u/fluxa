@@ -874,7 +874,7 @@ Deno.serve(async (req: Request) => {
 
               return {
                 tool: 'generate_image',
-                summary: 'Generated image asset',
+                summary: '已生成图片',
                 imageUrl: imageResult.jobOutput.publicUrl,
                 assetId: imageResult.jobOutput.assetId,
               };
