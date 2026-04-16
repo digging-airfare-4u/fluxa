@@ -15,16 +15,15 @@ describe('agent process ui contract', () => {
     expect(source).toContain('<ReasoningTrigger');
     expect(source).toContain('<ReasoningContent');
     expect(source).toContain("t('message.agent_process')");
-    expect(source).toContain("t('message.process_steps')");
-    expect(source).toContain("t('message.process_tools')");
     expect(source).toContain('buildAgentToolUiParts');
     expect(source).toContain('isMeaningfulAgentProcessStepTitle');
-    expect(source).toContain("t('message.citations')");
     expect(source).toContain('metadata?.generatedImages');
     expect(source).toContain('metadata?.citations');
     expect(source).toContain('getProxyImageUrl');
     expect(source).toContain('displaySrc={primaryDisplayImageUrl}');
     expect(source).not.toContain("t('message.process_decisions')");
+    expect(source).not.toContain("t('message.process_steps')");
+    expect(source).not.toContain("t('message.process_tools')");
   });
 
   it('merges pending agent timeline state into the persisted final message before replacement', () => {

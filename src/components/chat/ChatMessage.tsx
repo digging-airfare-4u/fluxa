@@ -67,6 +67,8 @@ export function ChatMessage({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
   const previewImgRef = useRef<HTMLImageElement>(null);
+  const [processOpen, setProcessOpen] = useState(isPending);
+  const wasPendingRef = useRef(isPending);
 
   const isAI = message.role === 'assistant';
   const isAgentMessage = metadata?.mode === 'agent';
@@ -104,6 +106,15 @@ export function ChatMessage({
       window.clearInterval(timerId);
     };
   }, [isAgentMessage, isPending, message.created_at]);
+
+  useEffect(() => {
+    if (wasPendingRef.current && !isPending) {
+      setProcessOpen(false);
+    } else if (!wasPendingRef.current && isPending) {
+      setProcessOpen(true);
+    }
+    wasPendingRef.current = isPending;
+  }, [isPending]);
   
   // Format time for display
   const formatTime = (dateStr: string) => {
@@ -409,7 +420,8 @@ export function ChatMessage({
         <Reasoning
           className="mb-3 mt-2"
           isStreaming={isPending}
-          defaultOpen={isPending}
+          open={processOpen}
+          onOpenChange={setProcessOpen}
           durationMs={isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs}
         >
           <ReasoningTrigger aria-label={t('message.agent_process')}>
@@ -435,79 +447,70 @@ export function ChatMessage({
             </div>
           </ReasoningTrigger>
           <ReasoningContent>
-            <div className="space-y-4">
+            <div className="space-y-2">
               {visibleAgentSteps.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_steps')}</p>
-                  <div className="relative space-y-2 pl-1">
-                    <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-white/10" />
-                    {visibleAgentSteps.map((step) => {
-                      const isDone = !isPending || step.status === 'completed';
+                <div className="relative space-y-1.5 pl-1">
+                  <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-white/10" />
+                  {visibleAgentSteps.map((step) => {
+                    const isDone = !isPending || step.status === 'completed';
 
-                      return (
-                        <div key={step.id} className="relative flex items-center gap-3">
-                          <div className="relative z-10 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-[#1A1028] dark:ring-white/10">
-                            {isDone ? (
-                              <span className="size-1 rounded-full bg-slate-400 dark:bg-white/45" />
-                            ) : (
-                              <span className="size-1 rounded-full bg-slate-500 animate-pulse dark:bg-white/60" />
-                            )}
-                          </div>
-                          <span className={cn("text-xs text-slate-500 dark:text-white/55", !isDone && "text-slate-600 dark:text-white/70")}>
-                            {step.displayTitle}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {agentToolUiParts.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.process_tools')}</p>
-                  <div className="space-y-2">
-                    {agentToolUiParts.map((part) => (
+                    return (
                       <div
-                        key={part.id}
-                        className="flex items-start gap-2.5 text-xs"
+                        key={step.id}
+                        className="relative flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200"
                       >
-                        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
-                          {getToolIcon(part.tool)}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-600 dark:text-white/65">
-                              {getToolTitle(part.tool)}
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-white/40">
-                              {part.state === 'input-available'
-                                ? t('message.tool_status_running')
-                                : t('message.tool_status_completed')}
-                            </span>
-                          </div>
-                          {(part.outputText || part.imageUrl) && (
-                            <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
-                              {part.outputText || t('message.tool_generated_asset')}
-                            </p>
+                        <div className="relative z-10 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-[#1A1028] dark:ring-white/10">
+                          {isDone ? (
+                            <span className="size-1 rounded-full bg-slate-400 dark:bg-white/45" />
+                          ) : (
+                            <span className="size-1 rounded-full bg-slate-500 animate-pulse dark:bg-white/60" />
                           )}
                         </div>
+                        <span className={cn("text-xs text-slate-500 dark:text-white/55", !isDone && "text-slate-600 dark:text-white/70")}>
+                          {step.displayTitle}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {citations.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.citations')}</p>
-                  {citations.slice(0, 3).map((citation) => (
-                    <p key={citation.url} className="truncate text-xs text-slate-500 dark:text-white/55">
-                      {citation.title}
-                    </p>
-                  ))}
+              {agentToolUiParts.map((part) => (
+                <div
+                  key={part.id}
+                  className="flex items-start gap-2.5 text-xs animate-in fade-in slide-in-from-top-1 duration-200"
+                >
+                  <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
+                    {getToolIcon(part.tool)}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600 dark:text-white/65">
+                        {getToolTitle(part.tool)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-white/40">
+                        {part.state === 'input-available'
+                          ? t('message.tool_status_running')
+                          : t('message.tool_status_completed')}
+                      </span>
+                    </div>
+                    {(part.outputText || part.imageUrl) && (
+                      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
+                        {part.outputText || t('message.tool_generated_asset')}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
+              ))}
+
+              {citations.slice(0, 3).map((citation) => (
+                <p
+                  key={citation.url}
+                  className="truncate text-xs text-slate-500 dark:text-white/55 animate-in fade-in slide-in-from-top-1 duration-200"
+                >
+                  {citation.title}
+                </p>
+              ))}
 
               {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
