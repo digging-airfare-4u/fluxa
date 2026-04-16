@@ -15,7 +15,6 @@ describe('agent process ui contract', () => {
     expect(source).toContain('<ReasoningTrigger');
     expect(source).toContain('<ReasoningContent');
     expect(source).toContain("t('message.agent_process')");
-    expect(source).toContain('buildAgentToolUiParts');
     expect(source).toContain('isMeaningfulAgentProcessStepTitle');
     expect(source).toContain('metadata?.generatedImages');
     expect(source).toContain('metadata?.citations');

@@ -17,7 +17,6 @@ import {
   Globe,
   ImageIcon,
   Search,
-  Sparkles,
   X,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -35,10 +34,7 @@ import { getProxyImageUrl } from '@/lib/utils/image-url';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 import {
-  type AgentToolUiPart,
-  buildAgentToolUiParts,
   formatAgentThinkingDuration,
-  getAgentStatusMetrics,
   isMeaningfulAgentProcessStepTitle,
   sanitizeAgentProcessStepTitle,
 } from './chat-pending-ui';
@@ -78,8 +74,6 @@ export function ChatMessage({
   const agentProcess = metadata?.agentProcess;
   const generatedImages = metadata?.generatedImages || [];
   const citations = metadata?.citations || [];
-  const agentToolUiParts = buildAgentToolUiParts(agentProcess?.tools);
-  const statusMetrics = getAgentStatusMetrics(metadata);
   const processPanelVisible = isAgentMessage && (
     Boolean(metadata?.processSummary) ||
     Boolean(agentProcess?.label) ||
@@ -247,32 +241,6 @@ export function ChatMessage({
     return t('message.thought_for_seconds', { seconds });
   };
 
-  const getToolTitle = (tool: AgentToolUiPart['tool']): string => {
-    switch (tool) {
-      case 'web_search':
-        return t('message.tool_web_search');
-      case 'fetch_url':
-        return t('message.tool_fetch_url');
-      case 'image_search':
-        return t('message.tool_image_search');
-      case 'generate_image':
-        return t('message.tool_generate_image');
-    }
-  };
-
-  const getToolIcon = (tool: AgentToolUiPart['tool']) => {
-    switch (tool) {
-      case 'web_search':
-        return <Globe className="size-3.5" />;
-      case 'fetch_url':
-        return <Search className="size-3.5" />;
-      case 'image_search':
-        return <ImageIcon className="size-3.5" />;
-      case 'generate_image':
-        return <Sparkles className="size-3.5" />;
-    }
-  };
-
   const getAgentStepTitle = (title: string): string | null => {
     const cleanedTitle = sanitizeAgentProcessStepTitle(title, '');
     if (!isMeaningfulAgentProcessStepTitle(cleanedTitle)) {
@@ -425,22 +393,16 @@ export function ChatMessage({
         >
           <ReasoningTrigger aria-label={t('message.agent_process')}>
             <BrainIcon className="size-4 shrink-0 text-slate-500 dark:text-white/60" />
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-sm text-slate-600 dark:text-white/70">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={cn(
+                "text-sm text-slate-600 dark:text-white/70",
+                isPending && "text-sweep-shimmer",
+              )}>
                 {isPending ? getAgentStatusText() : formatThoughtSummary(agentProcess?.thinkingDurationMs)}
               </span>
               {durationText && (
                 <span className="text-[11px] tabular-nums text-slate-400 dark:text-white/45">
                   {durationText}
-                </span>
-              )}
-              {(statusMetrics.stepCount > 0 || statusMetrics.toolCount > 0 || statusMetrics.citationCount > 0) && (
-                <span className="text-[11px] text-slate-400 dark:text-white/45">
-                  {[
-                    statusMetrics.stepCount > 0 ? t('message.metrics_steps', { count: statusMetrics.stepCount }) : null,
-                    statusMetrics.toolCount > 0 ? t('message.metrics_tools', { count: statusMetrics.toolCount }) : null,
-                    statusMetrics.citationCount > 0 ? t('message.metrics_sources', { count: statusMetrics.citationCount }) : null,
-                  ].filter(Boolean).join(' · ')}
                 </span>
               )}
             </div>
@@ -479,50 +441,10 @@ export function ChatMessage({
                 </div>
               )}
 
-              {agentToolUiParts.map((part) => {
-                const isRunning = part.state === 'input-available';
-                return (
-                  <div
-                    key={part.id}
-                    className="flex items-start gap-2.5 text-xs animate-in fade-in slide-in-from-top-1 duration-200"
-                  >
-                    <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-white/45">
-                      {getToolIcon(part.tool)}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className={cn("text-slate-600 dark:text-white/65", isRunning && "text-sweep-shimmer")}>
-                          {getToolTitle(part.tool)}
-                        </span>
-                        <span className={cn("text-[10px] text-slate-400 dark:text-white/40", isRunning && "text-sweep-shimmer")}>
-                          {isRunning
-                            ? t('message.tool_status_running')
-                            : t('message.tool_status_completed')}
-                        </span>
-                      </div>
-                      {(part.outputText || part.imageUrl) && (
-                        <p className="text-[11px] leading-relaxed text-slate-400 dark:text-white/45">
-                          {part.outputText || t('message.tool_generated_asset')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {citations.slice(0, 3).map((citation) => (
-                <p
-                  key={citation.url}
-                  className="truncate text-xs text-slate-500 dark:text-white/55 animate-in fade-in slide-in-from-top-1 duration-200"
-                >
-                  {citation.title}
-                </p>
-              ))}
-
-              {isPending && (!agentProcess?.steps || agentProcess.steps.length === 0) && (
+              {isPending && visibleAgentSteps.length === 0 && (
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
                   <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-slate-400 dark:text-white/40" />
-                  <span className="animate-[pulse_1.5s_ease-in-out_infinite]">{getAgentStatusText()}</span>
+                  <span className="text-sweep-shimmer">{getAgentStatusText()}</span>
                 </div>
               )}
             </div>
