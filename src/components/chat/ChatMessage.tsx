@@ -392,16 +392,16 @@ export function ChatMessage({
           durationMs={isPending ? pendingElapsedMs : agentProcess?.thinkingDurationMs}
         >
           <ReasoningTrigger aria-label={t('message.agent_process')}>
-            <BrainIcon className="size-4 shrink-0 text-slate-500 dark:text-white/60" />
+            <BrainIcon className="size-4 shrink-0 text-foreground/50" />
             <div className="flex min-w-0 items-center gap-2">
               <span className={cn(
-                "text-sm text-slate-600 dark:text-white/70",
+                "text-[13px] text-foreground/70",
                 isPending && "text-sweep-shimmer",
               )}>
                 {isPending ? getAgentStatusText() : formatThoughtSummary(agentProcess?.thinkingDurationMs)}
               </span>
               {durationText && (
-                <span className="text-[11px] tabular-nums text-slate-400 dark:text-white/45">
+                <span className="text-[11px] tabular-nums text-foreground/40">
                   {durationText}
                 </span>
               )}
@@ -410,8 +410,8 @@ export function ChatMessage({
           <ReasoningContent>
             <div className="space-y-2">
               {visibleAgentSteps.length > 0 && (
-                <div className="relative space-y-1.5 pl-1">
-                  <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-white/10" />
+                <div className="relative space-y-2 pl-1">
+                  <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-foreground/10" />
                   {visibleAgentSteps.map((step) => {
                     const isDone = !isPending || step.status === 'completed';
 
@@ -420,17 +420,18 @@ export function ChatMessage({
                         key={step.id}
                         className="relative flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200"
                       >
-                        <div className="relative z-10 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-[#1A1028] dark:ring-white/10">
-                          {isDone ? (
-                            <span className="size-1 rounded-full bg-slate-400 dark:bg-white/45" />
-                          ) : (
-                            <span className="size-1 rounded-full bg-slate-500 animate-pulse dark:bg-white/60" />
-                          )}
+                        <div className="relative z-10 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-foreground/20">
+                          <span
+                            className={cn(
+                              "size-1 rounded-full",
+                              isDone ? "bg-foreground/30" : "bg-foreground/70 animate-pulse",
+                            )}
+                          />
                         </div>
                         <span
                           className={cn(
-                            "text-xs text-slate-500 dark:text-white/55",
-                            !isDone && "text-slate-600 dark:text-white/70 text-sweep-shimmer",
+                            "text-xs text-foreground/45",
+                            !isDone && "text-foreground/75 text-sweep-shimmer",
                           )}
                         >
                           {step.displayTitle}
@@ -442,8 +443,8 @@ export function ChatMessage({
               )}
 
               {isPending && visibleAgentSteps.length === 0 && (
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
-                  <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-slate-400 dark:text-white/40" />
+                <div className="flex items-center gap-2 text-xs text-foreground/55">
+                  <CircleDashed className="size-3.5 animate-[pulse_1.5s_ease-in-out_infinite] text-foreground/35" />
                   <span className="text-sweep-shimmer">{getAgentStatusText()}</span>
                 </div>
               )}
@@ -464,15 +465,15 @@ export function ChatMessage({
       {!isAgentMessage && metadata?.thinking && (
         <Reasoning className="mt-3" defaultOpen={false}>
           <ReasoningTrigger>
-            <BrainIcon className="size-4 shrink-0" />
-            <span className="text-sm text-slate-600 dark:text-white/68">
+            <BrainIcon className="size-4 shrink-0 text-foreground/50" />
+            <span className="text-[13px] text-foreground/70">
               {t('message.thought_done')}
             </span>
           </ReasoningTrigger>
           <ReasoningContent>
             <div className="space-y-2">
-              <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.thinking_details')}</p>
-              <div className="text-sm text-slate-600 dark:text-white/65">
+              <p className="text-[11px] font-medium text-foreground/40">{t('message.thinking_details')}</p>
+              <div className="text-[13px] text-foreground/65">
                 <ChatMarkdown content={metadata.thinking} />
               </div>
             </div>
@@ -484,17 +485,17 @@ export function ChatMessage({
       {metadata?.plan && (
         <Reasoning className="mt-3" defaultOpen={false}>
           <ReasoningTrigger>
-            <Search className="size-4 shrink-0" />
-            <span className="text-sm text-slate-600 dark:text-white/68">{t('message.view_full_report')}</span>
+            <Search className="size-4 shrink-0 text-foreground/50" />
+            <span className="text-[13px] text-foreground/70">{t('message.view_full_report')}</span>
           </ReasoningTrigger>
           <ReasoningContent>
             <div className="space-y-2">
-              <p className="text-[11px] font-medium text-slate-400 dark:text-white/40">{t('message.design_details')}</p>
-              <div className="text-sm leading-6 whitespace-pre-wrap text-slate-600 dark:text-white/65">
+              <p className="text-[11px] font-medium text-foreground/40">{t('message.design_details')}</p>
+              <div className="text-[13px] leading-6 whitespace-pre-wrap text-foreground/65">
                 {metadata.plan}
               </div>
               {metadata.ops && metadata.ops.length > 0 && (
-                <p className="text-xs text-slate-400 dark:text-white/42">
+                <p className="text-xs text-foreground/40">
                   {t('message.ops_count', { count: metadata.ops.length })}
                 </p>
               )}
