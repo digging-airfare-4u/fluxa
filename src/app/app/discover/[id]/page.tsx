@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Eye, Heart, Bookmark, Calendar } from 'lucide-react';
+import { ArrowLeft, Eye, Heart, Bookmark, Calendar, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,7 @@ import {
   type GalleryPublication,
 } from '@/lib/supabase/queries/publications';
 import { createProject } from '@/lib/supabase/queries/projects';
-import { buildRemixPrompt, buildRemixEditorUrl } from '@/lib/inspiration/remix';
+import { buildRemixPrompt, buildRemixEditorUrl } from '@/lib/discover/remix';
 import { trackDiscoverRemixEvent } from '@/lib/observability/discover';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
 import { LikeButton, BookmarkButton, CommentSection, FollowButton } from '@/components/social';
@@ -48,11 +48,18 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isRemixing, setIsRemixing] = useState(false);
   const remixInFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const { setLikedIds, setBookmarkedIds } = useInteractionStore();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -106,7 +113,7 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
     if (!publication || remixInFlightRef.current) return;
 
     remixInFlightRef.current = true;
-
+    const newTab = window.open('about:blank', '_blank');
     try {
       setIsRemixing(true);
       trackDiscoverRemixEvent('discover_remix_click', {
@@ -119,6 +126,7 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
         categoryName: publication.category?.name,
         tags: publication.tags,
         description: publication.description,
+        messages: snapshot?.messages_snapshot,
       });
 
       const { project } = await createProject();
@@ -131,19 +139,24 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
       const remixUrl = buildRemixEditorUrl({
         projectId: project.id,
         prompt,
-        entry: "detail",
+        entry: 'detail',
         publicationId: publication.id,
       });
 
-      router.push(remixUrl);
+      if (newTab) {
+        newTab.location.href = remixUrl;
+      }
     } catch (error) {
+      newTab?.close();
       console.error('[PublicationDetail] Failed to remix:', error);
       toast.error(t('discover.remix_failed'));
     } finally {
       remixInFlightRef.current = false;
-      setIsRemixing(false);
+      if (isMountedRef.current) {
+        setIsRemixing(false);
+      }
     }
-  }, [publication, router, t]);
+  }, [publication, snapshot, t]);
 
   if (isLoading) {
     return (
@@ -266,9 +279,20 @@ export default function PublicationDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-2 border-y border-black/5 dark:border-white/5 py-3">
             <LikeButton publicationId={publication.id} initialCount={publication.like_count} />
             <BookmarkButton publicationId={publication.id} initialCount={publication.bookmark_count} />
-            <Button variant="secondary" size="sm" onClick={handleRemixFromDetail} disabled={isRemixing}>
+            <button
+              type="button"
+              disabled={isRemixing}
+              aria-busy={isRemixing}
+              aria-label={isRemixing ? t('actions.loading') : t('discover.remix_cta')}
+              onClick={handleRemixFromDetail}
+              className={cn(
+                'inline-flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3.5 text-sm font-medium text-[#444] transition-all hover:border-black/20 hover:shadow-sm dark:border-white/10 dark:bg-[#1A1028] dark:text-[#AAA] dark:hover:border-white/20',
+                isRemixing && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              {isRemixing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
               {t('discover.remix_cta')}
-            </Button>
+            </button>
           </div>
         </div>
 

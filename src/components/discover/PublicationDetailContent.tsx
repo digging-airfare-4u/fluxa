@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, Heart, Bookmark, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Eye, Heart, Bookmark, Calendar, ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import {
   fetchPublicationDetail,
   fetchPublicationSnapshot,
@@ -18,7 +19,13 @@ import {
   type GalleryPublication,
 } from '@/lib/supabase/queries/publications';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/supabase/queries/profiles';
-import { findLatestRemixSourceMessage } from '@/lib/inspiration/remix';
+import { createProject } from '@/lib/supabase/queries/projects';
+import {
+  findLatestRemixSourceMessage,
+  buildRemixPrompt,
+  buildRemixEditorUrl,
+} from '@/lib/discover/remix';
+import { trackDiscoverRemixEvent } from '@/lib/observability/discover';
 import { LikeButton, BookmarkButton, CommentSection, FollowButton } from '@/components/social';
 import { PublicationCard } from './PublicationCard';
 import { useInteractionStore } from '@/lib/store/useInteractionStore';
@@ -131,11 +138,20 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isRemixing, setIsRemixing] = useState(false);
+  const remixInFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const { setLikedIds, setBookmarkedIds } = useInteractionStore();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -212,6 +228,56 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
       day: 'numeric',
     });
   }, []);
+
+  const handleRemix = useCallback(async () => {
+    if (!publication || remixInFlightRef.current) return;
+
+    remixInFlightRef.current = true;
+    const newTab = window.open('about:blank', '_blank');
+    try {
+      setIsRemixing(true);
+      trackDiscoverRemixEvent('discover_remix_click', {
+        entry: 'detail',
+        publicationId: publication.id,
+      });
+
+      const prompt = buildRemixPrompt({
+        title: publication.title,
+        categoryName: publication.category?.name,
+        tags: publication.tags,
+        description: publication.description,
+        messages: snapshot?.messages_snapshot,
+      });
+
+      const { project } = await createProject();
+
+      trackDiscoverRemixEvent('discover_remix_project_created', {
+        entry: 'detail',
+        publicationId: publication.id,
+        projectId: project.id,
+      });
+
+      const remixUrl = buildRemixEditorUrl({
+        projectId: project.id,
+        prompt,
+        entry: 'detail',
+        publicationId: publication.id,
+      });
+
+      if (newTab) {
+        newTab.location.href = remixUrl;
+      }
+    } catch (error) {
+      newTab?.close();
+      console.error('[PublicationDetailContent] Failed to remix:', error);
+      toast.error(t('discover.remix_failed'));
+    } finally {
+      remixInFlightRef.current = false;
+      if (isMountedRef.current) {
+        setIsRemixing(false);
+      }
+    }
+  }, [publication, snapshot, t]);
 
   // Collect all images: cover + images from conversation messages
   const allImages = useMemo(() => {
@@ -328,6 +394,20 @@ export function PublicationDetailContent({ publicationId, onOpenPublication }: P
             <div className="flex items-center gap-2">
               <LikeButton publicationId={publication.id} initialCount={publication.like_count} />
               <BookmarkButton publicationId={publication.id} initialCount={publication.bookmark_count} />
+              <button
+                type="button"
+                disabled={isRemixing}
+                aria-busy={isRemixing}
+                aria-label={isRemixing ? t('actions.loading') : t('discover.remix_cta')}
+                onClick={handleRemix}
+                className={cn(
+                  'inline-flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3.5 text-sm font-medium text-[#444] transition-all hover:border-black/20 hover:shadow-sm dark:border-white/10 dark:bg-[#1A1028] dark:text-[#AAA] dark:hover:border-white/20',
+                  isRemixing && 'cursor-not-allowed opacity-60',
+                )}
+              >
+                {isRemixing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                {t('discover.remix_cta')}
+              </button>
             </div>
           </div>
 
