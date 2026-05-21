@@ -168,3 +168,22 @@ export type VolcengineModelName = keyof typeof VOLCENGINE_MODELS;
 export function isVolcengineModel(model: string): model is VolcengineModelName {
   return model in VOLCENGINE_MODELS;
 }
+
+/**
+ * OpenAI image model configuration
+ */
+export const OPENAI_IMAGE_MODELS = {
+  'gpt-image-2': {
+    maxResolution: '2K' as ResolutionPreset,
+    supportsImageToImage: false,
+  },
+} as const;
+
+export type OpenAIImageModelName = keyof typeof OPENAI_IMAGE_MODELS;
+
+/**
+ * Check if a model name is an OpenAI image model
+ */
+export function isOpenAIImageModel(model: string): model is OpenAIImageModelName {
+  return model in OPENAI_IMAGE_MODELS;
+}

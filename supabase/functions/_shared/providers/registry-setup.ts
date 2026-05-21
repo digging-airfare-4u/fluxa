@@ -13,6 +13,7 @@ import { VolcengineChatProvider } from './volcengine-chat-provider.ts';
 import { GeminiProvider } from './gemini.ts';
 import type { GeminiModelName } from './types.ts';
 import { VolcengineProvider } from './volcengine.ts';
+import { OpenAIImageProvider } from './openai-image-provider.ts';
 import { DEFAULT_CHAT_MODEL, DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
 
 /**
@@ -58,6 +59,12 @@ export function createRegistry(supabase: SupabaseClient): ProviderRegistry {
   registry.registerImageModel(
     DEFAULT_VOLCENGINE_IMAGE_MODEL,
     () => new VolcengineProvider(DEFAULT_VOLCENGINE_IMAGE_MODEL)
+  );
+
+  // --- Image providers (OpenAI) ---
+  registry.registerImageModel(
+    'gpt-image-2',
+    () => new OpenAIImageProvider({ modelName: 'gpt-image-2', supabase })
   );
 
   return registry;
