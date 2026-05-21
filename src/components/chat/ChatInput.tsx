@@ -165,6 +165,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
   }, [message, disabled, isLoading, isBusy, onSend, chatMode, selectedModel, selectedAgentModel, referencedImage, setMessageValue]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ignore key events fired while IME composition is active (e.g. Chinese/Japanese input).
+    // Enter during composition is meant to confirm the candidate, not submit the message.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
+
     // Handle mention menu navigation
     if (showMentionMenu && assets.length > 0) {
       if (e.key === 'ArrowDown') {
