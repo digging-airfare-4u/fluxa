@@ -33,6 +33,7 @@ import type { Op } from '@/lib/canvas/ops.types';
 import { InsufficientPointsDialog } from '@/components/points/InsufficientPointsDialog';
 import { InvalidProviderConfigDialog } from '@/components/points/InvalidProviderConfigDialog';
 import { ShareDialog } from '@/components/share';
+import { deriveProjectTitleFromPrompt, isDefaultProjectName } from '@/lib/chat/project-title';
 import {
   shouldRenderMessageInTranscript,
   shouldShowGeneratingIndicatorNearInput,
@@ -45,10 +46,12 @@ export interface ChatPanelRef {
 interface ChatPanelProps {
   conversationId: string;
   projectId: string;
+  projectName: string;
   documentId: string;
   onOpsGenerated?: (ops: Op[]) => void;
   onCollapse?: (collapsed: boolean) => void;
   onGeneratingChange?: (isGenerating: boolean, modelName?: string) => void;
+  onProjectNameChange?: (name: string) => void;
   onAddPlaceholder?: (id: string, x: number, y: number, width: number, height: number) => void;
   onRemovePlaceholder?: (id: string) => void;
   onGetPlaceholderPosition?: (id: string) => { x: number; y: number } | null;
@@ -82,10 +85,12 @@ function clampPanelWidth(width: number, viewportWidth: number): number {
 export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({
   conversationId,
   projectId,
+  projectName,
   documentId,
   onOpsGenerated,
   onCollapse,
   onGeneratingChange,
+  onProjectNameChange,
   onAddPlaceholder,
   onRemovePlaceholder,
   onGetPlaceholderPosition,
@@ -254,6 +259,24 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
 
   // Auto-send initial prompt if provided
   const initialPromptSentRef = useRef(false);
+  const autoRenameProjectRef = useRef(false);
+
+  useEffect(() => {
+    if (autoRenameProjectRef.current || !onProjectNameChange || !isDefaultProjectName(projectName)) {
+      return;
+    }
+
+    const firstPersistedUserMessage = messages.find(
+      (message) => message.role === 'user' && !message.id.startsWith('temp-')
+    );
+
+    if (!firstPersistedUserMessage?.content.trim()) {
+      return;
+    }
+
+    autoRenameProjectRef.current = true;
+    onProjectNameChange(deriveProjectTitleFromPrompt(firstPersistedUserMessage.content));
+  }, [messages, projectName, onProjectNameChange]);
 
   const handleToggleCollapse = useCallback(() => {
     if (isAnimating) return;
@@ -302,12 +325,27 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     model?: string,
     referencedImage?: { id: string; url: string; filename: string }
   ) => {
+    let projectTitle: string | null = null;
+    let userMessageCreated = false;
+
     try {
       clearError();
+
+      const hasUserMessages = messages.some((message) => message.role === 'user');
+      const shouldAutoRenameProject = isDefaultProjectName(projectName) && !hasUserMessages;
+      projectTitle = shouldAutoRenameProject
+        ? deriveProjectTitleFromPrompt(content)
+        : null;
       
       // Create user message
       const userMessage = await createUserMessage(content, referencedImage ? { referencedImage } : undefined);
+      userMessageCreated = true;
       const userMessageId = userMessage.id;
+
+      if (projectTitle) {
+        autoRenameProjectRef.current = true;
+        void onProjectNameChange?.(projectTitle);
+      }
 
       // Start generation phase
       startGeneration();
@@ -383,6 +421,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         await startOpsGeneration(ctx);
       }
     } catch (err) {
+      if (projectTitle && !userMessageCreated) {
+        autoRenameProjectRef.current = false;
+      }
       if (err instanceof Error && err.name === 'AbortError') {
         clearPendingMessages();
         return;
@@ -396,7 +437,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   }, [
     conversationId, selectedModel, selectedAgentModel, selectedAgentImageModel, models, selectableModels, t, chatMode,
     createUserMessage, addMessage, updateMessage, removeMessage, replaceMessage, deleteMessageById, clearPendingMessages,
-    startGeneration, startAgentGeneration, startImageGeneration, startOpsGeneration, clearError, completeGeneration, onGeneratingChange,
+    startGeneration, startAgentGeneration, startImageGeneration, startOpsGeneration, clearError, completeGeneration,
+    onGeneratingChange, messages, projectName, onProjectNameChange,
   ]);
 
   // Auto-send initial prompt if provided (must be after handleSendMessage definition)
