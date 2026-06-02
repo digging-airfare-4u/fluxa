@@ -44,7 +44,24 @@
   },
   "landing": {
     "cta": "Get Started",
-    "tagline": "AI Design"
+    "tagline": "AI Design",
+    "hero_tagline": "Describe what you need. Get a design you can actually use.",
+    "hero_cta": "Try it free",
+    "features_heading": "Built for people who aren't designers",
+    "feature_1_number": "01",
+    "feature_1_title": "Just describe it",
+    "feature_1_description": "Type what you want to make — a poster, a social card, a pitch deck — and get a complete, editable design in seconds. No blank canvas.",
+    "feature_2_number": "02",
+    "feature_2_title": "Adjust everything",
+    "feature_2_description": "Every element lives on a real canvas, not a screenshot. Drag, resize, restyle until it looks exactly right.",
+    "feature_3_number": "03",
+    "feature_3_title": "Images that actually fit",
+    "feature_3_description": "Stop hunting for stock photos that are close but never quite right. Generate visuals built around your specific layout.",
+    "showcase_heading": "Made with Fluxa",
+    "showcase_description": "Posters, social cards, pitch decks, brand kits — all started with a sentence.",
+    "cta_heading": "Your first design is free",
+    "cta_description": "Start in seconds, no credit card required. Upgrade when you need more.",
+    "cta_button": "Start designing"
   },
   "profile": {
     "title": "Profile"

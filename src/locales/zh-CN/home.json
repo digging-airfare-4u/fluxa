@@ -44,7 +44,24 @@
   },
   "landing": {
     "cta": "开始使用",
-    "tagline": "AI Design"
+    "tagline": "AI Design",
+    "hero_tagline": "说说你想做什么，剩下的交给 Fluxa。",
+    "hero_cta": "免费试用",
+    "features_heading": "设计，不一定要会设计",
+    "feature_1_number": "01",
+    "feature_1_title": "说出来就行",
+    "feature_1_description": "想做海报、名片，还是演示稿？说一下，几秒钟后就是完整成品。不用对着空白页发愁。",
+    "feature_2_number": "02",
+    "feature_2_title": "哪里不对改哪里",
+    "feature_2_description": "每个地方都能改。颜色、字体、位置，拖一拖、点一点，做成你想要的样子。",
+    "feature_3_number": "03",
+    "feature_3_title": "配图不再头疼",
+    "feature_3_description": "不用翻素材网站了。Fluxa 帮你配一张跟整体风格搭的图。",
+    "showcase_heading": "用 Fluxa 做的",
+    "showcase_description": "海报、名片、演示稿、品牌物料——都从一句话开始。",
+    "cta_heading": "第一个设计，免费",
+    "cta_description": "现在就能开始，不需要填信用卡。用多了再升级。",
+    "cta_button": "开始做吧"
   },
   "profile": {
     "title": "个人中心"
