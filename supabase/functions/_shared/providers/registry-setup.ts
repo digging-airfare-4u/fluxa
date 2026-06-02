@@ -14,7 +14,8 @@ import { GeminiProvider } from './gemini.ts';
 import type { GeminiModelName } from './types.ts';
 import { VolcengineProvider } from './volcengine.ts';
 import { OpenAIImageProvider } from './openai-image-provider.ts';
-import { DEFAULT_CHAT_MODEL, DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
+import { KimiChatProvider } from './kimi-chat-provider.ts';
+import { DEFAULT_CHAT_MODEL, DEFAULT_KIMI_MODEL, DEFAULT_VOLCENGINE_IMAGE_MODEL } from '../defaults.ts';
 
 /**
  * Create a fully configured ProviderRegistry with all current models registered.
@@ -40,6 +41,12 @@ export function createRegistry(supabase: SupabaseClient): ProviderRegistry {
   registry.registerChatModel(
     DEFAULT_CHAT_MODEL,
     () => new VolcengineChatProvider(DEFAULT_CHAT_MODEL)
+  );
+
+  // --- Chat providers (Kimi / Moonshot) ---
+  registry.registerChatModel(
+    DEFAULT_KIMI_MODEL,
+    () => new KimiChatProvider(DEFAULT_KIMI_MODEL)
   );
 
   // --- Image providers (Gemini) ---

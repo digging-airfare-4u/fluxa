@@ -106,6 +106,51 @@ ON CONFLICT (name) DO UPDATE SET
   type = EXCLUDED.type,
   is_enabled = EXCLUDED.is_enabled;
 
+-- Kimi (Moonshot) built-in chat/brain model, served via Anthropic-compatible endpoint
+INSERT INTO ai_models (
+  name,
+  display_name,
+  provider,
+  description,
+  type,
+  is_default,
+  is_enabled,
+  sort_order,
+  points_cost,
+  supports_image_tool,
+  usage_scope,
+  is_visible_in_selector,
+  agent_role,
+  supports_tool_calling
+) VALUES (
+  'kimi-k2-0905-preview',
+  'Kimi K2',
+  'kimi',
+  'Moonshot Kimi K2 文本推理模型，可用于 classic ops 与 Agent brain。',
+  'ops',
+  false,
+  true,
+  10,
+  12,
+  false,
+  'all',
+  true,
+  null,
+  false
+)
+ON CONFLICT (name) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  provider = EXCLUDED.provider,
+  description = EXCLUDED.description,
+  type = EXCLUDED.type,
+  is_enabled = EXCLUDED.is_enabled,
+  sort_order = EXCLUDED.sort_order,
+  points_cost = EXCLUDED.points_cost,
+  usage_scope = EXCLUDED.usage_scope,
+  is_visible_in_selector = EXCLUDED.is_visible_in_selector,
+  agent_role = EXCLUDED.agent_role,
+  supports_tool_calling = EXCLUDED.supports_tool_calling;
+
 INSERT INTO ai_models (
   name,
   display_name,

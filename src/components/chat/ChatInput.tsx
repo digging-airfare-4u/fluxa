@@ -6,12 +6,19 @@
 'use client';
 
 import { useState, useRef, KeyboardEvent, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react';
-import { AtSign, ArrowUp, MessageSquare, Bot, X } from 'lucide-react';
+import { AtSign, ArrowUp, MessageSquare, Bot } from 'lucide-react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LoadingDots } from '@/components/ui/LoadingDots';
+import {
+  Attachments,
+  Attachment,
+  AttachmentPreview,
+  AttachmentInfo,
+  AttachmentRemove,
+} from '@/components/ai-elements/attachments';
 import { ModelSelector } from './ModelSelector';
 import { AspectRatioSelector, type AspectRatio } from './AspectRatioSelector';
 import { ResolutionSelector, type Resolution } from './ResolutionSelector';
@@ -328,27 +335,21 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(function ChatI
         <div className="px-4 pt-4 pb-3">
           {/* Referenced image chip */}
           {referencedImage && (
-            <div className="mb-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 px-2 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-white/[0.06]">
-              <div className="relative size-5 rounded overflow-hidden flex-shrink-0">
-                <Image
-                  src={referencedImage.url}
-                  alt={t('assets.reference_image')}
-                  fill
-                  unoptimized
-                  sizes="20px"
-                  className="object-cover"
-                />
-              </div>
-              <span className="max-w-[120px] truncate text-xs font-medium text-slate-600 dark:text-white/70">
-                {referencedImage.filename}
-              </span>
-              <button
-                type="button"
-                onClick={() => setReferencedImage(null)}
-                className="text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70"
-              >
-                <X className="size-3" />
-              </button>
+            <div className="mb-3">
+              <Attachments variant="inline">
+                <Attachment
+                  data={{
+                    id: referencedImage.id,
+                    url: referencedImage.url,
+                    filename: referencedImage.filename,
+                  }}
+                  onRemove={() => setReferencedImage(null)}
+                >
+                  <AttachmentPreview />
+                  <AttachmentInfo />
+                  <AttachmentRemove />
+                </Attachment>
+              </Attachments>
             </div>
           )}
           <div className="flex items-start gap-1">

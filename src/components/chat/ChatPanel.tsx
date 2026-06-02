@@ -14,6 +14,11 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput, ChatInputRef } from './ChatInput';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -107,8 +112,6 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
   const [draftMessage, setDraftMessage] = useState('');
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<ChatInputRef>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -252,10 +255,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
     };
   }, []);
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Scroll handling is delegated to <Conversation> (use-stick-to-bottom),
+  // which keeps the view pinned to the latest message during streaming.
 
   // Auto-send initial prompt if provided
   const initialPromptSentRef = useRef(false);
@@ -607,53 +608,53 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
         </div>
 
         {/* Messages area */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="flex flex-col items-center gap-3">
-                <Skeleton variant="image" className="w-12 h-12 rounded-xl" />
-                <Skeleton variant="text" className="w-24 h-4" />
-              </div>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center animate-fade-in-slow">
-              <p className="text-sm text-muted-foreground max-w-[240px]">{t('empty_state.description')}</p>
-              <div className="mt-5 w-full max-w-[320px]">
-                <div className="mb-3 px-1 text-left">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/55">
-                    {t('empty_state.suggestions_title')}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/50">
-                    {t('empty_state.suggestions_hint')}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {starterPrompts.map((prompt) => (
-                    <button
-                      key={prompt.key}
-                      type="button"
-                      title={prompt.prompt}
-                      onClick={() => setDraftMessage(prompt.prompt)}
-                      className={cn(
-                        'min-h-[104px] rounded-2xl border border-slate-200/90 bg-white/90 p-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-all',
-                        'hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white',
-                        'dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:hover:bg-white/[0.06]',
-                      )}
-                    >
-                      <span className="block text-[12px] font-semibold leading-5 text-slate-800 dark:text-white">
-                        {prompt.title}
-                      </span>
-                      <span className="mt-1.5 block text-[11px] leading-[1.45] text-slate-500 dark:text-white/58">
-                        {prompt.prompt}
-                      </span>
-                    </button>
-                  ))}
+        <Conversation className="flex-1 overflow-x-hidden">
+          <ConversationContent className="px-4 py-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="flex flex-col items-center gap-3">
+                  <Skeleton variant="image" className="w-12 h-12 rounded-xl" />
+                  <Skeleton variant="text" className="w-24 h-4" />
                 </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((message) => {
+            ) : messages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center animate-fade-in-slow">
+                <p className="text-sm text-muted-foreground max-w-[240px]">{t('empty_state.description')}</p>
+                <div className="mt-5 w-full max-w-[320px]">
+                  <div className="mb-3 px-1 text-left">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/55">
+                      {t('empty_state.suggestions_title')}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/50">
+                      {t('empty_state.suggestions_hint')}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {starterPrompts.map((prompt) => (
+                      <button
+                        key={prompt.key}
+                        type="button"
+                        title={prompt.prompt}
+                        onClick={() => setDraftMessage(prompt.prompt)}
+                        className={cn(
+                          'min-h-[104px] rounded-2xl border border-slate-200/90 bg-white/90 p-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-all',
+                          'hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white',
+                          'dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:hover:bg-white/[0.06]',
+                        )}
+                      >
+                        <span className="block text-[12px] font-semibold leading-5 text-slate-800 dark:text-white">
+                          {prompt.title}
+                        </span>
+                        <span className="mt-1.5 block text-[11px] leading-[1.45] text-slate-500 dark:text-white/58">
+                          {prompt.prompt}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              messages.map((message) => {
                 if (!shouldRenderMessageInTranscript(message, generationPhase)) {
                   return null;
                 }
@@ -666,11 +667,11 @@ export const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatP
                     onAddToCanvas={handleAddToCanvas}
                   />
                 );
-              })}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
+              })
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         {showGeneratingIndicatorNearInput && (
           <div className="px-4 pt-2 pb-0">

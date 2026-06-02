@@ -15,3 +15,9 @@ export const DEFAULT_AGENT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
 /** Default Volcengine image editing model (used by registry-setup, factory, validators) */
 export const DEFAULT_VOLCENGINE_IMAGE_MODEL = 'doubao-seedream-4-5-251128';
+
+/** Built-in Kimi (Moonshot) chat/brain model. Served via Kimi's Anthropic-compatible endpoint. */
+export const DEFAULT_KIMI_MODEL = 'kimi-k2-0905-preview';
+
+/** Default API base for the built-in Kimi provider (Anthropic-compatible coding endpoint). */
+export const DEFAULT_KIMI_API_URL = 'https://api.kimi.com/coding';
