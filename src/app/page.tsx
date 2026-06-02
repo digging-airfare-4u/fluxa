@@ -14,7 +14,6 @@ import Image from 'next/image';
 import Floating, { FloatingElement } from '@/components/ui/parallax-floating';
 import { GooeyText } from '@/components/ui/gooey-text-morphing';
 import { AuthDialog } from '@/components/auth';
-import { SiteFooter } from '@/components/layout';
 import { supabase } from '@/lib/supabase/client';
 import { storeReferralCodeLocally } from '@/lib/supabase/queries/referral-codes';
 
@@ -60,6 +59,18 @@ const galleryImages = [
 
 // Intro animation texts
 const introTexts = ['AI Design', 'Fluxa'];
+
+// Always-visible footer links shown at the bottom of the landing hero
+const footerLinks = [
+  { href: '/about', label: 'About' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/faq', label: 'FAQ' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/refund', label: 'Refund' },
+  { href: '/cookies', label: 'Cookies' },
+];
 
 export default function LandingPage() {
   const router = useRouter();
@@ -252,11 +263,24 @@ export default function LandingPage() {
             <ArrowRight className="w-4 h-4" />
           </motion.button>
         </motion.div>
-      </div>
 
-      {/* Footer with legal & company links */}
-      <div className="relative z-10">
-        <SiteFooter />
+        {/* Always-visible footer links (legal & company) pinned to the bottom of the hero */}
+        <nav className="absolute inset-x-0 bottom-0 z-20 pointer-events-auto bg-gradient-to-t from-background via-background/85 to-transparent pt-10">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-6 py-4 text-xs text-muted-foreground">
+            {footerLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="hover:text-foreground transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
+            <span className="w-full text-center text-[11px] text-muted-foreground/70 sm:w-auto">
+              &copy; {new Date().getFullYear()} Fluxa
+            </span>
+          </div>
+        </nav>
       </div>
 
       {/* Auth Dialog */}
