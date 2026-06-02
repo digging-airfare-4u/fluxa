@@ -15,6 +15,11 @@ export interface AnthropicCompatibleClientConfig {
   apiUrl: string;
   apiKey: string;
   providerName?: string;
+  /**
+   * How the API key is sent. Anthropic's native API uses `x-api-key` (default);
+   * some compatible gateways (e.g. Kimi's coding endpoint) expect a Bearer token.
+   */
+  authScheme?: 'x-api-key' | 'bearer';
 }
 
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -88,11 +93,26 @@ export class AnthropicCompatibleClient {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly providerName?: string;
+  private readonly authScheme: 'x-api-key' | 'bearer';
 
   constructor(config: AnthropicCompatibleClientConfig) {
     this.apiUrl = config.apiUrl.replace(/\/+$/, '');
     this.apiKey = config.apiKey;
     this.providerName = config.providerName;
+    this.authScheme = config.authScheme ?? 'x-api-key';
+  }
+
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'anthropic-version': ANTHROPIC_VERSION,
+    };
+    if (this.authScheme === 'bearer') {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    } else {
+      headers['x-api-key'] = this.apiKey;
+    }
+    return headers;
   }
 
   async chatCompletion(
@@ -124,11 +144,7 @@ export class AnthropicCompatibleClient {
 
     const response = await fetch(`${this.apiUrl}/v1/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
+      headers: this.buildHeaders(),
       body: JSON.stringify(body),
     });
 
@@ -224,11 +240,7 @@ export class AnthropicCompatibleClient {
 
     const response = await fetch(`${this.apiUrl}/v1/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
+      headers: this.buildHeaders(),
       body: JSON.stringify(body),
     });
 

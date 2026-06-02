@@ -15,6 +15,13 @@ const supabaseHostFromEnv = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. Without this, Next.js can infer the
+  // wrong root when other lockfiles exist higher up the tree (e.g.
+  // ~/package-lock.json), which breaks Turbopack's module resolution for
+  // CSS imports like `@import "tailwindcss"`.
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     remotePatterns: [
       {

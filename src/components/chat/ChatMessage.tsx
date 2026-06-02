@@ -7,7 +7,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
 import {
   BrainIcon,
   Check,
@@ -22,7 +21,17 @@ import {
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ImageCard } from './ImageCard';
-import { Reasoning, ReasoningContent, ReasoningTrigger } from './Reasoning';
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from '@/components/ai-elements/reasoning';
+import { Response } from '@/components/ai-elements/response';
+import {
+  Attachments,
+  Attachment,
+  AttachmentPreview,
+} from '@/components/ai-elements/attachments';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +40,6 @@ import {
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@/lib/utils';
 import { getProxyImageUrl } from '@/lib/utils/image-url';
-import { ChatMarkdown } from './ChatMarkdown';
 import type { Message, MessageMetadata } from '@/lib/supabase/queries/messages';
 import {
   formatAgentThinkingDuration,
@@ -318,30 +326,19 @@ export function ChatMessage({
 
         {/* Referenced image preview */}
         {referencedImage && (
-          <div className="mb-2 group relative inline-block">
-            <div className="relative size-10 rounded-lg overflow-hidden cursor-pointer">
-              <Image
-                src={referencedImage.url}
-                alt={t('assets.reference_image')}
-                fill
-                unoptimized
-                sizes="40px"
-                className="object-cover"
-              />
-            </div>
-            {/* Hover preview */}
-            <div className="pointer-events-none absolute right-0 bottom-full z-50 mb-2 hidden w-max group-hover:block">
-              <div className="p-1 bg-white dark:bg-[#1A1028] rounded-lg shadow-lg border border-black/10 dark:border-white/10">
-                <Image
-                  src={referencedImage.url}
-                  alt={t('assets.reference_image')}
-                  width={200}
-                  height={200}
-                  unoptimized
-                  className="max-w-[200px] max-h-[200px] rounded object-contain"
-                />
-              </div>
-            </div>
+          <div className="mb-2">
+            <Attachments variant="grid">
+              <Attachment
+                className="size-10 rounded-lg"
+                data={{
+                  id: referencedImage.id,
+                  url: referencedImage.url,
+                  filename: referencedImage.filename,
+                }}
+              >
+                <AttachmentPreview />
+              </Attachment>
+            </Attachments>
           </div>
         )}
 
@@ -455,10 +452,9 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className="chat-message-ai">
-        <ChatMarkdown
-          content={isAgentMessage ? cleanAgentContent(message.content) : message.content}
-          streaming={isPending}
-        />
+        <Response streaming={isPending}>
+          {isAgentMessage ? cleanAgentContent(message.content) : message.content}
+        </Response>
       </div>
 
       {/* Optional reasoning/thinking summary (classic mode only) */}
@@ -474,7 +470,7 @@ export function ChatMessage({
             <div className="space-y-2">
               <p className="text-[11px] font-medium text-foreground/40">{t('message.thinking_details')}</p>
               <div className="text-[13px] text-foreground/65">
-                <ChatMarkdown content={metadata.thinking} />
+                <Response>{metadata.thinking}</Response>
               </div>
             </div>
           </ReasoningContent>
