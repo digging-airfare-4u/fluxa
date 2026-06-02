@@ -4,15 +4,15 @@
  * Terms of Service Page
  */
 
-import { SiteHeader } from '@/components/layout';
+import { SiteHeader, SiteFooter } from '@/components/layout';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <SiteHeader />
 
       {/* Content */}
-      <main className="container max-w-2xl mx-auto py-10 px-6">
+      <main className="container max-w-2xl mx-auto py-10 px-6 flex-1">
         <h1 className="text-2xl font-bold mb-1">Terms of Service</h1>
         <p className="text-sm text-muted-foreground mb-6">Last updated: January 2026</p>
 
@@ -105,6 +105,8 @@ export default function TermsPage() {
           </section>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

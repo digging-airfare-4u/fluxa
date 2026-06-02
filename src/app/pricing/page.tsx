@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useFormatter, useLocale, useTranslations } from 'next-intl';
 import { Pricing, PointsRules, type PricingPlan } from '@/components/pricing';
-import { SiteHeader } from '@/components/layout';
+import { SiteHeader, SiteFooter } from '@/components/layout';
 import { getMembershipConfigs, transformToPricingPlans } from '@/lib/supabase/queries/membership';
 import { isPaymentEnabled } from '@/lib/supabase/queries/settings';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -98,6 +98,7 @@ export default function PricingPage() {
       <SiteHeader />
       <Pricing plans={plans} paymentEnabled={paymentEnabled} />
       <PointsRules />
+      <SiteFooter />
     </div>
   );
 }

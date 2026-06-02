@@ -14,6 +14,7 @@ import Image from 'next/image';
 import Floating, { FloatingElement } from '@/components/ui/parallax-floating';
 import { GooeyText } from '@/components/ui/gooey-text-morphing';
 import { AuthDialog } from '@/components/auth';
+import { SiteFooter } from '@/components/layout';
 import { supabase } from '@/lib/supabase/client';
 import { storeReferralCodeLocally } from '@/lib/supabase/queries/referral-codes';
 
@@ -251,6 +252,11 @@ export default function LandingPage() {
             <ArrowRight className="w-4 h-4" />
           </motion.button>
         </motion.div>
+      </div>
+
+      {/* Footer with legal & company links */}
+      <div className="relative z-10">
+        <SiteFooter />
       </div>
 
       {/* Auth Dialog */}
