@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import path from 'path';
 import createNextIntlPlugin from 'next-intl/plugin';
 
+const projectRoot = process.cwd();
+
 const withNextIntl = createNextIntlPlugin('./src/lib/i18n/request.ts');
 
 const supabaseHostFromEnv = (() => {
@@ -20,7 +22,7 @@ const nextConfig: NextConfig = {
   // ~/package-lock.json), which breaks Turbopack's module resolution for
   // CSS imports like `@import "tailwindcss"`.
   turbopack: {
-    root: __dirname,
+    root: process.cwd(),
   },
   images: {
     remotePatterns: [
@@ -52,7 +54,7 @@ const nextConfig: NextConfig = {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
-      '@/lib/inspiration/remix': path.resolve(__dirname, './src/lib/discover/remix.ts'),
+      '@/lib/inspiration/remix': path.resolve(projectRoot, './src/lib/discover/remix.ts'),
     };
 
     return config;
