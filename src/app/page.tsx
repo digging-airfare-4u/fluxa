@@ -8,9 +8,12 @@ import Image from 'next/image';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
+import Link from 'next/link';
 import Floating, { FloatingElement } from '@/components/ui/parallax-floating';
 import { useT } from '@/lib/i18n/hooks';
 import { GooeyText } from '@/components/ui/gooey-text-morphing';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { Button } from '@/components/ui/button';
 import { AuthDialog } from '@/components/auth';
 import { supabase } from '@/lib/supabase/client';
 import { storeReferralCodeLocally } from '@/lib/supabase/queries/referral-codes';
@@ -55,8 +58,8 @@ const galleryImages = [
   { url: '/sample/ff0d496b2667a7f87666e9c8974648e0.jpg', alt: 'Sample Design 15' },
 ];
 
-// Restrained set used as ambient backdrop behind the hero (edges only).
-const heroImages = galleryImages.slice(0, 8);
+// Ambient backdrop images — fill the edges around the hero content.
+const heroImages = galleryImages.slice(0, 12);
 
 // Intro animation texts
 const introTexts = ['AI Design', 'Fluxa'];
@@ -114,7 +117,7 @@ function LandingPage() {
 
   useEffect(() => {
     if (!showIntro) {
-      animate('.floating-image', { opacity: [0, 0.55] }, { duration: 0.6, delay: stagger(0.1) });
+      animate('.floating-image', { opacity: [0, 0.5] }, { duration: 0.8, delay: stagger(0.08) });
     }
   }, [animate, showIntro]);
 
@@ -143,6 +146,15 @@ function LandingPage() {
           end: 'bottom top',
           scrub: true,
         },
+      });
+
+      // Nav bar fades in after hero scrolls out
+      gsap.set('.fixed-nav', { autoAlpha: 0, y: -8 });
+      ScrollTrigger.create({
+        trigger: '.hero-section',
+        start: 'bottom top',
+        onEnter: () => gsap.to('.fixed-nav', { autoAlpha: 1, y: 0, duration: 0.25, ease: 'power2.out' }),
+        onLeaveBack: () => gsap.to('.fixed-nav', { autoAlpha: 0, y: -8, duration: 0.2 }),
       });
 
       gsap.set(['.scroll-heading', '.feature-card', '.gallery-card', '.scroll-cta'], {
@@ -227,6 +239,46 @@ function LandingPage() {
     <div ref={containerRef} className="min-h-screen bg-background">
       <div className="aurora-bg" />
 
+      {/* Fixed nav - appears after scrolling past hero */}
+      <header className="fixed-nav fixed top-0 left-0 right-0 z-40">
+        <div className="bg-background/80 backdrop-blur-sm border-b border-border/50">
+          <div className="max-w-6xl mx-auto px-6 flex h-14 items-center">
+            {/* Left: Logo */}
+            <div className="flex-1">
+              <Link href="/" className="flex items-center gap-2 w-fit">
+                <span className="font-semibold text-lg">Fluxa</span>
+              </Link>
+            </div>
+
+            {/* Center: Nav */}
+            <nav className="flex items-center gap-1">
+              <Link
+                href="/app"
+                className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground"
+              >
+                App
+              </Link>
+              <Link
+                href="/pricing"
+                className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground"
+              >
+                Pricing
+              </Link>
+            </nav>
+
+            {/* Right: Controls */}
+            <div className="flex-1 flex items-center justify-end gap-3">
+              <ThemeToggle />
+              {isAuthenticated !== null && (
+                <Button size="sm" onClick={handleGetStarted}>
+                  {isAuthenticated ? 'App' : 'Get Started'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
       {/* Intro Animation */}
       <AnimatePresence>
         {showIntro && (
@@ -294,17 +346,34 @@ function LandingPage() {
               <Image src={heroImages[7].url} alt={heroImages[7].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
             </motion.div>
           </FloatingElement>
+          <FloatingElement depth={0.7} className="top-[42%] left-[1%]">
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-36 md:w-36 md:h-48 relative">
+              <Image src={heroImages[8].url} alt={heroImages[8].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 144px" />
+            </motion.div>
+          </FloatingElement>
+          <FloatingElement depth={1.1} className="top-[42%] right-[1%]">
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-36 md:w-36 md:h-48 relative">
+              <Image src={heroImages[9].url} alt={heroImages[9].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 144px" />
+            </motion.div>
+          </FloatingElement>
+          <FloatingElement depth={0.4} className="top-[26%] left-[8%]">
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-24 h-24 md:w-32 md:h-32 relative">
+              <Image src={heroImages[10].url} alt={heroImages[10].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 96px, 128px" />
+            </motion.div>
+          </FloatingElement>
+          <FloatingElement depth={1.3} className="top-[26%] right-[8%]">
+            <motion.div initial={{ opacity: 0 }} className="floating-image w-24 h-24 md:w-32 md:h-32 relative">
+              <Image src={heroImages[11].url} alt={heroImages[11].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 96px, 128px" />
+            </motion.div>
+          </FloatingElement>
         </Floating>
-
-        {/* Radial vignette: fades the backdrop toward the center so content reads */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_55%_at_center,var(--background)_30%,transparent_100%)]" />
 
         {/* Center Content */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="relative z-10 px-6 text-center flex flex-col items-center gap-6"
+          className="relative z-10 px-10 py-10 text-center flex flex-col items-center gap-6 rounded-3xl backdrop-blur-md"
         >
           <h1 className="text-6xl md:text-[64pt] font-bold tracking-tight leading-none" style={headingFont}>
             Fluxa
