@@ -445,6 +445,36 @@ export function ChatMessage({
                   <span className="text-sweep-shimmer">{getAgentStatusText()}</span>
                 </div>
               )}
+
+              {/* Image search reference images — inside collapsible reasoning panel */}
+              {(agentProcess?.tools?.filter(
+                (tool) => tool.tool === 'image_search' && tool.status === 'completed' && tool.imageUrl
+              ).length ?? 0) > 0 && (
+                <div className="mt-2 space-y-1.5 border-t border-foreground/5 pt-2">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-foreground/45">
+                    <ImageIcon className="size-3" />
+                    <span>{t('message.image_search_references')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {agentProcess?.tools?.filter(
+                      (tool) => tool.tool === 'image_search' && tool.status === 'completed' && tool.imageUrl
+                    )?.map((tool, index) => (
+                        <div
+                          key={`search-ref-${index}`}
+                          className="overflow-hidden rounded-md border border-black/[0.06] dark:border-white/10"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getProxyImageUrl(tool.imageUrl!)}
+                            alt="Search reference"
+                            className="w-full h-auto object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </ReasoningContent>
         </Reasoning>
@@ -514,7 +544,7 @@ export function ChatMessage({
         </div>
       )}
 
-      {!isAgentMessage && generatedImages.length > 1 && (
+      {generatedImages.length > 1 && (
         <div className="mt-3 space-y-2 max-w-[85%]">
           <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
             <ImageIcon className="size-3.5" />

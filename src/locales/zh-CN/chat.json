@@ -40,6 +40,7 @@
     "image_preview": "图片预览",
     "image_search_not_required": "无需图片搜索",
     "image_search_required": "需要图片搜索",
+    "image_search_references": "搜索参考",
     "locate_on_canvas": "在画布上定位",
     "metrics_sources": "{count}来源",
     "metrics_steps": "{count}步",

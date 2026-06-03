@@ -230,7 +230,9 @@ export function reduceAgentPendingState(
         },
       };
     case 'tool_result': {
-      const generatedImages = event.imageUrl
+      // image_search results stay in agentProcess.tools (shown in reasoning panel);
+      // only actual generate_image output goes into generatedImages (shown in message body).
+      const generatedImages = (event.imageUrl && event.tool !== 'image_search')
         ? appendGeneratedImage(state.generatedImages, {
           imageUrl: event.imageUrl,
           assetId: event.assetId,
