@@ -45,8 +45,12 @@
   "landing": {
     "cta": "Get Started",
     "tagline": "AI Design",
+    "hero_badge": "AI Design Tool",
     "hero_tagline": "Describe what you need. Get a design you can actually use.",
     "hero_cta": "Try it free",
+    "scroll_hint": "Scroll",
+    "nav_app": "App",
+    "nav_pricing": "Pricing",
     "features_heading": "Built for people who aren't designers",
     "feature_1_number": "01",
     "feature_1_title": "Just describe it",

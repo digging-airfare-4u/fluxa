@@ -45,8 +45,12 @@
   "landing": {
     "cta": "开始使用",
     "tagline": "AI Design",
+    "hero_badge": "AI 设计工具",
     "hero_tagline": "你的AI设计助手",
     "hero_cta": "免费试用",
+    "scroll_hint": "向下滑动",
+    "nav_app": "应用",
+    "nav_pricing": "价格",
     "features_heading": "设计，不一定要会设计",
     "feature_1_number": "01",
     "feature_1_title": "说出来就行",

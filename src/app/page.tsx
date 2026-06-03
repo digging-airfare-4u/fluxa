@@ -117,7 +117,7 @@ function LandingPage() {
 
   useEffect(() => {
     if (!showIntro) {
-      animate('.floating-image', { opacity: [0, 0.5] }, { duration: 0.8, delay: stagger(0.08) });
+      animate('.floating-image', { opacity: [0, 0.75] }, { duration: 0.8, delay: stagger(0.08) });
     }
   }, [animate, showIntro]);
 
@@ -235,6 +235,14 @@ function LandingPage() {
     }
   };
 
+  const handleNavClick = (href: string) => {
+    if (isAuthenticated) {
+      router.push(href);
+    } else {
+      setShowAuthDialog(true);
+    }
+  };
+
   return (
     <div ref={containerRef} className="min-h-screen bg-background">
       <div className="aurora-bg" />
@@ -252,18 +260,18 @@ function LandingPage() {
 
             {/* Center: Nav */}
             <nav className="flex items-center gap-1">
-              <Link
-                href="/app"
+              <button
+                onClick={() => handleNavClick('/app')}
                 className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground"
               >
-                App
-              </Link>
-              <Link
-                href="/pricing"
+                {t('landing.nav_app')}
+              </button>
+              <button
+                onClick={() => handleNavClick('/pricing')}
                 className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground"
               >
-                Pricing
-              </Link>
+                {t('landing.nav_pricing')}
+              </button>
             </nav>
 
             {/* Right: Controls */}
@@ -306,62 +314,62 @@ function LandingPage() {
       >
         {/* Restrained floating samples - pushed to the edges as ambient backdrop */}
         <Floating sensitivity={-1.5} className="overflow-hidden pointer-events-none">
-          <FloatingElement depth={0.5} className="top-[6%] left-[3%]">
+          <FloatingElement depth={0.5} className="top-[6%] left-[8%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-32 h-32 md:w-44 md:h-44 relative">
               <Image src={heroImages[0].url} alt={heroImages[0].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 128px, 176px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1} className="top-[10%] left-[16%]">
+          <FloatingElement depth={1} className="top-[10%] left-[22%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-48 md:w-48 md:h-64 relative">
               <Image src={heroImages[1].url} alt={heroImages[1].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={0.8} className="top-[8%] right-[16%]">
+          <FloatingElement depth={0.8} className="top-[8%] right-[22%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-48 md:w-48 md:h-64 relative">
               <Image src={heroImages[2].url} alt={heroImages[2].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1.6} className="top-[6%] right-[3%]">
+          <FloatingElement depth={1.6} className="top-[6%] right-[8%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-32 h-32 md:w-44 md:h-44 relative">
               <Image src={heroImages[3].url} alt={heroImages[3].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 128px, 176px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1.2} className="bottom-[10%] left-[4%]">
+          <FloatingElement depth={1.2} className="bottom-[10%] left-[9%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-48 md:w-48 md:h-64 relative">
               <Image src={heroImages[4].url} alt={heroImages[4].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={0.6} className="bottom-[14%] left-[18%]">
+          <FloatingElement depth={0.6} className="bottom-[14%] left-[24%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-28 md:w-40 md:h-40 relative">
               <Image src={heroImages[5].url} alt={heroImages[5].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 160px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={0.9} className="bottom-[14%] right-[17%]">
+          <FloatingElement depth={0.9} className="bottom-[14%] right-[23%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-28 md:w-40 md:h-40 relative">
               <Image src={heroImages[6].url} alt={heroImages[6].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 160px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1.8} className="bottom-[9%] right-[4%]">
+          <FloatingElement depth={1.8} className="bottom-[9%] right-[9%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-36 h-48 md:w-48 md:h-64 relative">
               <Image src={heroImages[7].url} alt={heroImages[7].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 144px, 192px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={0.7} className="top-[42%] left-[1%]">
+          <FloatingElement depth={0.7} className="top-[42%] left-[7%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-36 md:w-36 md:h-48 relative">
               <Image src={heroImages[8].url} alt={heroImages[8].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 144px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1.1} className="top-[42%] right-[1%]">
+          <FloatingElement depth={1.1} className="top-[42%] right-[7%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-28 h-36 md:w-36 md:h-48 relative">
               <Image src={heroImages[9].url} alt={heroImages[9].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 112px, 144px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={0.4} className="top-[26%] left-[8%]">
+          <FloatingElement depth={0.4} className="top-[26%] left-[14%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-24 h-24 md:w-32 md:h-32 relative">
               <Image src={heroImages[10].url} alt={heroImages[10].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 96px, 128px" />
             </motion.div>
           </FloatingElement>
-          <FloatingElement depth={1.3} className="top-[26%] right-[8%]">
+          <FloatingElement depth={1.3} className="top-[26%] right-[14%]">
             <motion.div initial={{ opacity: 0 }} className="floating-image w-24 h-24 md:w-32 md:h-32 relative">
               <Image src={heroImages[11].url} alt={heroImages[11].alt} fill loading="lazy" placeholder="blur" blurDataURL={blurDataURL} className="object-cover rounded-2xl shadow-xl" sizes="(max-width: 768px) 96px, 128px" />
             </motion.div>
@@ -375,11 +383,17 @@ function LandingPage() {
           transition={{ duration: 0.6 }}
           className="relative z-10 px-10 py-10 text-center flex flex-col items-center gap-6 rounded-3xl backdrop-blur-md"
         >
+          <div className="flex items-center gap-3 text-xs tracking-[0.18em] uppercase text-muted-foreground/60">
+            <span className="h-px w-5 bg-muted-foreground/40" />
+            {t('landing.hero_badge')}
+            <span className="h-px w-5 bg-muted-foreground/40" />
+          </div>
+
           <h1 className="text-6xl md:text-[64pt] font-bold tracking-tight leading-none" style={headingFont}>
             Fluxa
           </h1>
 
-          <p className="max-w-md text-base md:text-lg text-muted-foreground">
+          <p className="max-w-md text-base md:text-lg text-foreground/75">
             {t('landing.hero_tagline')}
           </p>
 
@@ -398,14 +412,14 @@ function LandingPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1 }}
-          className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 text-muted-foreground"
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 text-foreground/40"
         >
           <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ y: [0, 5, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           >
-            <ArrowDown className="h-5 w-5" />
+            <ArrowDown className="h-10 w-10" />
           </motion.div>
         </motion.div>
       </section>
